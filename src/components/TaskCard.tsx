@@ -1,0 +1,77 @@
+
+import { useState } from 'react';
+import { Wrench, Clock, CheckCircle2 } from 'lucide-react';
+
+interface TaskCardProps {
+  title: string;
+  description: string;
+  estimatedTime: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+  dueDate: string;
+  isCompleted?: boolean;
+  onComplete: () => void;
+}
+
+const TaskCard = ({ 
+  title, 
+  description, 
+  estimatedTime, 
+  difficulty, 
+  dueDate, 
+  isCompleted = false,
+  onComplete 
+}: TaskCardProps) => {
+  const [completed, setCompleted] = useState(isCompleted);
+
+  const handleComplete = () => {
+    setCompleted(true);
+    onComplete();
+  };
+
+  const difficultyColors = {
+    Easy: 'bg-green-100 text-green-800',
+    Medium: 'bg-yellow-100 text-yellow-800',
+    Hard: 'bg-red-100 text-red-800'
+  };
+
+  return (
+    <div className={`bg-white p-4 rounded-xl shadow-md border-l-4 transition-all duration-300 ${
+      completed ? 'border-l-green-500 opacity-80' : 'border-l-sage hover:shadow-lg'
+    }`}>
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex-1">
+          <h3 className={`font-semibold text-lg mb-1 ${completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
+            {title}
+          </h3>
+          <p className="text-gray-600 text-sm mb-2">{description}</p>
+        </div>
+        <button
+          onClick={handleComplete}
+          disabled={completed}
+          className={`ml-3 transition-all duration-200 ${
+            completed 
+              ? 'text-green-500' 
+              : 'text-gray-400 hover:text-sage hover:scale-110'
+          }`}
+        >
+          <CheckCircle2 className="w-6 h-6" />
+        </button>
+      </div>
+      
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center text-gray-500">
+            <Clock className="w-4 h-4 mr-1" />
+            <span className="text-sm">{estimatedTime}</span>
+          </div>
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${difficultyColors[difficulty]}`}>
+            {difficulty}
+          </span>
+        </div>
+        <span className="text-xs text-gray-500">{dueDate}</span>
+      </div>
+    </div>
+  );
+};
+
+export default TaskCard;
