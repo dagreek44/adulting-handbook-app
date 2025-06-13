@@ -1,6 +1,5 @@
-
 import { useState } from 'react';
-import { Wrench, Flame, House, Star, Calendar, Trophy } from 'lucide-react';
+import { Wrench, Flame, House, Star, Calendar, Trophy, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/Header';
 import DashboardCard from '@/components/DashboardCard';
@@ -8,11 +7,22 @@ import Navigation from '@/components/Navigation';
 import TaskCard from '@/components/TaskCard';
 import ContractorCard from '@/components/ContractorCard';
 import AchievementBadge from '@/components/AchievementBadge';
+import TaskDetailModal from '@/components/TaskDetailModal';
+import ReminderEditMode from '@/components/ReminderEditMode';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('home');
   const [completedTasks, setCompletedTasks] = useState(0);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const { toast } = useToast();
+
+  const [reminders, setReminders] = useState([
+    { id: '1', title: 'Change Furnace Filter', description: 'Monthly filter replacement', frequency: 'monthly', enabled: true },
+    { id: '2', title: 'Clean Gutters', description: 'Seasonal gutter maintenance', frequency: 'seasonally', enabled: true },
+    { id: '3', title: 'Test Smoke Detectors', description: 'Monthly safety check', frequency: 'monthly', enabled: true },
+  ]);
 
   const handleTaskComplete = () => {
     setCompletedTasks(prev => prev + 1);
@@ -23,29 +33,81 @@ const Index = () => {
     });
   };
 
-  const upcomingTasks = [
+  const detailedTasks = [
     {
       title: "Change Furnace Filter",
-      description: "Replace the HVAC filter to improve air quality",
+      description: "Replace the HVAC filter to improve air quality and system efficiency",
       estimatedTime: "15 min",
       difficulty: "Easy" as const,
-      dueDate: "In 3 days"
+      dueDate: "In 3 days",
+      videoUrl: "https://youtube.com/watch?v=example1",
+      instructions: [
+        "Turn off your HVAC system at the thermostat",
+        "Locate the air filter compartment (usually near the return air duct)",
+        "Remove the old filter and note the airflow direction arrows",
+        "Insert the new filter with arrows pointing toward the unit",
+        "Close the compartment and turn the system back on"
+      ],
+      tools: [
+        { name: "Flashlight", required: false },
+        { name: "Screwdriver", required: false, amazonUrl: "https://amazon.com/screwdriver" }
+      ],
+      supplies: [
+        { name: "HVAC Filter (16x25x1)", amazonUrl: "https://amazon.com/hvac-filter", estimatedCost: "$8-15" },
+        { name: "Disposable Gloves", amazonUrl: "https://amazon.com/gloves", estimatedCost: "$5-10" }
+      ]
     },
     {
       title: "Clean Gutters",
-      description: "Remove debris and check for proper drainage",
+      description: "Remove debris and check for proper drainage to prevent water damage",
       estimatedTime: "2 hours",
       difficulty: "Medium" as const,
-      dueDate: "Next week"
+      dueDate: "Next week",
+      videoUrl: "https://youtube.com/watch?v=example2",
+      instructions: [
+        "Set up a sturdy ladder on level ground",
+        "Remove large debris by hand",
+        "Use a garden hose to flush remaining debris",
+        "Check downspouts for clogs",
+        "Inspect gutters for damage or loose connections"
+      ],
+      tools: [
+        { name: "Extension Ladder", required: true },
+        { name: "Garden Hose", required: true },
+        { name: "Gutter Scoop", required: false, amazonUrl: "https://amazon.com/gutter-scoop" }
+      ],
+      supplies: [
+        { name: "Work Gloves", amazonUrl: "https://amazon.com/work-gloves", estimatedCost: "$10-20" },
+        { name: "Trash Bags", amazonUrl: "https://amazon.com/trash-bags", estimatedCost: "$8-15" }
+      ]
     },
     {
       title: "Test Smoke Detectors",
-      description: "Check batteries and test alarm functionality",
+      description: "Check batteries and test alarm functionality for home safety",
       estimatedTime: "30 min",
       difficulty: "Easy" as const,
-      dueDate: "This weekend"
+      dueDate: "This weekend",
+      videoUrl: "https://youtube.com/watch?v=example3",
+      instructions: [
+        "Press and hold the test button on each detector",
+        "Listen for a loud, clear alarm sound",
+        "Replace batteries if alarm is weak or doesn't sound",
+        "Test again after battery replacement",
+        "Record the test date for your records"
+      ],
+      tools: [
+        { name: "Step Ladder", required: true },
+        { name: "Battery Tester", required: false, amazonUrl: "https://amazon.com/battery-tester" }
+      ],
+      supplies: [
+        { name: "9V Batteries (4-pack)", amazonUrl: "https://amazon.com/9v-batteries", estimatedCost: "$12-18" }
+      ]
     }
   ];
+
+  const upcomingTasks = detailedTasks.filter(task => 
+    reminders.find(r => r.title === task.title)?.enabled
+  );
 
   const contractors = [
     {
@@ -101,6 +163,11 @@ const Index = () => {
     }
   ];
 
+  const handleTaskClick = (task: any) => {
+    setSelectedTask(task);
+    setIsModalOpen(true);
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'home':
@@ -109,11 +176,11 @@ const Index = () => {
             <div className="grid grid-cols-2 gap-4">
               <DashboardCard
                 title="Upcoming Tasks"
-                subtitle="3 items due soon"
+                subtitle={`${upcomingTasks.length} items due soon`}
                 icon={Calendar}
                 color="bg-gradient-to-br from-blue-soft to-blue-400"
                 onClick={() => setActiveTab('reminders')}
-                badge={3}
+                badge={upcomingTasks.length}
               />
               <DashboardCard
                 title="Find Help"
@@ -169,6 +236,28 @@ const Index = () => {
       case 'reminders':
         return (
           <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-800">Reminders</h2>
+              <button
+                onClick={() => setIsEditMode(!isEditMode)}
+                className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
+                  isEditMode 
+                    ? 'bg-sage text-white' 
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Edit className="w-4 h-4 mr-2" />
+                {isEditMode ? 'Done' : 'Edit'}
+              </button>
+            </div>
+
+            <ReminderEditMode
+              isEditMode={isEditMode}
+              onExitEdit={() => setIsEditMode(false)}
+              reminders={reminders}
+              onUpdateReminders={setReminders}
+            />
+
             <div className="bg-white p-4 rounded-xl shadow-md">
               <h3 className="text-xl font-bold text-gray-800 mb-4">Upcoming Tasks</h3>
               <div className="space-y-4">
@@ -177,6 +266,7 @@ const Index = () => {
                     key={index}
                     {...task}
                     onComplete={handleTaskComplete}
+                    onClick={() => handleTaskClick(task)}
                   />
                 ))}
               </div>
@@ -277,6 +367,13 @@ const Index = () => {
         <div className="fixed bottom-0 left-1/2 transform -translate-x-1/2 w-full max-w-md">
           <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
         </div>
+
+        <TaskDetailModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          task={selectedTask}
+          onComplete={handleTaskComplete}
+        />
       </div>
     </div>
   );

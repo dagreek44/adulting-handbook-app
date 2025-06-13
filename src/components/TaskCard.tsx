@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { Wrench, Clock, CheckCircle2 } from 'lucide-react';
+import { Wrench, Clock, CheckCircle2, ChevronRight } from 'lucide-react';
 
 interface TaskCardProps {
   title: string;
@@ -10,6 +10,7 @@ interface TaskCardProps {
   dueDate: string;
   isCompleted?: boolean;
   onComplete: () => void;
+  onClick?: () => void;
 }
 
 const TaskCard = ({ 
@@ -19,13 +20,21 @@ const TaskCard = ({
   difficulty, 
   dueDate, 
   isCompleted = false,
-  onComplete 
+  onComplete,
+  onClick 
 }: TaskCardProps) => {
   const [completed, setCompleted] = useState(isCompleted);
 
-  const handleComplete = () => {
+  const handleComplete = (e: React.MouseEvent) => {
+    e.stopPropagation();
     setCompleted(true);
     onComplete();
+  };
+
+  const handleCardClick = () => {
+    if (onClick && !completed) {
+      onClick();
+    }
   };
 
   const difficultyColors = {
@@ -35,9 +44,14 @@ const TaskCard = ({
   };
 
   return (
-    <div className={`bg-white p-4 rounded-xl shadow-md border-l-4 transition-all duration-300 ${
-      completed ? 'border-l-green-500 opacity-80' : 'border-l-sage hover:shadow-lg'
-    }`}>
+    <div 
+      className={`bg-white p-4 rounded-xl shadow-md border-l-4 transition-all duration-300 ${
+        completed 
+          ? 'border-l-green-500 opacity-80' 
+          : 'border-l-sage hover:shadow-lg cursor-pointer'
+      }`}
+      onClick={handleCardClick}
+    >
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
           <h3 className={`font-semibold text-lg mb-1 ${completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
@@ -45,17 +59,22 @@ const TaskCard = ({
           </h3>
           <p className="text-gray-600 text-sm mb-2">{description}</p>
         </div>
-        <button
-          onClick={handleComplete}
-          disabled={completed}
-          className={`ml-3 transition-all duration-200 ${
-            completed 
-              ? 'text-green-500' 
-              : 'text-gray-400 hover:text-sage hover:scale-110'
-          }`}
-        >
-          <CheckCircle2 className="w-6 h-6" />
-        </button>
+        <div className="flex items-center ml-3 space-x-2">
+          {!completed && onClick && (
+            <ChevronRight className="w-5 h-5 text-gray-400" />
+          )}
+          <button
+            onClick={handleComplete}
+            disabled={completed}
+            className={`transition-all duration-200 ${
+              completed 
+                ? 'text-green-500' 
+                : 'text-gray-400 hover:text-sage hover:scale-110'
+            }`}
+          >
+            <CheckCircle2 className="w-6 h-6" />
+          </button>
+        </div>
       </div>
       
       <div className="flex items-center justify-between">

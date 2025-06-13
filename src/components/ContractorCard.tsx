@@ -1,5 +1,4 @@
-
-import { Star, MapPin, DollarSign } from 'lucide-react';
+import { Star, MapPin, Wrench } from 'lucide-react';
 
 interface ContractorCardProps {
   name: string;
