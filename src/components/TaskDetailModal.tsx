@@ -28,12 +28,17 @@ interface TaskDetailModalProps {
     instructions: string[];
     tools: Tool[];
     supplies: Supply[];
-  };
+  } | null;
   onComplete: () => void;
 }
 
 const TaskDetailModal = ({ isOpen, onClose, task, onComplete }: TaskDetailModalProps) => {
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+
+  // Don't render anything if task is null
+  if (!task) {
+    return null;
+  }
 
   const toggleStep = (index: number) => {
     setCompletedSteps(prev => 
