@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Wrench, Flame, House, Star, Calendar, Trophy, Edit, Users, CalendarDays, List } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -11,6 +12,13 @@ import TaskDetailModal from '@/components/TaskDetailModal';
 import ReminderEditMode from '@/components/ReminderEditMode';
 import ReminderCalendarView from '@/components/ReminderCalendarView';
 import FamilyMembersModal from '@/components/FamilyMembersModal';
+
+interface FamilyMember {
+  id: string;
+  name: string;
+  email: string;
+  role: 'Admin' | 'Member';
+}
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('home');
@@ -28,7 +36,7 @@ const Index = () => {
     { id: '3', title: 'Test Smoke Detectors', description: 'Monthly safety check', frequency: 'monthly', enabled: true },
   ]);
 
-  const [familyMembers, setFamilyMembers] = useState([
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([
     { id: '1', name: 'You', email: 'you@example.com', role: 'Admin' as const },
   ]);
 
