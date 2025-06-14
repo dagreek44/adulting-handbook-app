@@ -11,6 +11,8 @@ import TaskDetailModal from '@/components/TaskDetailModal';
 import ReminderEditMode from '@/components/ReminderEditMode';
 import ReminderCalendarView from '@/components/ReminderCalendarView';
 import FamilyMembersModal from '@/components/FamilyMembersModal';
+import RemindersView from "@/components/RemindersView";
+import ContractorsView from "@/components/ContractorsView";
 
 interface FamilyMember {
   id: string;
@@ -261,139 +263,27 @@ const Index = () => {
 
       case 'reminders':
         return (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-800">Reminders</h2>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setIsFamilyModalOpen(true)}
-                  className="flex items-center px-3 py-2 bg-blue-soft text-white rounded-lg hover:bg-blue-400 transition-colors"
-                >
-                  <Users className="w-4 h-4 mr-2" />
-                  Family
-                </button>
-                <button
-                  onClick={() => setIsEditMode(!isEditMode)}
-                  className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
-                    isEditMode 
-                      ? 'bg-sage text-white' 
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <Edit className="w-4 h-4 mr-2" />
-                  {isEditMode ? 'Done' : 'Edit'}
-                </button>
-              </div>
-            </div>
-
-            <ReminderEditMode
-              isEditMode={isEditMode}
-              onExitEdit={() => setIsEditMode(false)}
-              reminders={reminders}
-              onUpdateReminders={setReminders}
-              familyMembers={familyMembers}
-            />
-
-            {/* View Toggle */}
-            <div className="flex bg-white p-1 rounded-lg shadow-md">
-              <button
-                onClick={() => setReminderViewMode('list')}
-                className={`flex items-center flex-1 py-2 px-4 rounded-md transition-colors ${
-                  reminderViewMode === 'list' 
-                    ? 'bg-sage text-white' 
-                    : 'text-gray-600 hover:text-gray-800'
-                }`}
-              >
-                <List className="w-4 h-4 mr-2" />
-                List View
-              </button>
-              <button
-                onClick={() => setReminderViewMode('calendar')}
-                className={`flex items-center flex-1 py-2 px-4 rounded-md transition-colors ${
-                  reminderViewMode === 'calendar' 
-                    ? 'bg-sage text-white' 
-                    : 'text-gray-600 hover:text-gray-800'
-                }`}
-              >
-                <CalendarDays className="w-4 h-4 mr-2" />
-                Calendar View
-              </button>
-            </div>
-
-            {reminderViewMode === 'list' ? (
-              <>
-                <div className="bg-white p-4 rounded-xl shadow-md">
-                  <h3 className="text-xl font-bold text-gray-800 mb-4">Upcoming Tasks</h3>
-                  <div className="space-y-4">
-                    {upcomingTasks.map((task, index) => (
-                      <TaskCard
-                        key={index}
-                        {...task}
-                        onComplete={handleTaskComplete}
-                        onClick={() => handleTaskClick(task)}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-white p-4 rounded-xl shadow-md">
-                  <h3 className="text-xl font-bold text-gray-800 mb-4">Task Categories</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-sage/10 p-3 rounded-lg text-center">
-                      <Flame className="w-6 h-6 text-sage mx-auto mb-2" />
-                      <p className="text-sm font-medium text-sage">HVAC</p>
-                    </div>
-                    <div className="bg-blue-soft/20 p-3 rounded-lg text-center">
-                      <House className="w-6 h-6 text-blue-600 mx-auto mb-2" />
-                      <p className="text-sm font-medium text-blue-600">General</p>
-                    </div>
-                    <div className="bg-coral/20 p-3 rounded-lg text-center">
-                      <Wrench className="w-6 h-6 text-orange-600 mx-auto mb-2" />
-                      <p className="text-sm font-medium text-orange-600">Plumbing</p>
-                    </div>
-                    <div className="bg-earth/20 p-3 rounded-lg text-center">
-                      <Star className="w-6 h-6 text-yellow-600 mx-auto mb-2" />
-                      <p className="text-sm font-medium text-yellow-600">Seasonal</p>
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <ReminderCalendarView
-                tasks={upcomingTasks}
-                onTaskClick={handleTaskClick}
-                onTaskComplete={handleTaskComplete}
-              />
-            )}
-          </div>
+          <RemindersView
+            reminders={reminders}
+            setReminders={setReminders}
+            familyMembers={familyMembers}
+            setFamilyMembers={setFamilyMembers}
+            completedTasks={completedTasks}
+            onTaskComplete={handleTaskComplete}
+            selectedTask={selectedTask}
+            setSelectedTask={setSelectedTask}
+            setIsModalOpen={setIsModalOpen}
+            isEditMode={isEditMode}
+            setIsEditMode={setIsEditMode}
+            reminderViewMode={reminderViewMode}
+            setReminderViewMode={setReminderViewMode}
+            isFamilyModalOpen={isFamilyModalOpen}
+            setIsFamilyModalOpen={setIsFamilyModalOpen}
+          />
         );
 
       case 'contractors':
-        return (
-          <div className="space-y-6">
-            <div className="bg-white p-4 rounded-xl shadow-md">
-              <h3 className="text-xl font-bold text-gray-800 mb-4">Find Local Help</h3>
-              <div className="space-y-4">
-                {contractors.map((contractor, index) => (
-                  <ContractorCard key={index} {...contractor} />
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-sage to-sage-light p-4 rounded-xl text-white">
-              <h3 className="text-lg font-bold mb-2">Need a Custom Quote?</h3>
-              <p className="text-sm mb-4 opacity-90">
-                Post your project details and get multiple bids from verified contractors.
-              </p>
-              <button 
-                onClick={() => window.open('/post-job', '_blank')}
-                className="bg-white text-sage py-2 px-4 rounded-lg font-medium hover:bg-gray-100 transition-colors"
-              >
-                Post a Project
-              </button>
-            </div>
-          </div>
-        );
+        return <ContractorsView />;
 
       case 'achievements':
         return (

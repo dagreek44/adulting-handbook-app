@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Plus, Trash2, ToggleLeft, ToggleRight, X, Pencil, Save } from 'lucide-react';
 import { Calendar } from "@/components/ui/calendar";
@@ -37,6 +36,8 @@ const frequencies = [
   "seasonally",
   "yearly"
 ];
+
+// PATCH: allow assigning family members to all reminders, not just custom ones
 
 const ReminderEditMode = ({
   isEditMode,
@@ -124,7 +125,6 @@ const ReminderEditMode = ({
       <div className="space-y-3 mb-4">
         {reminders.map((reminder) => (
           <div key={reminder.id} className="flex flex-col gap-2 bg-gray-50 p-3 rounded-lg">
-            {/* If editing this reminder */}
             {(editId === reminder.id) ? (
               <>
                 <div className="flex gap-2">
@@ -179,7 +179,7 @@ const ReminderEditMode = ({
                     }
                   </div>
                 </div>
-                {/* Assignee Select */}
+                {/* Assignee Select: show for ALL reminders, not just custom */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">Assign to</label>
                   <div className="flex flex-wrap gap-2">
