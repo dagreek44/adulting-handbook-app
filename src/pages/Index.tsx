@@ -19,6 +19,17 @@ interface FamilyMember {
   role: 'Admin' | 'Member';
 }
 
+interface Reminder {
+  id: string;
+  title: string;
+  description: string;
+  frequency: string;
+  enabled: boolean;
+  isCustom?: boolean;
+  date?: Date | null;
+  assignees?: string[];
+}
+
 const Index = () => {
   const [activeTab, setActiveTab] = useState('home');
   const [completedTasks, setCompletedTasks] = useState(0);
@@ -29,7 +40,7 @@ const Index = () => {
   const [reminderViewMode, setReminderViewMode] = useState<'list' | 'calendar'>('list');
   const { toast } = useToast();
 
-  const [reminders, setReminders] = useState([
+  const [reminders, setReminders] = useState<Reminder[]>([
     { id: '1', title: 'Change Furnace Filter', description: 'Monthly filter replacement', frequency: 'monthly', enabled: true, date: null, assignees: [] },
     { id: '2', title: 'Clean Gutters', description: 'Seasonal gutter maintenance', frequency: 'seasonally', enabled: true, date: null, assignees: [] },
     { id: '3', title: 'Test Smoke Detectors', description: 'Monthly safety check', frequency: 'monthly', enabled: true, date: null, assignees: [] },
