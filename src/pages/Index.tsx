@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Wrench, Flame, House, Star, Calendar, Trophy, Edit, Users, CalendarDays, List } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -31,9 +30,9 @@ const Index = () => {
   const { toast } = useToast();
 
   const [reminders, setReminders] = useState([
-    { id: '1', title: 'Change Furnace Filter', description: 'Monthly filter replacement', frequency: 'monthly', enabled: true },
-    { id: '2', title: 'Clean Gutters', description: 'Seasonal gutter maintenance', frequency: 'seasonally', enabled: true },
-    { id: '3', title: 'Test Smoke Detectors', description: 'Monthly safety check', frequency: 'monthly', enabled: true },
+    { id: '1', title: 'Change Furnace Filter', description: 'Monthly filter replacement', frequency: 'monthly', enabled: true, date: null, assignees: [] },
+    { id: '2', title: 'Clean Gutters', description: 'Seasonal gutter maintenance', frequency: 'seasonally', enabled: true, date: null, assignees: [] },
+    { id: '3', title: 'Test Smoke Detectors', description: 'Monthly safety check', frequency: 'monthly', enabled: true, date: null, assignees: [] },
   ]);
 
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([
@@ -281,6 +280,7 @@ const Index = () => {
               onExitEdit={() => setIsEditMode(false)}
               reminders={reminders}
               onUpdateReminders={setReminders}
+              familyMembers={familyMembers}
             />
 
             {/* View Toggle */}
