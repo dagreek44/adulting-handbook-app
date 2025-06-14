@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import ReminderEditMode from '@/components/ReminderEditMode';
 import ReminderCalendarView from '@/components/ReminderCalendarView';
@@ -41,6 +40,37 @@ interface RemindersViewProps {
   setIsFamilyModalOpen: (b: boolean) => void;
 }
 
+const detailedTasks = [
+  {
+    title: "Change Furnace Filter",
+    estimatedTime: "15 min",
+    difficulty: "Easy" as const,
+    dueDate: "In 3 days",
+  },
+  {
+    title: "Clean Gutters",
+    estimatedTime: "2 hours",
+    difficulty: "Medium" as const,
+    dueDate: "Next week",
+  },
+  {
+    title: "Test Smoke Detectors",
+    estimatedTime: "30 min",
+    difficulty: "Easy" as const,
+    dueDate: "This weekend",
+  },
+];
+
+const getTaskDetails = (reminder: Reminder) => {
+  // Try to find details for standard tasks
+  const standard = detailedTasks.find(task => task.title === reminder.title);
+  return {
+    estimatedTime: standard?.estimatedTime ?? "30 min",
+    difficulty: standard?.difficulty ?? "Easy",
+    dueDate: standard?.dueDate ?? (reminder.date ? reminder.date.toLocaleDateString() : "Set date"),
+  };
+};
+
 const RemindersView = ({
   reminders,
   setReminders,
@@ -60,7 +90,6 @@ const RemindersView = ({
 }: RemindersViewProps) => {
   // Filter out upcoming standard and custom tasks and combine
   const upcomingTasks = reminders.filter(r => r.enabled);
-  // Simple mock: If more logic needed you may add detailed task data and join by title
 
   const handleTaskClick = (task: any) => {
     setSelectedTask(task);
@@ -132,14 +161,22 @@ const RemindersView = ({
           <div className="bg-white p-4 rounded-xl shadow-md">
             <h3 className="text-xl font-bold text-gray-800 mb-4">Upcoming Tasks</h3>
             <div className="space-y-4">
-              {upcomingTasks.map((task, index) => (
-                <TaskCard
-                  key={index}
-                  {...task}
-                  onComplete={onTaskComplete}
-                  onClick={() => handleTaskClick(task)}
-                />
-              ))}
+              {upcomingTasks.map((task, index) => {
+                const details = getTaskDetails(task);
+                return (
+                  <TaskCard
+                    key={index}
+                    title={task.title}
+                    description={task.description}
+                    estimatedTime={details.estimatedTime}
+                    difficulty={details.difficulty}
+                    dueDate={details.dueDate}
+                    isCompleted={false}
+                    onComplete={onTaskComplete}
+                    onClick={() => handleTaskClick(task)}
+                  />
+                );
+              })}
             </div>
           </div>
 
@@ -167,7 +204,10 @@ const RemindersView = ({
         </>
       ) : (
         <ReminderCalendarView
-          tasks={upcomingTasks}
+          tasks={upcomingTasks.map(task => ({
+            ...task,
+            ...getTaskDetails(task),
+          }))}
           onTaskClick={handleTaskClick}
           onTaskComplete={onTaskComplete}
         />
