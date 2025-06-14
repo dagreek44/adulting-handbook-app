@@ -40,6 +40,11 @@ const TaskDetailModal = ({ isOpen, onClose, task, onComplete }: TaskDetailModalP
     return null;
   }
 
+  // Default arrays to empty so .map doesn't throw
+  const instructions = task.instructions ?? [];
+  const tools = task.tools ?? [];
+  const supplies = task.supplies ?? [];
+
   const toggleStep = (index: number) => {
     setCompletedSteps(prev => 
       prev.includes(index) 
@@ -102,7 +107,7 @@ const TaskDetailModal = ({ isOpen, onClose, task, onComplete }: TaskDetailModalP
           <div>
             <h3 className="font-semibold text-gray-800 mb-3">Step-by-Step Instructions</h3>
             <div className="space-y-2">
-              {task.instructions.map((instruction, index) => (
+              {instructions.map((instruction, index) => (
                 <div key={index} className="flex items-start space-x-3">
                   <button
                     onClick={() => toggleStep(index)}
@@ -123,14 +128,14 @@ const TaskDetailModal = ({ isOpen, onClose, task, onComplete }: TaskDetailModalP
           </div>
 
           {/* Tools Needed */}
-          {task.tools.length > 0 && (
+          {tools.length > 0 && (
             <div>
               <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
                 <Wrench className="w-5 h-5 mr-2 text-sage" />
                 Tools Needed
               </h3>
               <div className="space-y-2">
-                {task.tools.map((tool, index) => (
+                {tools.map((tool, index) => (
                   <div key={index} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
                     <span className={`text-sm ${tool.required ? 'font-medium' : 'text-gray-600'}`}>
                       {tool.name} {tool.required && '*'}
@@ -150,14 +155,14 @@ const TaskDetailModal = ({ isOpen, onClose, task, onComplete }: TaskDetailModalP
           )}
 
           {/* Supplies to Buy */}
-          {task.supplies.length > 0 && (
+          {supplies.length > 0 && (
             <div>
               <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
                 <ShoppingCart className="w-5 h-5 mr-2 text-coral" />
                 Supplies Needed
               </h3>
               <div className="space-y-2">
-                {task.supplies.map((supply, index) => (
+                {supplies.map((supply, index) => (
                   <div key={index} className="flex items-center justify-between bg-coral/10 p-3 rounded-lg">
                     <div>
                       <span className="text-sm font-medium">{supply.name}</span>
@@ -190,3 +195,4 @@ const TaskDetailModal = ({ isOpen, onClose, task, onComplete }: TaskDetailModalP
 };
 
 export default TaskDetailModal;
+
