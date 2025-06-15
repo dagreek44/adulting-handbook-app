@@ -1,7 +1,7 @@
-
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { Calendar as LucideCalendar } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
-import { format, isSameDay } from 'date-fns';
+import { format, isSameDay, parse, isValid } from 'date-fns';
 import TaskCard from './TaskCard';
 
 interface ReminderCalendarViewProps {
@@ -16,17 +16,70 @@ interface ReminderCalendarViewProps {
   onTaskComplete: () => void;
 }
 
+// Helper function to normalize dates from strings such as "In 3 days", "Next week", "This weekend", "Set date", or MM/dd/yyyy-like formats
+function parseDueDate(dueDateString: string): Date | null {
+  if (!dueDateString) return null;
+  const lc = dueDateString.toLowerCase();
+  const now = new Date();
+  if (lc.includes('in 3 days')) {
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 3);
+  }
+  if (lc.includes('next week')) {
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7);
+  }
+  if (lc.includes('this weekend')) {
+    // Find next Saturday
+    const daysUntilSaturday = (6 - now.getDay() + 7) % 7 || 7;
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysUntilSaturday);
+  }
+  if (/\d{1,2}\/\d{1,2}\/\d{2,4}/.test(dueDateString)) {
+    // MM/dd/yyyy
+    const parsed = parse(dueDateString, 'MM/dd/yyyy', new Date());
+    if (isValid(parsed)) return parsed;
+  }
+  if (/\d{1,2}\/\d{1,2}\/\d{2,4}/.test(dueDateString)) {
+    // fallback to ISO
+    const parsed = new Date(dueDateString);
+    if (isValid(parsed)) return parsed;
+  }
+  // Otherwise: do not match
+  return null;
+}
+
 const ReminderCalendarView = ({ tasks, onTaskClick, onTaskComplete }: ReminderCalendarViewProps) => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
 
-  // Mock function to get tasks for a specific date
-  const getTasksForDate = (date: Date) => {
-    // For demo purposes, we'll show all tasks for any selected date
-    // In a real app, you'd filter based on actual due dates
-    return tasks;
-  };
+  // Build a set of dueDates so we can easily check per day
+  const reminderDates = useMemo(() => {
+    return tasks
+      .map(task => parseDueDate(task.dueDate))
+      .filter((d): d is Date => d !== null)
+      .map(d => format(d, 'yyyy-MM-dd')); // Normalize to string for set comparison
+  }, [tasks]);
 
-  const selectedTasks = selectedDate ? getTasksForDate(selectedDate) : [];
+  // Custom render function to display an icon on days with reminders
+  function renderDay(day: Date) {
+    const todayStr = format(day, 'yyyy-MM-dd');
+    const hasReminder = reminderDates.includes(todayStr);
+
+    return (
+      <div className="relative w-full h-full flex items-center justify-center">
+        <span>{day.getDate()}</span>
+        {hasReminder && (
+          <span className="absolute bottom-0 right-0">
+            <LucideCalendar className="w-3 h-3 text-blue-500" aria-label="Reminder due" />
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  // Show all tasks for the selected date (could filter, but keeping original logic)
+  const selectedTasks = selectedDate ? tasks.filter(task => {
+    // This filters tasks to those actually due this day
+    const dueDate = parseDueDate(task.dueDate);
+    return dueDate && isSameDay(selectedDate, dueDate);
+  }) : [];
 
   return (
     <div className="space-y-4">
@@ -37,6 +90,7 @@ const ReminderCalendarView = ({ tasks, onTaskClick, onTaskComplete }: ReminderCa
           selected={selectedDate}
           onSelect={setSelectedDate}
           className="rounded-md border mx-auto"
+          renderDay={renderDay}
         />
       </div>
 
