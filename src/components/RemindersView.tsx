@@ -278,6 +278,8 @@ const RemindersView = ({
               dueDate: details.dueDate,
             };
           })}
+          reminders={reminders}
+          setReminders={setReminders}
           onTaskClick={handleTaskClick}
           onTaskComplete={onTaskComplete}
         />
