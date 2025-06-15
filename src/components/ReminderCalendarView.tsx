@@ -1,3 +1,4 @@
+
 import { useState, useMemo } from 'react';
 import { Calendar as LucideCalendar } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
@@ -49,37 +50,43 @@ function parseDueDate(dueDateString: string): Date | null {
 const ReminderCalendarView = ({ tasks, onTaskClick, onTaskComplete }: ReminderCalendarViewProps) => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
 
-  // Build a set of dueDates so we can easily check per day
+  // Build a set of dueDates so we can easily check per day (format yyyy-MM-dd)
   const reminderDates = useMemo(() => {
     return tasks
       .map(task => parseDueDate(task.dueDate))
       .filter((d): d is Date => d !== null)
-      .map(d => format(d, 'yyyy-MM-dd')); // Normalize to string for set comparison
+      .map(d => format(d, 'yyyy-MM-dd'));
   }, [tasks]);
 
-  // Custom render function to display an icon on days with reminders
-  function renderDay(day: Date) {
-    const todayStr = format(day, 'yyyy-MM-dd');
+  // Custom Day component for calendar
+  function CustomDay(props: any) {
+    // The day (Date) is passed via props.date
+    const { date, ...rest } = props;
+    const todayStr = format(date, 'yyyy-MM-dd');
     const hasReminder = reminderDates.includes(todayStr);
 
+    // The rest of the props are for button, including "children", "selected", etc.
     return (
-      <div className="relative w-full h-full flex items-center justify-center">
-        <span>{day.getDate()}</span>
-        {hasReminder && (
-          <span className="absolute bottom-0 right-0">
-            <LucideCalendar className="w-3 h-3 text-blue-500" aria-label="Reminder due" />
-          </span>
-        )}
-      </div>
+      <button {...rest} type="button" tabIndex={0}>
+        <div className="relative w-full h-full flex items-center justify-center">
+          <span>{date.getDate()}</span>
+          {hasReminder && (
+            <span className="absolute bottom-0 right-0">
+              <LucideCalendar className="w-3 h-3 text-blue-500" aria-label="Reminder due" />
+            </span>
+          )}
+        </div>
+      </button>
     );
   }
 
-  // Show all tasks for the selected date (could filter, but keeping original logic)
-  const selectedTasks = selectedDate ? tasks.filter(task => {
-    // This filters tasks to those actually due this day
-    const dueDate = parseDueDate(task.dueDate);
-    return dueDate && isSameDay(selectedDate, dueDate);
-  }) : [];
+  // Show all tasks for the selected date
+  const selectedTasks = selectedDate
+    ? tasks.filter(task => {
+        const dueDate = parseDueDate(task.dueDate);
+        return dueDate && isSameDay(selectedDate, dueDate);
+      })
+    : [];
 
   return (
     <div className="space-y-4">
@@ -90,7 +97,9 @@ const ReminderCalendarView = ({ tasks, onTaskClick, onTaskComplete }: ReminderCa
           selected={selectedDate}
           onSelect={setSelectedDate}
           className="rounded-md border mx-auto"
-          renderDay={renderDay}
+          components={{
+            Day: CustomDay
+          }}
         />
       </div>
 
