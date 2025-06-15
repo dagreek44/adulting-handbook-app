@@ -228,7 +228,7 @@ const Index = () => {
                 title="Home Health"
                 subtitle="System checkups"
                 icon={House}
-                color="bg-gradient-to-br from-earth to-yellow-600"
+                color="bg-gradient-to-br from-earth to-earth"
                 onClick={() => {}}
               />
             </div>
