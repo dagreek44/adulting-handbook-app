@@ -1,18 +1,17 @@
+
 import { useState } from 'react';
-import { Wrench, Flame, House, Star, Calendar, Trophy, Edit, Users, CalendarDays, List } from 'lucide-react';
+import { Wrench, Calendar, Trophy, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useSupabaseData } from '@/hooks/useSupabaseData';
 import Header from '@/components/Header';
 import DashboardCard from '@/components/DashboardCard';
 import Navigation from '@/components/Navigation';
-import TaskCard from '@/components/TaskCard';
-import ContractorCard from '@/components/ContractorCard';
-import AchievementBadge from '@/components/AchievementBadge';
 import TaskDetailModal from '@/components/TaskDetailModal';
-import ReminderEditMode from '@/components/ReminderEditMode';
-import ReminderCalendarView from '@/components/ReminderCalendarView';
 import FamilyMembersModal from '@/components/FamilyMembersModal';
 import RemindersView from "@/components/RemindersView";
 import ContractorsView from "@/components/ContractorsView";
+import CompletedTasksView from "@/components/CompletedTasksView";
+import AchievementBadge from '@/components/AchievementBadge';
 
 interface FamilyMember {
   id: string;
@@ -21,20 +20,8 @@ interface FamilyMember {
   role: 'Admin' | 'Member';
 }
 
-interface Reminder {
-  id: string;
-  title: string;
-  description: string;
-  frequency: string;
-  enabled: boolean;
-  isCustom?: boolean;
-  date?: Date | null;
-  assignees?: string[];
-}
-
 const Index = () => {
   const [activeTab, setActiveTab] = useState('home');
-  const [completedTasks, setCompletedTasks] = useState(0);
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -42,147 +29,73 @@ const Index = () => {
   const [reminderViewMode, setReminderViewMode] = useState<'list' | 'calendar'>('list');
   const { toast } = useToast();
 
-  const [reminders, setReminders] = useState<Reminder[]>([
-    { id: '1', title: 'Change Furnace Filter', description: 'Monthly filter replacement', frequency: 'monthly', enabled: true, date: null, assignees: [] },
-    { id: '2', title: 'Clean Gutters', description: 'Seasonal gutter maintenance', frequency: 'seasonally', enabled: true, date: null, assignees: [] },
-    { id: '3', title: 'Test Smoke Detectors', description: 'Monthly safety check', frequency: 'monthly', enabled: true, date: null, assignees: [] },
-  ]);
+  const {
+    reminders,
+    completedTasks,
+    loading,
+    completeTask,
+    addReminder,
+    updateReminder,
+    deleteReminder
+  } = useSupabaseData();
 
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([
     { id: '1', name: 'You', email: 'you@example.com', role: 'Admin' as const },
   ]);
 
-  const handleTaskComplete = () => {
-    setCompletedTasks(prev => prev + 1);
-    toast({
-      title: "Great job! 🎉",
-      description: "You're one step closer to mastering adulting!",
-      duration: 3000,
-    });
+  // Get only the next 3 upcoming tasks
+  const upcomingTasks = reminders.slice(0, 3);
+
+  const handleTaskComplete = async (task?: any) => {
+    if (task && task.id) {
+      await completeTask(task);
+    } else {
+      toast({
+        title: "Great job! 🎉",
+        description: "You're one step closer to mastering adulting!",
+        duration: 3000,
+      });
+    }
   };
 
-  const detailedTasks = [
-    {
-      title: "Change Furnace Filter",
-      description: "Replace the HVAC filter to improve air quality and system efficiency",
-      estimatedTime: "15 min",
-      difficulty: "Easy" as const,
-      estimatedBudget: "$15-25",
-      dueDate: "In 3 days",
-      videoUrl: "https://youtube.com/watch?v=example1",
-      instructions: [
-        "Turn off your HVAC system at the thermostat",
-        "Locate the air filter compartment (usually near the return air duct)",
-        "Remove the old filter and note the airflow direction arrows",
-        "Insert the new filter with arrows pointing toward the unit",
-        "Close the compartment and turn the system back on"
-      ],
-      tools: [
-        { name: "Flashlight", required: false },
-        { name: "Screwdriver", required: false, amazonUrl: "https://amazon.com/screwdriver" }
-      ],
-      supplies: [
-        { name: "HVAC Filter (16x25x1)", amazonUrl: "https://amazon.com/hvac-filter", estimatedCost: "$8-15" },
-        { name: "Disposable Gloves", amazonUrl: "https://amazon.com/gloves", estimatedCost: "$5-10" }
-      ]
-    },
-    {
-      title: "Clean Gutters",
-      description: "Remove debris and check for proper drainage to prevent water damage",
-      estimatedTime: "2 hours",
-      difficulty: "Medium" as const,
-      estimatedBudget: "$30-50",
-      dueDate: "Next week",
-      videoUrl: "https://youtube.com/watch?v=example2",
-      instructions: [
-        "Set up a sturdy ladder on level ground",
-        "Remove large debris by hand",
-        "Use a garden hose to flush remaining debris",
-        "Check downspouts for clogs",
-        "Inspect gutters for damage or loose connections"
-      ],
-      tools: [
-        { name: "Extension Ladder", required: true },
-        { name: "Garden Hose", required: true },
-        { name: "Gutter Scoop", required: false, amazonUrl: "https://amazon.com/gutter-scoop" }
-      ],
-      supplies: [
-        { name: "Work Gloves", amazonUrl: "https://amazon.com/work-gloves", estimatedCost: "$10-20" },
-        { name: "Trash Bags", amazonUrl: "https://amazon.com/trash-bags", estimatedCost: "$8-15" }
-      ]
-    },
-    {
-      title: "Test Smoke Detectors",
-      description: "Check batteries and test alarm functionality for home safety",
-      estimatedTime: "30 min",
-      difficulty: "Easy" as const,
-      estimatedBudget: "$15-20",
-      dueDate: "This weekend",
-      videoUrl: "https://youtube.com/watch?v=example3",
-      instructions: [
-        "Press and hold the test button on each detector",
-        "Listen for a loud, clear alarm sound",
-        "Replace batteries if alarm is weak or doesn't sound",
-        "Test again after battery replacement",
-        "Record the test date for your records"
-      ],
-      tools: [
-        { name: "Step Ladder", required: true },
-        { name: "Battery Tester", required: false, amazonUrl: "https://amazon.com/battery-tester" }
-      ],
-      supplies: [
-        { name: "9V Batteries (4-pack)", amazonUrl: "https://amazon.com/9v-batteries", estimatedCost: "$12-18" }
-      ]
-    }
-  ];
+  const convertSupabaseToTaskFormat = (reminder: any) => {
+    return {
+      id: reminder.id,
+      title: reminder.title,
+      description: reminder.description,
+      estimatedTime: reminder.estimated_time,
+      difficulty: reminder.difficulty as 'Easy' | 'Medium' | 'Hard',
+      estimatedBudget: reminder.estimated_budget,
+      dueDate: reminder.due_date || 'Not set',
+      videoUrl: reminder.video_url,
+      instructions: reminder.instructions || [],
+      tools: reminder.tools || [],
+      supplies: reminder.supplies || []
+    };
+  };
 
-  const upcomingTasks = detailedTasks.filter(task => 
-    reminders.find(r => r.title === task.title)?.enabled
-  );
-
-  const contractors = [
-    {
-      name: "Mike's HVAC",
-      specialty: "Heating & Cooling",
-      rating: 4.8,
-      location: "2.3 miles",
-      priceRange: "150-300",
-      completedJobs: 127
-    },
-    {
-      name: "Sarah's Handywork",
-      specialty: "General Repairs",
-      rating: 4.9,
-      location: "1.8 miles",
-      priceRange: "80-200",
-      completedJobs: 203
-    },
-    {
-      name: "Pro Plumbing Co.",
-      specialty: "Plumbing Services",
-      rating: 4.7,
-      location: "3.1 miles",
-      priceRange: "120-250",
-      completedJobs: 89
-    }
-  ];
+  const handleTaskClick = (task: any) => {
+    const formattedTask = convertSupabaseToTaskFormat(task);
+    setSelectedTask(formattedTask);
+    setIsModalOpen(true);
+  };
 
   const achievements = [
     {
       title: "First Timer",
       description: "Completed your first home maintenance task",
       level: 1,
-      isUnlocked: completedTasks >= 1,
+      isUnlocked: completedTasks.length >= 1,
       category: "maintenance" as const,
-      progress: Math.min(completedTasks * 100, 100)
+      progress: Math.min(completedTasks.length * 100, 100)
     },
     {
       title: "DIY Rookie",
       description: "Completed 5 maintenance tasks on your own",
       level: 2,
-      isUnlocked: completedTasks >= 5,
+      isUnlocked: completedTasks.length >= 5,
       category: "diy" as const,
-      progress: Math.min((completedTasks / 5) * 100, 100)
+      progress: Math.min((completedTasks.length / 5) * 100, 100)
     },
     {
       title: "Pro Helper",
@@ -194,10 +107,21 @@ const Index = () => {
     }
   ];
 
-  const handleTaskClick = (task: any) => {
-    setSelectedTask(task);
-    setIsModalOpen(true);
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-cream">
+        <div className="max-w-md mx-auto bg-white min-h-screen shadow-xl">
+          <Header />
+          <div className="p-4 pb-20 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sage mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading your tasks...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const renderContent = () => {
     switch (activeTab) {
@@ -228,11 +152,11 @@ const Index = () => {
                 onClick={() => setActiveTab('achievements')}
               />
               <DashboardCard
-                title="Home Health"
-                subtitle="System checkups"
-                icon={House}
+                title="Completed Tasks"
+                subtitle={`${completedTasks.length} tasks completed`}
+                icon={CheckCircle2}
                 color="bg-gradient-to-br from-earth to-earth"
-                onClick={() => {}}
+                onClick={() => setActiveTab('completed')}
               />
             </div>
 
@@ -268,10 +192,12 @@ const Index = () => {
         return (
           <RemindersView
             reminders={reminders}
-            setReminders={setReminders}
+            setReminders={(newReminders) => {
+              // This will be handled by the Supabase operations
+            }}
             familyMembers={familyMembers}
             setFamilyMembers={setFamilyMembers}
-            completedTasks={completedTasks}
+            completedTasks={completedTasks.length}
             onTaskComplete={handleTaskComplete}
             selectedTask={selectedTask}
             setSelectedTask={setSelectedTask}
@@ -282,11 +208,19 @@ const Index = () => {
             setReminderViewMode={setReminderViewMode}
             isFamilyModalOpen={isFamilyModalOpen}
             setIsFamilyModalOpen={setIsFamilyModalOpen}
+            supabaseOperations={{
+              addReminder,
+              updateReminder,
+              deleteReminder
+            }}
           />
         );
 
       case 'contractors':
         return <ContractorsView />;
+
+      case 'completed':
+        return <CompletedTasksView completedTasks={completedTasks} />;
 
       case 'achievements':
         return (
@@ -308,11 +242,11 @@ const Index = () => {
               <div className="bg-white/20 rounded-full h-2 overflow-hidden">
                 <div 
                   className="bg-white h-full rounded-full transition-all duration-300"
-                  style={{ width: `${(completedTasks / 10) * 100}%` }}
+                  style={{ width: `${(completedTasks.length / 10) * 100}%` }}
                 />
               </div>
               <p className="text-xs mt-2 opacity-90">
-                {completedTasks}/10 tasks to next level
+                {completedTasks.length}/10 tasks to next level
               </p>
             </div>
           </div>
@@ -340,7 +274,7 @@ const Index = () => {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           task={selectedTask}
-          onComplete={handleTaskComplete}
+          onComplete={() => handleTaskComplete(selectedTask)}
         />
 
         <FamilyMembersModal

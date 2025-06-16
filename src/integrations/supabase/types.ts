@@ -9,7 +9,158 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      completed_tasks: {
+        Row: {
+          completed_at: string
+          created_at: string
+          description: string | null
+          difficulty: string | null
+          estimated_budget: string | null
+          estimated_time: string | null
+          id: string
+          reminder_id: string | null
+          title: string
+        }
+        Insert: {
+          completed_at?: string
+          created_at?: string
+          description?: string | null
+          difficulty?: string | null
+          estimated_budget?: string | null
+          estimated_time?: string | null
+          id?: string
+          reminder_id?: string | null
+          title: string
+        }
+        Update: {
+          completed_at?: string
+          created_at?: string
+          description?: string | null
+          difficulty?: string | null
+          estimated_budget?: string | null
+          estimated_time?: string | null
+          id?: string
+          reminder_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "completed_tasks_reminder_id_fkey"
+            columns: ["reminder_id"]
+            isOneToOne: false
+            referencedRelation: "reminders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reminders: {
+        Row: {
+          assignees: string[] | null
+          created_at: string
+          description: string | null
+          difficulty: string | null
+          due_date: string | null
+          enabled: boolean | null
+          estimated_budget: string | null
+          estimated_time: string | null
+          frequency: string
+          id: string
+          instructions: string[] | null
+          is_custom: boolean | null
+          supplies: Json | null
+          title: string
+          tools: Json | null
+          updated_at: string
+          video_url: string | null
+        }
+        Insert: {
+          assignees?: string[] | null
+          created_at?: string
+          description?: string | null
+          difficulty?: string | null
+          due_date?: string | null
+          enabled?: boolean | null
+          estimated_budget?: string | null
+          estimated_time?: string | null
+          frequency: string
+          id?: string
+          instructions?: string[] | null
+          is_custom?: boolean | null
+          supplies?: Json | null
+          title: string
+          tools?: Json | null
+          updated_at?: string
+          video_url?: string | null
+        }
+        Update: {
+          assignees?: string[] | null
+          created_at?: string
+          description?: string | null
+          difficulty?: string | null
+          due_date?: string | null
+          enabled?: boolean | null
+          estimated_budget?: string | null
+          estimated_time?: string | null
+          frequency?: string
+          id?: string
+          instructions?: string[] | null
+          is_custom?: boolean | null
+          supplies?: Json | null
+          title?: string
+          tools?: Json | null
+          updated_at?: string
+          video_url?: string | null
+        }
+        Relationships: []
+      }
+      Reminders: {
+        Row: {
+          Cost: number | null
+          created_at: string
+          Description: string | null
+          Difficulty: string | null
+          DueDate: string | null
+          EstimatedTime: string | null
+          Frequency: string | null
+          id: number
+          Instructions: string | null
+          LastCompleted: string | null
+          TimesCompleted: number | null
+          Title: string | null
+          Video: string | null
+        }
+        Insert: {
+          Cost?: number | null
+          created_at?: string
+          Description?: string | null
+          Difficulty?: string | null
+          DueDate?: string | null
+          EstimatedTime?: string | null
+          Frequency?: string | null
+          id?: number
+          Instructions?: string | null
+          LastCompleted?: string | null
+          TimesCompleted?: number | null
+          Title?: string | null
+          Video?: string | null
+        }
+        Update: {
+          Cost?: number | null
+          created_at?: string
+          Description?: string | null
+          Difficulty?: string | null
+          DueDate?: string | null
+          EstimatedTime?: string | null
+          Frequency?: string | null
+          id?: number
+          Instructions?: string | null
+          LastCompleted?: string | null
+          TimesCompleted?: number | null
+          Title?: string | null
+          Video?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

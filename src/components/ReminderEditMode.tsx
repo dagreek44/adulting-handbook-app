@@ -1,7 +1,9 @@
+
 import { useState } from 'react';
 import { Plus, Trash2, ToggleLeft, ToggleRight, X, Pencil, Save } from 'lucide-react';
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
+import { SupabaseReminder } from '@/hooks/useSupabaseData';
 
 interface FamilyMember {
   id: string;
@@ -10,23 +12,17 @@ interface FamilyMember {
   role: 'Admin' | 'Member';
 }
 
-interface Reminder {
-  id: string;
-  title: string;
-  description: string;
-  frequency: string;
-  enabled: boolean;
-  isCustom?: boolean;
-  date?: Date | null;
-  assignees?: string[]; // array of family member ids
-}
-
 interface ReminderEditModeProps {
   isEditMode: boolean;
   onExitEdit: () => void;
-  reminders: Reminder[];
-  onUpdateReminders: (reminders: Reminder[]) => void;
+  reminders: SupabaseReminder[];
+  onUpdateReminders: (reminders: SupabaseReminder[]) => void;
   familyMembers: FamilyMember[];
+  supabaseOperations: {
+    addReminder: (reminder: Partial<SupabaseReminder>) => Promise<void>;
+    updateReminder: (id: string, updates: Partial<SupabaseReminder>) => Promise<void>;
+    deleteReminder: (id: string) => Promise<void>;
+  };
 }
 
 const frequencies = [
@@ -37,75 +33,82 @@ const frequencies = [
   "yearly"
 ];
 
-// PATCH: allow assigning family members to all reminders, not just custom ones
-
 const ReminderEditMode = ({
   isEditMode,
   onExitEdit,
   reminders,
   onUpdateReminders,
-  familyMembers
+  familyMembers,
+  supabaseOperations
 }: ReminderEditModeProps) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [newReminder, setNewReminder] = useState<Partial<Reminder>>({
+  const [newReminder, setNewReminder] = useState<Partial<SupabaseReminder>>({
     title: '',
     description: '',
     frequency: 'monthly',
-    date: null,
+    due_date: null,
     assignees: []
   });
-  const [editReminder, setEditReminder] = useState<Partial<Reminder>>({
+  const [editReminder, setEditReminder] = useState<Partial<SupabaseReminder>>({
     title: '',
     description: '',
     frequency: 'monthly',
-    date: null,
+    due_date: null,
     assignees: []
   });
 
-  const toggleReminder = (id: string) => {
-    const updatedReminders = reminders.map(reminder =>
-      reminder.id === id ? { ...reminder, enabled: !reminder.enabled } : reminder
-    );
-    onUpdateReminders(updatedReminders);
+  const toggleReminder = async (id: string) => {
+    const reminder = reminders.find(r => r.id === id);
+    if (reminder) {
+      await supabaseOperations.updateReminder(id, { enabled: !reminder.enabled });
+    }
   };
 
-  const deleteReminder = (id: string) => {
-    const updatedReminders = reminders.filter(reminder => reminder.id !== id);
-    onUpdateReminders(updatedReminders);
+  const deleteReminder = async (id: string) => {
+    await supabaseOperations.deleteReminder(id);
   };
 
-  const addCustomReminder = () => {
+  const addCustomReminder = async () => {
     if (!newReminder.title?.trim()) return;
 
-    const customReminder: Reminder = {
-      id: Date.now().toString(),
+    const customReminder: Partial<SupabaseReminder> = {
       title: newReminder.title || "",
       description: newReminder.description || "",
       frequency: newReminder.frequency || "monthly",
       enabled: true,
-      isCustom: true,
-      date: newReminder.date || null,
-      assignees: newReminder.assignees || []
+      is_custom: true,
+      due_date: newReminder.due_date ? format(new Date(newReminder.due_date), 'yyyy-MM-dd') : null,
+      assignees: newReminder.assignees || [],
+      difficulty: 'Easy',
+      estimated_time: '30 min',
+      estimated_budget: '$10-20',
+      instructions: [],
+      tools: [],
+      supplies: []
     };
 
-    onUpdateReminders([...reminders, customReminder]);
-    setNewReminder({ title: '', description: '', frequency: 'monthly', date: null, assignees: [] });
+    await supabaseOperations.addReminder(customReminder);
+    setNewReminder({ title: '', description: '', frequency: 'monthly', due_date: null, assignees: [] });
     setShowAddForm(false);
   };
 
-  const startEdit = (reminder: Reminder) => {
+  const startEdit = (reminder: SupabaseReminder) => {
     setEditId(reminder.id);
     setEditReminder({ ...reminder });
   };
 
-  const saveEdit = () => {
-    if (!editReminder.title?.trim()) return;
-    onUpdateReminders(reminders.map(reminder =>
-      reminder.id === editId ? { ...reminder, ...editReminder } : reminder
-    ));
+  const saveEdit = async () => {
+    if (!editReminder.title?.trim() || !editId) return;
+    
+    const updates = {
+      ...editReminder,
+      due_date: editReminder.due_date ? format(new Date(editReminder.due_date), 'yyyy-MM-dd') : null
+    };
+    
+    await supabaseOperations.updateReminder(editId, updates);
     setEditId(null);
-    setEditReminder({ title: '', description: '', frequency: 'monthly', date: null, assignees: [] });
+    setEditReminder({ title: '', description: '', frequency: 'monthly', due_date: null, assignees: [] });
   };
 
   if (!isEditMode) return null;
@@ -164,22 +167,8 @@ const ReminderEditMode = ({
                       <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>
                     ))}
                   </select>
-                  {/* Datepicker */}
-                  <div className="flex items-center gap-1">
-                    <Calendar
-                      mode="single"
-                      selected={editReminder.date || undefined}
-                      onSelect={date => setEditReminder(r => ({ ...r, date }))}
-                      className="rounded-md border p-2 pointer-events-auto min-w-[180px]"
-                    />
-                    {editReminder.date &&
-                      <span className="text-xs text-gray-600 ml-2 mt-2">
-                        {format(editReminder.date, "MMM d, yyyy")}
-                      </span>
-                    }
-                  </div>
                 </div>
-                {/* Assignee Select: show for ALL reminders, not just custom */}
+                {/* Assignee Select */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 mb-1">Assign to</label>
                   <div className="flex flex-wrap gap-2">
@@ -218,8 +207,8 @@ const ReminderEditMode = ({
                     )}
                   </div>
                   <p className="text-sm text-gray-600">{reminder.frequency}</p>
-                  {reminder.date && (
-                    <p className="text-xs text-gray-500">Due: {format(reminder.date, "MMM d, yyyy")}</p>
+                  {reminder.due_date && (
+                    <p className="text-xs text-gray-500">Due: {format(new Date(reminder.due_date), "MMM d, yyyy")}</p>
                   )}
                   {reminder.description && (
                     <p className="text-xs text-gray-700 mt-1">{reminder.description}</p>
@@ -232,7 +221,7 @@ const ReminderEditMode = ({
                   >
                     {reminder.enabled ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
                   </button>
-                  {reminder.isCustom && (
+                  {reminder.is_custom && (
                     <>
                       <button
                         onClick={() => startEdit(reminder)}
@@ -282,19 +271,6 @@ const ReminderEditMode = ({
               <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>
             ))}
           </select>
-          {/* Datepicker */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Due date</label>
-            <Calendar
-              mode="single"
-              selected={newReminder.date || undefined}
-              onSelect={date => setNewReminder({ ...newReminder, date })}
-              className="rounded-md border p-2 pointer-events-auto min-w-[180px]"
-            />
-            {newReminder.date &&
-              <span className="text-xs text-gray-600 ml-2">{format(newReminder.date, "MMM d, yyyy")}</span>
-            }
-          </div>
           {/* Assignee select */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">Assign to</label>

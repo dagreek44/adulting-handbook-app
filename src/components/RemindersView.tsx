@@ -4,6 +4,7 @@ import ReminderEditMode from '@/components/ReminderEditMode';
 import ReminderCalendarView from '@/components/ReminderCalendarView';
 import TaskCard from '@/components/TaskCard';
 import { Users, Edit, CalendarDays, List } from 'lucide-react';
+import { SupabaseReminder } from '@/hooks/useSupabaseData';
 
 interface FamilyMember {
   id: string;
@@ -12,117 +13,13 @@ interface FamilyMember {
   role: 'Admin' | 'Member';
 }
 
-interface Reminder {
-  id: string;
-  title: string;
-  description: string;
-  frequency: string;
-  enabled: boolean;
-  isCustom?: boolean;
-  date?: Date | null;
-  assignees?: string[];
-}
-
-// The detailed info for standard tasks
-const detailedTasks = [
-  {
-    title: "Change Furnace Filter",
-    description: "Replace the HVAC filter to improve air quality and system efficiency",
-    estimatedTime: "15 min",
-    difficulty: "Easy" as const,
-    estimatedBudget: "$15-25",
-    dueDate: "In 3 days",
-    videoUrl: "https://youtube.com/watch?v=example1",
-    instructions: [
-      "Turn off your HVAC system at the thermostat",
-      "Locate the air filter compartment (usually near the return air duct)",
-      "Remove the old filter and note the airflow direction arrows",
-      "Insert the new filter with arrows pointing toward the unit",
-      "Close the compartment and turn the system back on"
-    ],
-    tools: [
-      { name: "Flashlight", required: false },
-      { name: "Screwdriver", required: false, amazonUrl: "https://amazon.com/screwdriver" }
-    ],
-    supplies: [
-      { name: "HVAC Filter (16x25x1)", amazonUrl: "https://amazon.com/hvac-filter", estimatedCost: "$8-15" },
-      { name: "Disposable Gloves", amazonUrl: "https://amazon.com/gloves", estimatedCost: "$5-10" }
-    ]
-  },
-  {
-    title: "Clean Gutters",
-    description: "Remove debris and check for proper drainage to prevent water damage",
-    estimatedTime: "2 hours",
-    difficulty: "Medium" as const,
-    estimatedBudget: "$30-50",
-    dueDate: "Next week",
-    videoUrl: "https://youtube.com/watch?v=example2",
-    instructions: [
-      "Set up a sturdy ladder on level ground",
-      "Remove large debris by hand",
-      "Use a garden hose to flush remaining debris",
-      "Check downspouts for clogs",
-      "Inspect gutters for damage or loose connections"
-    ],
-    tools: [
-      { name: "Extension Ladder", required: true },
-      { name: "Garden Hose", required: true },
-      { name: "Gutter Scoop", required: false, amazonUrl: "https://amazon.com/gutter-scoop" }
-    ],
-    supplies: [
-      { name: "Work Gloves", amazonUrl: "https://amazon.com/work-gloves", estimatedCost: "$10-20" },
-      { name: "Trash Bags", amazonUrl: "https://amazon.com/trash-bags", estimatedCost: "$8-15" }
-    ]
-  },
-  {
-    title: "Test Smoke Detectors",
-    description: "Check batteries and test alarm functionality for home safety",
-    estimatedTime: "30 min",
-    difficulty: "Easy" as const,
-    estimatedBudget: "$15-20",
-    dueDate: "This weekend",
-    videoUrl: "https://youtube.com/watch?v=example3",
-    instructions: [
-      "Press and hold the test button on each detector",
-      "Listen for a loud, clear alarm sound",
-      "Replace batteries if alarm is weak or doesn't sound",
-      "Test again after battery replacement",
-      "Record the test date for your records"
-    ],
-    tools: [
-      { name: "Step Ladder", required: true },
-      { name: "Battery Tester", required: false, amazonUrl: "https://amazon.com/battery-tester" }
-    ],
-    supplies: [
-      { name: "9V Batteries (4-pack)", amazonUrl: "https://amazon.com/9v-batteries", estimatedCost: "$12-18" }
-    ]
-  }
-];
-
-const getTaskDetails = (reminder: Reminder) => {
-  // Try to find details for standard tasks
-  const standard = detailedTasks.find(task => task.title === reminder.title);
-  return {
-    estimatedTime: standard?.estimatedTime ?? "30 min",
-    difficulty: standard?.difficulty ?? "Easy",
-    estimatedBudget: standard?.estimatedBudget ?? "$10-20",
-    dueDate: standard?.dueDate ?? (reminder.date ? reminder.date.toLocaleDateString() : "Set date"),
-    // All the extras for the modal
-    description: standard?.description ?? reminder.description,
-    videoUrl: standard?.videoUrl,
-    instructions: standard?.instructions ?? [],
-    tools: standard?.tools ?? [],
-    supplies: standard?.supplies ?? [],
-  };
-};
-
 interface RemindersViewProps {
-  reminders: Reminder[];
-  setReminders: (reminders: Reminder[]) => void;
+  reminders: SupabaseReminder[];
+  setReminders: (reminders: SupabaseReminder[]) => void;
   familyMembers: FamilyMember[];
   setFamilyMembers: (members: FamilyMember[]) => void;
   completedTasks: number;
-  onTaskComplete: () => void;
+  onTaskComplete: (task?: any) => void;
   selectedTask: any;
   setSelectedTask: (task: any) => void;
   setIsModalOpen: (b: boolean) => void;
@@ -132,6 +29,11 @@ interface RemindersViewProps {
   setReminderViewMode: (m: 'list' | 'calendar') => void;
   isFamilyModalOpen: boolean;
   setIsFamilyModalOpen: (b: boolean) => void;
+  supabaseOperations: {
+    addReminder: (reminder: Partial<SupabaseReminder>) => Promise<void>;
+    updateReminder: (id: string, updates: Partial<SupabaseReminder>) => Promise<void>;
+    deleteReminder: (id: string) => Promise<void>;
+  };
 }
 
 const RemindersView = ({
@@ -150,17 +52,26 @@ const RemindersView = ({
   setReminderViewMode,
   isFamilyModalOpen,
   setIsFamilyModalOpen,
+  supabaseOperations
 }: RemindersViewProps) => {
-  // Filter out upcoming standard and custom tasks and combine
-  const upcomingTasks = reminders.filter(r => r.enabled);
+  // Get only the next 3 upcoming tasks
+  const upcomingTasks = reminders.slice(0, 3);
 
-  // When you click a task, merge in all details before opening modal
-  const handleTaskClick = (reminder: Reminder) => {
-    const details = getTaskDetails(reminder);
-    setSelectedTask({
-      ...reminder,
-      ...details,
-    });
+  const handleTaskClick = (reminder: SupabaseReminder) => {
+    const taskDetails = {
+      id: reminder.id,
+      title: reminder.title,
+      description: reminder.description,
+      estimatedTime: reminder.estimated_time,
+      difficulty: reminder.difficulty,
+      estimatedBudget: reminder.estimated_budget,
+      dueDate: reminder.due_date || 'Not set',
+      videoUrl: reminder.video_url,
+      instructions: reminder.instructions || [],
+      tools: reminder.tools || [],
+      supplies: reminder.supplies || []
+    };
+    setSelectedTask(taskDetails);
     setIsModalOpen(true);
   };
 
@@ -196,6 +107,7 @@ const RemindersView = ({
         reminders={reminders}
         onUpdateReminders={setReminders}
         familyMembers={familyMembers}
+        supabaseOperations={supabaseOperations}
       />
 
       {/* View Toggle */}
@@ -226,39 +138,38 @@ const RemindersView = ({
 
       {reminderViewMode === 'list' ? (
         <div className="bg-white p-4 rounded-xl shadow-md">
-          <h3 className="text-xl font-bold text-gray-800 mb-4">Upcoming Tasks</h3>
+          <h3 className="text-xl font-bold text-gray-800 mb-4">Next 3 Upcoming Tasks</h3>
           <div className="space-y-4">
-            {upcomingTasks.map((reminder, index) => {
-              const details = getTaskDetails(reminder);
-              return (
-                <TaskCard
-                  key={reminder.id}
-                  title={reminder.title}
-                  description={details.description}
-                  estimatedTime={details.estimatedTime}
-                  difficulty={details.difficulty}
-                  estimatedBudget={details.estimatedBudget}
-                  dueDate={details.dueDate}
-                  isCompleted={false}
-                  onComplete={onTaskComplete}
-                  onClick={() => handleTaskClick(reminder)}
-                />
-              );
-            })}
+            {upcomingTasks.map((reminder) => (
+              <TaskCard
+                key={reminder.id}
+                title={reminder.title}
+                description={reminder.description}
+                estimatedTime={reminder.estimated_time}
+                difficulty={reminder.difficulty as 'Easy' | 'Medium' | 'Hard'}
+                estimatedBudget={reminder.estimated_budget}
+                dueDate={reminder.due_date || 'Not set'}
+                isCompleted={false}
+                onComplete={() => onTaskComplete(reminder)}
+                onClick={() => handleTaskClick(reminder)}
+              />
+            ))}
+            {upcomingTasks.length === 0 && (
+              <div className="text-center py-8">
+                <p className="text-gray-500">No upcoming tasks. Great job!</p>
+              </div>
+            )}
           </div>
         </div>
       ) : (
         <ReminderCalendarView
-          tasks={upcomingTasks.map(reminder => {
-            const details = getTaskDetails(reminder);
-            return {
-              title: reminder.title,
-              description: details.description,
-              estimatedTime: details.estimatedTime,
-              difficulty: details.difficulty,
-              dueDate: details.dueDate,
-            };
-          })}
+          tasks={upcomingTasks.map(reminder => ({
+            title: reminder.title,
+            description: reminder.description,
+            estimatedTime: reminder.estimated_time,
+            difficulty: reminder.difficulty as 'Easy' | 'Medium' | 'Hard',
+            dueDate: reminder.due_date || 'Not set',
+          }))}
           reminders={reminders}
           setReminders={setReminders}
           onTaskClick={handleTaskClick}
@@ -268,4 +179,5 @@ const RemindersView = ({
     </div>
   );
 };
+
 export default RemindersView;
