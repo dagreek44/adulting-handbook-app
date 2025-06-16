@@ -67,6 +67,7 @@ const Index = () => {
       description: "Replace the HVAC filter to improve air quality and system efficiency",
       estimatedTime: "15 min",
       difficulty: "Easy" as const,
+      estimatedBudget: "$15-25",
       dueDate: "In 3 days",
       videoUrl: "https://youtube.com/watch?v=example1",
       instructions: [
@@ -90,6 +91,7 @@ const Index = () => {
       description: "Remove debris and check for proper drainage to prevent water damage",
       estimatedTime: "2 hours",
       difficulty: "Medium" as const,
+      estimatedBudget: "$30-50",
       dueDate: "Next week",
       videoUrl: "https://youtube.com/watch?v=example2",
       instructions: [
@@ -114,6 +116,7 @@ const Index = () => {
       description: "Check batteries and test alarm functionality for home safety",
       estimatedTime: "30 min",
       difficulty: "Easy" as const,
+      estimatedBudget: "$15-20",
       dueDate: "This weekend",
       videoUrl: "https://youtube.com/watch?v=example3",
       instructions: [

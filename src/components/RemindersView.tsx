@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import ReminderEditMode from '@/components/ReminderEditMode';
 import ReminderCalendarView from '@/components/ReminderCalendarView';
@@ -29,6 +30,7 @@ const detailedTasks = [
     description: "Replace the HVAC filter to improve air quality and system efficiency",
     estimatedTime: "15 min",
     difficulty: "Easy" as const,
+    estimatedBudget: "$15-25",
     dueDate: "In 3 days",
     videoUrl: "https://youtube.com/watch?v=example1",
     instructions: [
@@ -52,6 +54,7 @@ const detailedTasks = [
     description: "Remove debris and check for proper drainage to prevent water damage",
     estimatedTime: "2 hours",
     difficulty: "Medium" as const,
+    estimatedBudget: "$30-50",
     dueDate: "Next week",
     videoUrl: "https://youtube.com/watch?v=example2",
     instructions: [
@@ -76,6 +79,7 @@ const detailedTasks = [
     description: "Check batteries and test alarm functionality for home safety",
     estimatedTime: "30 min",
     difficulty: "Easy" as const,
+    estimatedBudget: "$15-20",
     dueDate: "This weekend",
     videoUrl: "https://youtube.com/watch?v=example3",
     instructions: [
@@ -101,6 +105,7 @@ const getTaskDetails = (reminder: Reminder) => {
   return {
     estimatedTime: standard?.estimatedTime ?? "30 min",
     difficulty: standard?.difficulty ?? "Easy",
+    estimatedBudget: standard?.estimatedBudget ?? "$10-20",
     dueDate: standard?.dueDate ?? (reminder.date ? reminder.date.toLocaleDateString() : "Set date"),
     // All the extras for the modal
     description: standard?.description ?? reminder.description,
@@ -232,6 +237,7 @@ const RemindersView = ({
                   description={details.description}
                   estimatedTime={details.estimatedTime}
                   difficulty={details.difficulty}
+                  estimatedBudget={details.estimatedBudget}
                   dueDate={details.dueDate}
                   isCompleted={false}
                   onComplete={onTaskComplete}

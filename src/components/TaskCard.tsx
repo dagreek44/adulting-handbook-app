@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { Wrench, Clock, CheckCircle2, ChevronRight } from 'lucide-react';
+import { Wrench, Clock, CheckCircle2, ChevronRight, DollarSign } from 'lucide-react';
 
 interface TaskCardProps {
   title: string;
@@ -8,6 +8,7 @@ interface TaskCardProps {
   estimatedTime: string;
   difficulty: 'Easy' | 'Medium' | 'Hard';
   dueDate: string;
+  estimatedBudget?: string;
   isCompleted?: boolean;
   onComplete: () => void;
   onClick?: () => void;
@@ -19,6 +20,7 @@ const TaskCard = ({
   estimatedTime, 
   difficulty, 
   dueDate, 
+  estimatedBudget,
   isCompleted = false,
   onComplete,
   onClick 
@@ -86,6 +88,12 @@ const TaskCard = ({
           <span className={`px-2 py-1 rounded-full text-xs font-medium ${difficultyColors[difficulty]}`}>
             {difficulty}
           </span>
+          {estimatedBudget && (
+            <div className="flex items-center text-gray-500">
+              <DollarSign className="w-4 h-4 mr-1" />
+              <span className="text-sm">{estimatedBudget}</span>
+            </div>
+          )}
         </div>
         <span className="text-xs text-gray-500">{dueDate}</span>
       </div>
