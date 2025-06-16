@@ -1,9 +1,8 @@
-
 import { useState } from 'react';
 import ReminderEditMode from '@/components/ReminderEditMode';
 import ReminderCalendarView from '@/components/ReminderCalendarView';
 import TaskCard from '@/components/TaskCard';
-import { Users, Edit, CalendarDays, List, Flame, House, Wrench, Star } from 'lucide-react';
+import { Users, Edit, CalendarDays, List } from 'lucide-react';
 
 interface FamilyMember {
   id: string;
@@ -221,51 +220,27 @@ const RemindersView = ({
       </div>
 
       {reminderViewMode === 'list' ? (
-        <>
-          <div className="bg-white p-4 rounded-xl shadow-md">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Upcoming Tasks</h3>
-            <div className="space-y-4">
-              {upcomingTasks.map((reminder, index) => {
-                const details = getTaskDetails(reminder);
-                return (
-                  <TaskCard
-                    key={reminder.id}
-                    title={reminder.title}
-                    description={details.description}
-                    estimatedTime={details.estimatedTime}
-                    difficulty={details.difficulty}
-                    dueDate={details.dueDate}
-                    isCompleted={false}
-                    onComplete={onTaskComplete}
-                    onClick={() => handleTaskClick(reminder)}
-                  />
-                );
-              })}
-            </div>
+        <div className="bg-white p-4 rounded-xl shadow-md">
+          <h3 className="text-xl font-bold text-gray-800 mb-4">Upcoming Tasks</h3>
+          <div className="space-y-4">
+            {upcomingTasks.map((reminder, index) => {
+              const details = getTaskDetails(reminder);
+              return (
+                <TaskCard
+                  key={reminder.id}
+                  title={reminder.title}
+                  description={details.description}
+                  estimatedTime={details.estimatedTime}
+                  difficulty={details.difficulty}
+                  dueDate={details.dueDate}
+                  isCompleted={false}
+                  onComplete={onTaskComplete}
+                  onClick={() => handleTaskClick(reminder)}
+                />
+              );
+            })}
           </div>
-
-          <div className="bg-white p-4 rounded-xl shadow-md">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Task Categories</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-sage/10 p-3 rounded-lg text-center">
-                <Flame className="w-6 h-6 text-sage mx-auto mb-2" />
-                <p className="text-sm font-medium text-sage">HVAC</p>
-              </div>
-              <div className="bg-blue-soft/20 p-3 rounded-lg text-center">
-                <House className="w-6 h-6 text-blue-600 mx-auto mb-2" />
-                <p className="text-sm font-medium text-blue-600">General</p>
-              </div>
-              <div className="bg-coral/20 p-3 rounded-lg text-center">
-                <Wrench className="w-6 h-6 text-orange-600 mx-auto mb-2" />
-                <p className="text-sm font-medium text-orange-600">Plumbing</p>
-              </div>
-              <div className="bg-earth/20 p-3 rounded-lg text-center">
-                <Star className="w-6 h-6 text-yellow-600 mx-auto mb-2" />
-                <p className="text-sm font-medium text-yellow-600">Seasonal</p>
-              </div>
-            </div>
-          </div>
-        </>
+        </div>
       ) : (
         <ReminderCalendarView
           tasks={upcomingTasks.map(reminder => {
@@ -288,4 +263,3 @@ const RemindersView = ({
   );
 };
 export default RemindersView;
-
