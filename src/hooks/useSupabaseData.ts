@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -189,7 +190,8 @@ export const useSupabaseData = () => {
 
   const completeTask = async (reminder: SupabaseReminder) => {
     try {
-      const completedDate = new Date().toISOString().split('T')[0]; // Today's date in YYYY-MM-DD format
+      const today = new Date();
+      const completedDate = today.toISOString().split('T')[0]; // Today's date in YYYY-MM-DD format
       
       // Add to completed tasks with completed_date
       const { error: insertError } = await supabase
@@ -206,22 +208,50 @@ export const useSupabaseData = () => {
 
       if (insertError) throw insertError;
 
-      // Calculate new due date using the database function
-      const { data: newDueDateData, error: dueDateError } = await supabase
-        .rpc('calculate_next_due_date', {
-          completed_date: completedDate,
-          frequency: reminder.frequency
-        });
+      // Calculate new due date based on today's date plus frequency
+      let newDueDate: string | null = null;
+      if (reminder.frequency !== 'once') {
+        const nextDate = new Date(today);
+        
+        switch (reminder.frequency) {
+          case 'weekly':
+            nextDate.setDate(nextDate.getDate() + 7);
+            break;
+          case 'monthly':
+            nextDate.setMonth(nextDate.getMonth() + 1);
+            break;
+          case 'quarterly':
+            nextDate.setDate(nextDate.getDate() + 90);
+            break;
+          case 'seasonally':
+            nextDate.setDate(nextDate.getDate() + 90);
+            break;
+          case 'yearly':
+            nextDate.setFullYear(nextDate.getFullYear() + 1);
+            break;
+          default:
+            nextDate.setMonth(nextDate.getMonth() + 1);
+        }
+        
+        newDueDate = nextDate.toISOString().split('T')[0];
+      }
 
-      if (dueDateError) throw dueDateError;
+      // Update reminder's due_date (or disable if frequency is 'once')
+      if (reminder.frequency === 'once') {
+        const { error: updateError } = await supabase
+          .from('reminders')
+          .update({ enabled: false })
+          .eq('id', reminder.id);
 
-      // Update reminder's due_date
-      const { error: updateError } = await supabase
-        .from('reminders')
-        .update({ due_date: newDueDateData })
-        .eq('id', reminder.id);
+        if (updateError) throw updateError;
+      } else {
+        const { error: updateError } = await supabase
+          .from('reminders')
+          .update({ due_date: newDueDate })
+          .eq('id', reminder.id);
 
-      if (updateError) throw updateError;
+        if (updateError) throw updateError;
+      }
 
       // Update adulting progress for assigned family members
       if (reminder.assignees && reminder.assignees.length > 0) {

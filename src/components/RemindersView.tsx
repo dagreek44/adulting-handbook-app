@@ -169,9 +169,10 @@ const RemindersView = ({
             dueDate: reminder.due_date || 'Not set',
           }))}
           reminders={reminders}
-          setReminders={setReminders}
           onTaskClick={handleTaskClick}
           onTaskComplete={onTaskComplete}
+          familyMembers={familyMembers}
+          supabaseOperations={supabaseOperations}
         />
       )}
 

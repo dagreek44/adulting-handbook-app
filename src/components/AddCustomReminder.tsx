@@ -36,7 +36,7 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
   const [selectedDate, setSelectedDate] = useState<Date>();
 
   const addCustomReminder = async () => {
-    if (!newReminder.title?.trim()) return;
+    if (!newReminder.title?.trim() || !selectedDate) return;
 
     const customReminder: Partial<SupabaseReminder> = {
       title: newReminder.title || "",
@@ -44,7 +44,7 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
       frequency: newReminder.frequency || "monthly",
       enabled: true,
       is_custom: true,
-      due_date: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null,
+      due_date: format(selectedDate, 'yyyy-MM-dd'),
       assignees: newReminder.assignees || [],
       difficulty: 'Easy',
       estimated_time: '30 min',
@@ -87,20 +87,20 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
             ))}
           </select>
           
-          {/* Date Picker */}
+          {/* Date Picker - now mandatory */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">Due Date (optional)</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Due Date *</label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
                   className={cn(
                     "w-full justify-start text-left font-normal",
-                    !selectedDate && "text-muted-foreground"
+                    !selectedDate && "text-muted-foreground border-red-300"
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                  {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date *</span>}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
@@ -142,7 +142,8 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
           <div className="flex space-x-2">
             <button
               onClick={addCustomReminder}
-              className="bg-sage text-white px-4 py-2 rounded-lg hover:bg-sage/90 transition-colors"
+              disabled={!newReminder.title?.trim() || !selectedDate}
+              className="bg-sage text-white px-4 py-2 rounded-lg hover:bg-sage/90 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               Add Reminder
             </button>

@@ -1,19 +1,9 @@
 import { useState, useMemo } from 'react';
-import { Calendar as LucideCalendar, Plus } from 'lucide-react';
+import { Wrench, Plus, X } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { format, isSameDay, parse, isValid } from 'date-fns';
 import TaskCard from './TaskCard';
-
-interface Reminder {
-  id: string;
-  title: string;
-  description: string;
-  frequency: string;
-  enabled: boolean;
-  isCustom?: boolean;
-  date?: Date | null;
-  assignees?: string[];
-}
+import { SupabaseReminder, FamilyMember } from '@/hooks/useSupabaseData';
 
 interface ReminderCalendarViewProps {
   tasks: Array<{
@@ -23,13 +13,16 @@ interface ReminderCalendarViewProps {
     difficulty: 'Easy' | 'Medium' | 'Hard';
     dueDate: string;
   }>;
-  reminders?: Reminder[];
-  setReminders?: (reminders: Reminder[]) => void;
+  reminders: SupabaseReminder[];
   onTaskClick: (task: any) => void;
   onTaskComplete: () => void;
+  familyMembers: FamilyMember[];
+  supabaseOperations: {
+    addReminder: (reminder: Partial<SupabaseReminder>) => Promise<void>;
+  };
 }
 
-// Helper function to normalize dates from strings such as "In 3 days", "Next week", "This weekend", "Set date", or MM/dd/yyyy-like formats
+// Helper function to normalize dates from strings
 function parseDueDate(dueDateString: string): Date | null {
   if (!dueDateString) return null;
   const lc = dueDateString.toLowerCase();
@@ -41,68 +34,71 @@ function parseDueDate(dueDateString: string): Date | null {
     return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7);
   }
   if (lc.includes('this weekend')) {
-    // Find next Saturday
     const daysUntilSaturday = (6 - now.getDay() + 7) % 7 || 7;
     return new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysUntilSaturday);
   }
   if (/\d{1,2}\/\d{1,2}\/\d{2,4}/.test(dueDateString)) {
-    // MM/dd/yyyy
     const parsed = parse(dueDateString, 'MM/dd/yyyy', new Date());
     if (isValid(parsed)) return parsed;
   }
-  if (/\d{1,2}\/\d{1,2}\/\d{2,4}/.test(dueDateString)) {
-    // fallback to ISO
+  if (/\d{4}-\d{2}-\d{2}/.test(dueDateString)) {
     const parsed = new Date(dueDateString);
     if (isValid(parsed)) return parsed;
   }
-  // Otherwise: do not match
   return null;
 }
 
-// Helper function for Reminder objects (with .date)
-function isSameDayReminder(d1?: Date | null, d2?: Date) {
-  if (!d1 || !d2) return false;
-  return (
-    d1.getFullYear() === d2.getFullYear() &&
-    d1.getMonth() === d2.getMonth() &&
-    d1.getDate() === d2.getDate()
-  );
-}
+const frequencies = [
+  "once",
+  "weekly", 
+  "monthly",
+  "quarterly",
+  "seasonally",
+  "yearly"
+];
 
 const ReminderCalendarView = ({
   tasks,
   reminders,
-  setReminders,
   onTaskClick,
-  onTaskComplete
+  onTaskComplete,
+  familyMembers,
+  supabaseOperations
 }: ReminderCalendarViewProps) => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [adding, setAdding] = useState(false);
   const [newReminderTitle, setNewReminderTitle] = useState('');
   const [newReminderDesc, setNewReminderDesc] = useState('');
+  const [newReminderFreq, setNewReminderFreq] = useState('monthly');
+  const [showDateView, setShowDateView] = useState(false);
 
-  // Memo: date string keys for due reminders in standard tasks
+  // Get dates that have reminders
   const reminderDates = useMemo(() => {
-    return tasks
+    const taskDates = tasks
       .map(task => parseDueDate(task.dueDate))
       .filter((d): d is Date => d !== null)
       .map(d => format(d, 'yyyy-MM-dd'));
-  }, [tasks]);
+    
+    const actualReminderDates = reminders
+      .filter(r => r.due_date)
+      .map(r => r.due_date!);
+    
+    return [...taskDates, ...actualReminderDates];
+  }, [tasks, reminders]);
 
-  // Custom Day icon
+  // Custom Day component with wrench icons
   function CustomDay(props: any) {
-    // The day (Date) is passed via props.date
     const { date, ...rest } = props;
     const todayStr = format(date, 'yyyy-MM-dd');
-    const hasReminder = reminderDates.includes(todayStr) ||
-      (reminders && reminders.some(r => r.date && isSameDayReminder(r.date, date)));
+    const hasReminder = reminderDates.includes(todayStr);
+    
     return (
       <button {...rest} type="button" tabIndex={0}>
         <div className="relative w-full h-full flex items-center justify-center">
           <span>{date.getDate()}</span>
           {hasReminder && (
             <span className="absolute bottom-0 right-0">
-              <LucideCalendar className="w-3 h-3 text-blue-500" aria-label="Reminder due" />
+              <Wrench className="w-3 h-3 text-sage" />
             </span>
           )}
         </div>
@@ -110,7 +106,7 @@ const ReminderCalendarView = ({
     );
   }
 
-  // Show all standard (tasks) for selected date
+  // Get reminders for selected date
   const selectedTasks = selectedDate
     ? tasks.filter(task => {
         const dueDate = parseDueDate(task.dueDate);
@@ -118,67 +114,78 @@ const ReminderCalendarView = ({
       })
     : [];
 
-  // Show all custom (reminder) tasks for selected date
-  const selectedReminders = selectedDate && reminders
-    ? reminders.filter(r => r.date && isSameDayReminder(r.date, selectedDate))
+  const selectedReminders = selectedDate
+    ? reminders.filter(r => r.due_date && isSameDay(new Date(r.due_date), selectedDate))
     : [];
 
-  // Handler: add reminder for this date
-  function handleAddReminder() {
-    if (!setReminders || !selectedDate || !newReminderTitle.trim()) return;
-    setReminders([
-      ...reminders!,
-      {
-        id: `${Date.now()}`,
-        title: newReminderTitle,
-        description: newReminderDesc,
-        frequency: "once",
-        enabled: true,
-        isCustom: true,
-        date: selectedDate,
-        assignees: [],
-      }
-    ]);
+  // Handle date selection
+  const handleDateSelect = (date: Date | undefined) => {
+    setSelectedDate(date);
+    if (date) {
+      setShowDateView(true);
+    }
+  };
+
+  // Add reminder for selected date
+  const handleAddReminder = async () => {
+    if (!selectedDate || !newReminderTitle.trim()) return;
+    
+    const customReminder: Partial<SupabaseReminder> = {
+      title: newReminderTitle,
+      description: newReminderDesc,
+      frequency: newReminderFreq,
+      enabled: true,
+      is_custom: true,
+      due_date: format(selectedDate, 'yyyy-MM-dd'),
+      assignees: [],
+      difficulty: 'Easy',
+      estimated_time: '30 min',
+      estimated_budget: '$10-20',
+      instructions: [],
+      tools: [],
+      supplies: []
+    };
+
+    await supabaseOperations.addReminder(customReminder);
     setAdding(false);
     setNewReminderTitle('');
     setNewReminderDesc('');
-  }
+    setNewReminderFreq('monthly');
+  };
 
-  return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-xl shadow-md p-4">
-        <h3 className="text-lg font-bold text-gray-800 mb-4">Select a Date</h3>
-        <Calendar
-          mode="single"
-          selected={selectedDate}
-          onSelect={setSelectedDate}
-          className="rounded-md border mx-auto"
-          components={{
-            Day: CustomDay
-          }}
-        />
-      </div>
-
-      {selectedDate && (
+  if (showDateView && selectedDate) {
+    return (
+      <div className="space-y-4">
         <div className="bg-white rounded-xl shadow-md p-4">
-          <h3 className="text-lg font-bold text-gray-800 mb-4">
-            Reminders for {format(selectedDate, 'MMMM d, yyyy')}
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-gray-800">
+              Reminders for {format(selectedDate, 'MMMM d, yyyy')}
+            </h3>
+            <button
+              onClick={() => setShowDateView(false)}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
 
-          {/* Existing reminders (custom) */}
-          {(selectedReminders && selectedReminders.length > 0) && (
+          {/* Existing reminders */}
+          {selectedReminders.length > 0 && (
             <div className="space-y-4 mb-4">
-              {selectedReminders.map(r => (
+              {selectedReminders.map(reminder => (
                 <TaskCard
-                  key={r.id}
-                  title={r.title}
-                  description={r.description}
-                  estimatedTime="Varies"
-                  difficulty="Easy"
-                  dueDate={r.date ? format(r.date, 'MM/dd/yyyy') : ''}
+                  key={reminder.id}
+                  title={reminder.title}
+                  description={reminder.description}
+                  estimatedTime={reminder.estimated_time}
+                  difficulty={reminder.difficulty as 'Easy' | 'Medium' | 'Hard'}
+                  estimatedBudget={reminder.estimated_budget}
+                  dueDate={reminder.due_date || 'Not set'}
+                  isPastDue={reminder.isPastDue}
+                  assignedToNames={reminder.assignedToNames}
                   isCompleted={false}
                   onComplete={onTaskComplete}
-                  onClick={() => onTaskClick(r)}
+                  onClick={() => onTaskClick(reminder)}
                 />
               ))}
             </div>
@@ -199,57 +206,82 @@ const ReminderCalendarView = ({
             </div>
           )}
 
-          {/* Add Reminder if none found */}
-          {(selectedReminders?.length === 0 && selectedTasks.length === 0) && (
-            !adding ? (
-              <button
-                className="flex items-center bg-sage text-white px-4 py-2 rounded-lg hover:bg-sage/90 transition-colors mx-auto mt-4"
-                onClick={() => setAdding(true)}
+          {/* Add Reminder Section */}
+          {!adding ? (
+            <button
+              className="flex items-center bg-sage text-white px-4 py-2 rounded-lg hover:bg-sage/90 transition-colors w-full justify-center mb-4"
+              onClick={() => setAdding(true)}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Reminder for this date
+            </button>
+          ) : (
+            <div className="bg-sage/10 p-4 rounded-lg mb-4 space-y-3">
+              <input
+                className="w-full p-2 border border-gray-300 rounded-lg"
+                placeholder="Reminder Title"
+                value={newReminderTitle}
+                onChange={e => setNewReminderTitle(e.target.value)}
+                required
+              />
+              <textarea
+                className="w-full p-2 border border-gray-300 rounded-lg h-20 resize-none"
+                placeholder="Description (optional)"
+                value={newReminderDesc}
+                onChange={e => setNewReminderDesc(e.target.value)}
+              />
+              <select
+                value={newReminderFreq}
+                onChange={e => setNewReminderFreq(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-lg"
               >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Reminder for this date
-              </button>
-            ) : (
-              <form
-                className="bg-cream p-4 rounded-lg mt-2 flex flex-col gap-3"
-                onSubmit={e => {
-                  e.preventDefault();
-                  handleAddReminder();
-                }}
-              >
-                <input
-                  className="border rounded p-2"
-                  placeholder="Reminder Title"
-                  value={newReminderTitle}
-                  onChange={e => setNewReminderTitle(e.target.value)}
-                  required
-                />
-                <textarea
-                  className="border rounded p-2"
-                  placeholder="Description (optional)"
-                  value={newReminderDesc}
-                  onChange={e => setNewReminderDesc(e.target.value)}
-                />
-                <div className="flex gap-3">
-                  <button
-                    type="submit"
-                    className="bg-blue-soft text-white px-4 py-2 rounded hover:bg-blue-400 transition-colors"
-                  >
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    className="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300 transition-colors"
-                    onClick={() => setAdding(false)}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            )
+                {frequencies.map(f => (
+                  <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>
+                ))}
+              </select>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleAddReminder}
+                  disabled={!newReminderTitle.trim()}
+                  className="bg-sage text-white px-4 py-2 rounded hover:bg-sage/90 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  Add
+                </button>
+                <button
+                  onClick={() => setAdding(false)}
+                  className="bg-gray-200 px-4 py-2 rounded hover:bg-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           )}
+
+          <button
+            onClick={() => setShowDateView(false)}
+            className="w-full bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+          >
+            Cancel
+          </button>
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl shadow-md p-4">
+        <h3 className="text-lg font-bold text-gray-800 mb-4">Select a Date</h3>
+        <Calendar
+          mode="single"
+          selected={selectedDate}
+          onSelect={handleDateSelect}
+          className="rounded-md border mx-auto"
+          components={{
+            Day: CustomDay
+          }}
+        />
+      </div>
     </div>
   );
 };
