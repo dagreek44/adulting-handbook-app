@@ -208,7 +208,7 @@ const Index = () => {
         );
 
       case 'contractors':
-        return <ContractorsView />;
+        return <ContractorsView reminders={reminders} />;
 
       case 'completed':
         return <CompletedTasksView completedTasks={completedTasks} />;

@@ -1,22 +1,53 @@
 
-import React from "react";
+import React, { useState } from "react";
+import { SupabaseReminder } from '@/hooks/useSupabaseData';
+import ContractorServiceSelection from './ContractorServiceSelection';
 
 const ContractorOption = ({
   label,
   description,
   color,
+  onClick,
 }: {
   label: string;
   description: string;
   color: string;
+  onClick: () => void;
 }) => (
-  <button className={`w-full p-4 rounded-xl text-left bg-gradient-to-r ${color} shadow-lg mb-4 transition-all hover:scale-105`}>
+  <button 
+    onClick={onClick}
+    className={`w-full p-4 rounded-xl text-left bg-gradient-to-r ${color} shadow-lg mb-4 transition-all hover:scale-105`}
+  >
     <div className="font-bold text-lg text-white">{label}</div>
     <div className="text-white/90 text-sm mt-2">{description}</div>
   </button>
 );
 
-const ContractorsView = () => {
+interface ContractorsViewProps {
+  reminders?: SupabaseReminder[];
+}
+
+const ContractorsView = ({ reminders = [] }: ContractorsViewProps) => {
+  const [selectedService, setSelectedService] = useState<string | null>(null);
+
+  const handleServiceSelect = (serviceType: string) => {
+    setSelectedService(serviceType);
+  };
+
+  const handleBack = () => {
+    setSelectedService(null);
+  };
+
+  if (selectedService) {
+    return (
+      <ContractorServiceSelection
+        serviceType={selectedService}
+        reminders={reminders}
+        onBack={handleBack}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="bg-white p-4 rounded-xl shadow-md">
@@ -25,16 +56,19 @@ const ContractorsView = () => {
           label="Monthly Reminders"
           description="Let a pro take care of your recurring monthly tasks."
           color="from-blue-soft to-blue-400"
+          onClick={() => handleServiceSelect('monthly')}
         />
         <ContractorOption
           label="Quarterly Reminders"
           description="Invite a contractor to handle seasonal check-ups."
           color="from-sage to-sage-light"
+          onClick={() => handleServiceSelect('quarterly')}
         />
         <ContractorOption
           label="Yearly Reminders"
           description="Book an annual service for major home systems."
           color="from-coral to-orange-400"
+          onClick={() => handleServiceSelect('yearly')}
         />
       </div>
 

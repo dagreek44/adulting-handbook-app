@@ -29,7 +29,7 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
   const [newReminder, setNewReminder] = useState<Partial<SupabaseReminder>>({
     title: '',
     description: '',
-    frequency: 'monthly',
+    frequency: 'once',
     due_date: null,
     assignees: []
   });
@@ -41,7 +41,7 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
     const customReminder: Partial<SupabaseReminder> = {
       title: newReminder.title || "",
       description: newReminder.description || "",
-      frequency: newReminder.frequency || "monthly",
+      frequency: newReminder.frequency || "once",
       enabled: true,
       is_custom: true,
       due_date: format(selectedDate, 'yyyy-MM-dd'),
@@ -55,7 +55,7 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
     };
 
     await supabaseOperations.addReminder(customReminder);
-    setNewReminder({ title: '', description: '', frequency: 'monthly', due_date: null, assignees: [] });
+    setNewReminder({ title: '', description: '', frequency: 'once', due_date: null, assignees: [] });
     setSelectedDate(undefined);
     setShowAddForm(false);
   };

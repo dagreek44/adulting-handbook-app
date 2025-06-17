@@ -1,3 +1,4 @@
+
 import { useState, useMemo } from 'react';
 import { Wrench, Plus, X } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
@@ -69,7 +70,7 @@ const ReminderCalendarView = ({
   const [adding, setAdding] = useState(false);
   const [newReminderTitle, setNewReminderTitle] = useState('');
   const [newReminderDesc, setNewReminderDesc] = useState('');
-  const [newReminderFreq, setNewReminderFreq] = useState('monthly');
+  const [newReminderFreq, setNewReminderFreq] = useState('once');
   const [showDateView, setShowDateView] = useState(false);
 
   // Get dates that have reminders
@@ -150,7 +151,7 @@ const ReminderCalendarView = ({
     setAdding(false);
     setNewReminderTitle('');
     setNewReminderDesc('');
-    setNewReminderFreq('monthly');
+    setNewReminderFreq('once');
   };
 
   if (showDateView && selectedDate) {
