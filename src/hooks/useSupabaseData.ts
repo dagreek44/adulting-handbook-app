@@ -122,7 +122,7 @@ export const useSupabaseData = () => {
         .from('reminders')
         .select('*')
         .eq('enabled', true)
-        .order('due_date', { ascending: true, nullsLast: true });
+        .order('due_date', { ascending: true, nullsFirst: true });
 
       if (error) throw error;
       
@@ -226,10 +226,24 @@ export const useSupabaseData = () => {
       // Update adulting progress for assigned family members
       if (reminder.assignees && reminder.assignees.length > 0) {
         for (const assigneeId of reminder.assignees) {
+          // Get current progress first
+          const { data: currentMember, error: fetchError } = await supabase
+            .from('family_members')
+            .select('adulting_progress')
+            .eq('id', assigneeId)
+            .single();
+
+          if (fetchError) {
+            console.error('Error fetching current progress:', fetchError);
+            continue;
+          }
+
+          const newProgress = (currentMember?.adulting_progress || 0) + 1;
+
           const { error: progressError } = await supabase
             .from('family_members')
             .update({ 
-              adulting_progress: supabase.raw('adulting_progress + 1'),
+              adulting_progress: newProgress,
               updated_at: new Date().toISOString()
             })
             .eq('id', assigneeId);
