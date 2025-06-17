@@ -3,7 +3,8 @@ import { useState } from 'react';
 import ReminderEditMode from '@/components/ReminderEditMode';
 import ReminderCalendarView from '@/components/ReminderCalendarView';
 import TaskCard from '@/components/TaskCard';
-import { Users, Edit, CalendarDays, List } from 'lucide-react';
+import AddCustomReminder from '@/components/AddCustomReminder';
+import { Users, Edit, CalendarDays, List, CheckCircle2 } from 'lucide-react';
 import { SupabaseReminder, FamilyMember } from '@/hooks/useSupabaseData';
 
 interface RemindersViewProps {
@@ -22,6 +23,7 @@ interface RemindersViewProps {
   setReminderViewMode: (m: 'list' | 'calendar') => void;
   isFamilyModalOpen: boolean;
   setIsFamilyModalOpen: (b: boolean) => void;
+  onNavigateToCompleted: () => void;
   supabaseOperations: {
     addReminder: (reminder: Partial<SupabaseReminder>) => Promise<void>;
     updateReminder: (id: string, updates: Partial<SupabaseReminder>) => Promise<void>;
@@ -45,6 +47,7 @@ const RemindersView = ({
   setReminderViewMode,
   isFamilyModalOpen,
   setIsFamilyModalOpen,
+  onNavigateToCompleted,
   supabaseOperations
 }: RemindersViewProps) => {
   // Get only the next 3 upcoming tasks
@@ -171,6 +174,21 @@ const RemindersView = ({
           onTaskComplete={onTaskComplete}
         />
       )}
+
+      {/* Always show Add Custom Reminder */}
+      <AddCustomReminder
+        familyMembers={familyMembers}
+        supabaseOperations={supabaseOperations}
+      />
+
+      {/* Button to navigate to completed tasks */}
+      <button
+        onClick={onNavigateToCompleted}
+        className="w-full bg-green-500 text-white py-3 rounded-lg font-medium hover:bg-green-600 transition-colors flex items-center justify-center"
+      >
+        <CheckCircle2 className="w-5 h-5 mr-2" />
+        View Recently Completed Tasks
+      </button>
     </div>
   );
 };

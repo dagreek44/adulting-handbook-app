@@ -11,7 +11,7 @@ const CompletedTasksView = ({ completedTasks }: CompletedTasksViewProps) => {
   if (completedTasks.length === 0) {
     return (
       <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-gray-800">Completed Tasks</h2>
+        <h2 className="text-2xl font-bold text-gray-800">Recently Completed Tasks</h2>
         <div className="bg-white p-8 rounded-xl shadow-md text-center">
           <Trophy className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-600 mb-2">No completed tasks yet</h3>
@@ -23,7 +23,7 @@ const CompletedTasksView = ({ completedTasks }: CompletedTasksViewProps) => {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-800">Completed Tasks</h2>
+      <h2 className="text-2xl font-bold text-gray-800">Recently Completed Tasks</h2>
       <div className="bg-white p-4 rounded-xl shadow-md">
         <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
           <Trophy className="w-6 h-6 mr-2 text-sage" />

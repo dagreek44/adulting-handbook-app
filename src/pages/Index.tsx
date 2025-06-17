@@ -142,7 +142,7 @@ const Index = () => {
                 onClick={() => setActiveTab('achievements')}
               />
               <DashboardCard
-                title="Completed Tasks"
+                title="Recently Completed Tasks"
                 subtitle={`${completedTasks.length} tasks completed`}
                 icon={CheckCircle2}
                 color="bg-gradient-to-br from-earth to-earth"
@@ -198,6 +198,7 @@ const Index = () => {
             setReminderViewMode={setReminderViewMode}
             isFamilyModalOpen={isFamilyModalOpen}
             setIsFamilyModalOpen={setIsFamilyModalOpen}
+            onNavigateToCompleted={() => setActiveTab('completed')}
             supabaseOperations={{
               addReminder,
               updateReminder,
