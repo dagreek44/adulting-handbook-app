@@ -13,13 +13,6 @@ import ContractorsView from "@/components/ContractorsView";
 import CompletedTasksView from "@/components/CompletedTasksView";
 import AchievementBadge from '@/components/AchievementBadge';
 
-interface FamilyMember {
-  id: string;
-  name: string;
-  email: string;
-  role: 'Admin' | 'Member';
-}
-
 const Index = () => {
   const [activeTab, setActiveTab] = useState('home');
   const [isEditMode, setIsEditMode] = useState(false);
@@ -32,16 +25,13 @@ const Index = () => {
   const {
     reminders,
     completedTasks,
+    familyMembers,
     loading,
     completeTask,
     addReminder,
     updateReminder,
     deleteReminder
   } = useSupabaseData();
-
-  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([
-    { id: '1', name: 'You', email: 'you@example.com', role: 'Admin' as const },
-  ]);
 
   // Get only the next 3 upcoming tasks
   const upcomingTasks = reminders.slice(0, 3);
@@ -196,7 +186,7 @@ const Index = () => {
               // This will be handled by the Supabase operations
             }}
             familyMembers={familyMembers}
-            setFamilyMembers={setFamilyMembers}
+            setFamilyMembers={() => {}}
             completedTasks={completedTasks.length}
             onTaskComplete={handleTaskComplete}
             selectedTask={selectedTask}
@@ -281,7 +271,7 @@ const Index = () => {
           isOpen={isFamilyModalOpen}
           onClose={() => setIsFamilyModalOpen(false)}
           familyMembers={familyMembers}
-          onUpdateMembers={setFamilyMembers}
+          onUpdateMembers={() => {}}
         />
       </div>
     </div>

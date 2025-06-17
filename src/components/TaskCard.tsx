@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { Wrench, Clock, CheckCircle2, ChevronRight, DollarSign } from 'lucide-react';
+import { Wrench, Clock, CheckCircle2, ChevronRight, DollarSign, AlertTriangle, Users } from 'lucide-react';
 
 interface TaskCardProps {
   title: string;
@@ -9,6 +9,8 @@ interface TaskCardProps {
   difficulty: 'Easy' | 'Medium' | 'Hard';
   dueDate: string;
   estimatedBudget?: string;
+  isPastDue?: boolean;
+  assignedToNames?: string[];
   isCompleted?: boolean;
   onComplete: () => void;
   onClick?: () => void;
@@ -21,6 +23,8 @@ const TaskCard = ({
   difficulty, 
   dueDate, 
   estimatedBudget,
+  isPastDue = false,
+  assignedToNames = ['Family'],
   isCompleted = false,
   onComplete,
   onClick 
@@ -45,21 +49,41 @@ const TaskCard = ({
     Hard: 'bg-red-100 text-red-800'
   };
 
+  const getBorderColor = () => {
+    if (completed) return 'border-l-green-500';
+    if (isPastDue) return 'border-l-red-500';
+    return 'border-l-sage';
+  };
+
   return (
     <div 
-      className={`bg-white p-4 rounded-xl shadow-md border-l-4 transition-all duration-300 ${
+      className={`bg-white p-4 rounded-xl shadow-md border-l-4 transition-all duration-300 ${getBorderColor()} ${
         completed 
-          ? 'border-l-green-500 opacity-80' 
-          : 'border-l-sage hover:shadow-lg cursor-pointer'
+          ? 'opacity-80' 
+          : 'hover:shadow-lg cursor-pointer'
       }`}
       onClick={handleCardClick}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
-          <h3 className={`font-semibold text-lg mb-1 ${completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
-            {title}
-          </h3>
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className={`font-semibold text-lg ${completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
+              {title}
+            </h3>
+            {isPastDue && !completed && (
+              <div className="flex items-center text-red-500">
+                <AlertTriangle className="w-4 h-4 mr-1" />
+                <span className="text-xs font-medium">Past Due</span>
+              </div>
+            )}
+          </div>
           <p className="text-gray-600 text-sm mb-2">{description}</p>
+          
+          {/* Assignment Display */}
+          <div className="flex items-center text-xs text-gray-500 mb-2">
+            <Users className="w-3 h-3 mr-1" />
+            <span>Assigned to: {assignedToNames.join(', ')}</span>
+          </div>
         </div>
         <div className="flex items-center ml-3 space-x-2">
           {!completed && onClick && (
@@ -95,7 +119,9 @@ const TaskCard = ({
             </div>
           )}
         </div>
-        <span className="text-xs text-gray-500">{dueDate}</span>
+        <span className={`text-xs ${isPastDue && !completed ? 'text-red-500 font-medium' : 'text-gray-500'}`}>
+          {dueDate}
+        </span>
       </div>
     </div>
   );

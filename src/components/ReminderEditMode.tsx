@@ -3,14 +3,7 @@ import { useState } from 'react';
 import { Plus, Trash2, ToggleLeft, ToggleRight, X, Pencil, Save } from 'lucide-react';
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
-import { SupabaseReminder } from '@/hooks/useSupabaseData';
-
-interface FamilyMember {
-  id: string;
-  name: string;
-  email: string;
-  role: 'Admin' | 'Member';
-}
+import { SupabaseReminder, FamilyMember } from '@/hooks/useSupabaseData';
 
 interface ReminderEditModeProps {
   isEditMode: boolean;
@@ -200,9 +193,14 @@ const ReminderEditMode = ({
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <h4 className="font-medium text-gray-800">{reminder.title}</h4>
-                    {reminder.assignees && reminder.assignees.length > 0 && (
+                    {reminder.assignedToNames && reminder.assignedToNames.length > 0 && (
                       <span className="text-xs text-sage font-semibold ml-2">
-                        {reminder.assignees.map(id => familyMembers.find(m => m.id === id)?.name).filter(Boolean).join(', ')}
+                        {reminder.assignedToNames.join(', ')}
+                      </span>
+                    )}
+                    {reminder.isPastDue && (
+                      <span className="text-xs text-red-500 font-semibold bg-red-100 px-2 py-1 rounded">
+                        Past Due
                       </span>
                     )}
                   </div>

@@ -4,14 +4,7 @@ import ReminderEditMode from '@/components/ReminderEditMode';
 import ReminderCalendarView from '@/components/ReminderCalendarView';
 import TaskCard from '@/components/TaskCard';
 import { Users, Edit, CalendarDays, List } from 'lucide-react';
-import { SupabaseReminder } from '@/hooks/useSupabaseData';
-
-interface FamilyMember {
-  id: string;
-  name: string;
-  email: string;
-  role: 'Admin' | 'Member';
-}
+import { SupabaseReminder, FamilyMember } from '@/hooks/useSupabaseData';
 
 interface RemindersViewProps {
   reminders: SupabaseReminder[];
@@ -149,6 +142,8 @@ const RemindersView = ({
                 difficulty={reminder.difficulty as 'Easy' | 'Medium' | 'Hard'}
                 estimatedBudget={reminder.estimated_budget}
                 dueDate={reminder.due_date || 'Not set'}
+                isPastDue={reminder.isPastDue}
+                assignedToNames={reminder.assignedToNames}
                 isCompleted={false}
                 onComplete={() => onTaskComplete(reminder)}
                 onClick={() => handleTaskClick(reminder)}

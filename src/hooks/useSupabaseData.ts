@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -7,6 +6,7 @@ import { Database } from '@/integrations/supabase/types';
 type SupabaseReminderRow = Database['public']['Tables']['reminders']['Row'];
 type SupabaseReminderInsert = Database['public']['Tables']['reminders']['Insert'];
 type SupabaseReminderUpdate = Database['public']['Tables']['reminders']['Update'];
+type FamilyMemberRow = Database['public']['Tables']['family_members']['Row'];
 
 export interface SupabaseReminder {
   id: string;
@@ -26,6 +26,8 @@ export interface SupabaseReminder {
   assignees: string[];
   created_at: string;
   updated_at: string;
+  isPastDue?: boolean;
+  assignedToNames?: string[];
 }
 
 export interface CompletedTask {
@@ -37,7 +39,19 @@ export interface CompletedTask {
   estimated_time: string;
   estimated_budget: string;
   completed_at: string;
+  completed_date: string | null;
   created_at: string;
+}
+
+export interface FamilyMember {
+  id: string;
+  name: string;
+  email: string;
+  role: 'Admin' | 'Member';
+  adulting_progress: number;
+  invited_at: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // Helper function to convert Supabase row to our interface
@@ -61,11 +75,46 @@ const convertSupabaseRowToReminder = (row: SupabaseReminderRow): SupabaseReminde
   updated_at: row.updated_at
 });
 
+const convertFamilyMemberRow = (row: FamilyMemberRow): FamilyMember => ({
+  id: row.id,
+  name: row.name,
+  email: row.email,
+  role: row.role as 'Admin' | 'Member',
+  adulting_progress: row.adulting_progress || 0,
+  invited_at: row.invited_at,
+  created_at: row.created_at,
+  updated_at: row.updated_at
+});
+
 export const useSupabaseData = () => {
   const [reminders, setReminders] = useState<SupabaseReminder[]>([]);
   const [completedTasks, setCompletedTasks] = useState<CompletedTask[]>([]);
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+
+  const fetchFamilyMembers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('family_members')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      
+      const convertedMembers = (data || []).map(convertFamilyMemberRow);
+      setFamilyMembers(convertedMembers);
+      return convertedMembers;
+    } catch (error) {
+      console.error('Error fetching family members:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch family members",
+        variant: "destructive"
+      });
+      return [];
+    }
+  };
 
   const fetchReminders = async () => {
     try {
@@ -73,12 +122,41 @@ export const useSupabaseData = () => {
         .from('reminders')
         .select('*')
         .eq('enabled', true)
-        .order('created_at', { ascending: true });
+        .order('due_date', { ascending: true, nullsLast: true });
 
       if (error) throw error;
       
       const convertedReminders = (data || []).map(convertSupabaseRowToReminder);
-      setReminders(convertedReminders);
+      
+      // Get family members for assignment names
+      const members = await fetchFamilyMembers();
+      
+      // Add past due flags and assignment names
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const enrichedReminders = convertedReminders.map(reminder => {
+        const isPastDue = reminder.due_date ? new Date(reminder.due_date) < today : false;
+        
+        let assignedToNames: string[] = [];
+        if (reminder.assignees && reminder.assignees.length > 0) {
+          assignedToNames = reminder.assignees
+            .map(assigneeId => members.find(m => m.id === assigneeId)?.name)
+            .filter(Boolean) as string[];
+        }
+        
+        if (assignedToNames.length === 0) {
+          assignedToNames = ['Family'];
+        }
+        
+        return {
+          ...reminder,
+          isPastDue,
+          assignedToNames
+        };
+      });
+      
+      setReminders(enrichedReminders);
     } catch (error) {
       console.error('Error fetching reminders:', error);
       toast({
@@ -111,7 +189,9 @@ export const useSupabaseData = () => {
 
   const completeTask = async (reminder: SupabaseReminder) => {
     try {
-      // Add to completed tasks
+      const completedDate = new Date().toISOString().split('T')[0]; // Today's date in YYYY-MM-DD format
+      
+      // Add to completed tasks with completed_date
       const { error: insertError } = await supabase
         .from('completed_tasks')
         .insert({
@@ -120,12 +200,47 @@ export const useSupabaseData = () => {
           description: reminder.description,
           difficulty: reminder.difficulty,
           estimated_time: reminder.estimated_time,
-          estimated_budget: reminder.estimated_budget
+          estimated_budget: reminder.estimated_budget,
+          completed_date: completedDate
         });
 
       if (insertError) throw insertError;
 
-      // Check if we have more than 3 completed tasks and remove oldest if needed
+      // Calculate new due date using the database function
+      const { data: newDueDateData, error: dueDateError } = await supabase
+        .rpc('calculate_next_due_date', {
+          completed_date: completedDate,
+          frequency: reminder.frequency
+        });
+
+      if (dueDateError) throw dueDateError;
+
+      // Update reminder's due_date
+      const { error: updateError } = await supabase
+        .from('reminders')
+        .update({ due_date: newDueDateData })
+        .eq('id', reminder.id);
+
+      if (updateError) throw updateError;
+
+      // Update adulting progress for assigned family members
+      if (reminder.assignees && reminder.assignees.length > 0) {
+        for (const assigneeId of reminder.assignees) {
+          const { error: progressError } = await supabase
+            .from('family_members')
+            .update({ 
+              adulting_progress: supabase.raw('adulting_progress + 1'),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', assigneeId);
+
+          if (progressError) {
+            console.error('Error updating adulting progress:', progressError);
+          }
+        }
+      }
+
+      // Clean up old completed tasks (keep only latest 3)
       const { data: allCompleted, error: fetchError } = await supabase
         .from('completed_tasks')
         .select('*')
@@ -146,7 +261,7 @@ export const useSupabaseData = () => {
       }
 
       // Refresh data
-      await Promise.all([fetchReminders(), fetchCompletedTasks()]);
+      await Promise.all([fetchReminders(), fetchCompletedTasks(), fetchFamilyMembers()]);
 
       toast({
         title: "Great job! 🎉",
@@ -258,7 +373,7 @@ export const useSupabaseData = () => {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([fetchReminders(), fetchCompletedTasks()]);
+      await Promise.all([fetchReminders(), fetchCompletedTasks(), fetchFamilyMembers()]);
       setLoading(false);
     };
 
@@ -268,12 +383,14 @@ export const useSupabaseData = () => {
   return {
     reminders,
     completedTasks,
+    familyMembers,
     loading,
     completeTask,
     addReminder,
     updateReminder,
     deleteReminder,
     fetchReminders,
-    fetchCompletedTasks
+    fetchCompletedTasks,
+    fetchFamilyMembers
   };
 };

@@ -12,6 +12,7 @@ export type Database = {
       completed_tasks: {
         Row: {
           completed_at: string
+          completed_date: string | null
           created_at: string
           description: string | null
           difficulty: string | null
@@ -23,6 +24,7 @@ export type Database = {
         }
         Insert: {
           completed_at?: string
+          completed_date?: string | null
           created_at?: string
           description?: string | null
           difficulty?: string | null
@@ -34,6 +36,7 @@ export type Database = {
         }
         Update: {
           completed_at?: string
+          completed_date?: string | null
           created_at?: string
           description?: string | null
           difficulty?: string | null
@@ -52,6 +55,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      family_members: {
+        Row: {
+          adulting_progress: number | null
+          created_at: string
+          email: string
+          id: string
+          invited_at: string
+          name: string
+          role: string | null
+          updated_at: string
+        }
+        Insert: {
+          adulting_progress?: number | null
+          created_at?: string
+          email: string
+          id?: string
+          invited_at?: string
+          name: string
+          role?: string | null
+          updated_at?: string
+        }
+        Update: {
+          adulting_progress?: number | null
+          created_at?: string
+          email?: string
+          id?: string
+          invited_at?: string
+          name?: string
+          role?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       reminders: {
         Row: {
@@ -118,7 +154,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      calculate_next_due_date: {
+        Args: { completed_date: string; frequency: string }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
