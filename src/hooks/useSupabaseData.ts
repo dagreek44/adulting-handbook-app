@@ -2,6 +2,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { Database } from '@/integrations/supabase/types';
+
+type SupabaseReminderRow = Database['public']['Tables']['reminders']['Row'];
+type SupabaseReminderInsert = Database['public']['Tables']['reminders']['Insert'];
+type SupabaseReminderUpdate = Database['public']['Tables']['reminders']['Update'];
 
 export interface SupabaseReminder {
   id: string;
@@ -35,6 +40,27 @@ export interface CompletedTask {
   created_at: string;
 }
 
+// Helper function to convert Supabase row to our interface
+const convertSupabaseRowToReminder = (row: SupabaseReminderRow): SupabaseReminder => ({
+  id: row.id,
+  title: row.title,
+  description: row.description || '',
+  frequency: row.frequency,
+  difficulty: row.difficulty || 'Easy',
+  estimated_time: row.estimated_time || '30 min',
+  estimated_budget: row.estimated_budget || '',
+  due_date: row.due_date,
+  video_url: row.video_url,
+  instructions: row.instructions || [],
+  tools: Array.isArray(row.tools) ? row.tools : [],
+  supplies: Array.isArray(row.supplies) ? row.supplies : [],
+  enabled: row.enabled || true,
+  is_custom: row.is_custom || false,
+  assignees: row.assignees || [],
+  created_at: row.created_at,
+  updated_at: row.updated_at
+});
+
 export const useSupabaseData = () => {
   const [reminders, setReminders] = useState<SupabaseReminder[]>([]);
   const [completedTasks, setCompletedTasks] = useState<CompletedTask[]>([]);
@@ -50,7 +76,9 @@ export const useSupabaseData = () => {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setReminders(data || []);
+      
+      const convertedReminders = (data || []).map(convertSupabaseRowToReminder);
+      setReminders(convertedReminders);
     } catch (error) {
       console.error('Error fetching reminders:', error);
       toast({
@@ -137,9 +165,27 @@ export const useSupabaseData = () => {
 
   const addReminder = async (reminder: Partial<SupabaseReminder>) => {
     try {
+      // Convert our interface to Supabase insert format
+      const reminderInsert: SupabaseReminderInsert = {
+        title: reminder.title || '',
+        description: reminder.description || null,
+        frequency: reminder.frequency || 'monthly',
+        difficulty: reminder.difficulty || null,
+        estimated_time: reminder.estimated_time || null,
+        estimated_budget: reminder.estimated_budget || null,
+        due_date: reminder.due_date || null,
+        video_url: reminder.video_url || null,
+        instructions: reminder.instructions || null,
+        tools: reminder.tools || null,
+        supplies: reminder.supplies || null,
+        enabled: reminder.enabled ?? true,
+        is_custom: reminder.is_custom ?? false,
+        assignees: reminder.assignees || null
+      };
+
       const { error } = await supabase
         .from('reminders')
-        .insert(reminder);
+        .insert(reminderInsert);
 
       if (error) throw error;
       await fetchReminders();
@@ -155,9 +201,27 @@ export const useSupabaseData = () => {
 
   const updateReminder = async (id: string, updates: Partial<SupabaseReminder>) => {
     try {
+      // Convert our interface to Supabase update format
+      const reminderUpdate: SupabaseReminderUpdate = {
+        title: updates.title,
+        description: updates.description,
+        frequency: updates.frequency,
+        difficulty: updates.difficulty,
+        estimated_time: updates.estimated_time,
+        estimated_budget: updates.estimated_budget,
+        due_date: updates.due_date,
+        video_url: updates.video_url,
+        instructions: updates.instructions,
+        tools: updates.tools,
+        supplies: updates.supplies,
+        enabled: updates.enabled,
+        is_custom: updates.is_custom,
+        assignees: updates.assignees
+      };
+
       const { error } = await supabase
         .from('reminders')
-        .update(updates)
+        .update(reminderUpdate)
         .eq('id', id);
 
       if (error) throw error;

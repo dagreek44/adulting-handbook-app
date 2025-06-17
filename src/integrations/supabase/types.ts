@@ -113,54 +113,6 @@ export type Database = {
         }
         Relationships: []
       }
-      Reminders: {
-        Row: {
-          Cost: number | null
-          created_at: string
-          Description: string | null
-          Difficulty: string | null
-          DueDate: string | null
-          EstimatedTime: string | null
-          Frequency: string | null
-          id: number
-          Instructions: string | null
-          LastCompleted: string | null
-          TimesCompleted: number | null
-          Title: string | null
-          Video: string | null
-        }
-        Insert: {
-          Cost?: number | null
-          created_at?: string
-          Description?: string | null
-          Difficulty?: string | null
-          DueDate?: string | null
-          EstimatedTime?: string | null
-          Frequency?: string | null
-          id?: number
-          Instructions?: string | null
-          LastCompleted?: string | null
-          TimesCompleted?: number | null
-          Title?: string | null
-          Video?: string | null
-        }
-        Update: {
-          Cost?: number | null
-          created_at?: string
-          Description?: string | null
-          Difficulty?: string | null
-          DueDate?: string | null
-          EstimatedTime?: string | null
-          Frequency?: string | null
-          id?: number
-          Instructions?: string | null
-          LastCompleted?: string | null
-          TimesCompleted?: number | null
-          Title?: string | null
-          Video?: string | null
-        }
-        Relationships: []
-      }
     }
     Views: {
       [_ in never]: never
