@@ -6,25 +6,121 @@ import RemindersView from "@/components/RemindersView";
 import CompletedTasksView from "@/components/CompletedTasksView";
 import ReminderCalendarView from "@/components/ReminderCalendarView";
 import ContractorsView from "@/components/ContractorsView";
+import TaskDetailModal from "@/components/TaskDetailModal";
+import FamilyMembersModal from "@/components/FamilyMembersModal";
 import { useSupabaseData } from "@/hooks/useSupabaseData";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 const Index = () => {
   const [activeView, setActiveView] = useState("reminders");
-  const { reminders, completedTasks, loading } = useSupabaseData();
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [reminderViewMode, setReminderViewMode] = useState<'list' | 'calendar'>('list');
+  const [isFamilyModalOpen, setIsFamilyModalOpen] = useState(false);
+  
+  const { 
+    reminders, 
+    completedTasks, 
+    familyMembers, 
+    loading,
+    completeTask,
+    addReminder,
+    updateReminder,
+    deleteReminder,
+    fetchReminders,
+    fetchCompletedTasks,
+    fetchFamilyMembers
+  } = useSupabaseData();
+
+  const handleTaskComplete = async (task?: any) => {
+    if (task) {
+      await completeTask(task);
+    }
+    setIsModalOpen(false);
+    setSelectedTask(null);
+  };
+
+  const handleNavigateToCompleted = () => {
+    setActiveView("completed");
+  };
+
+  const supabaseOperations = {
+    addReminder,
+    updateReminder,
+    deleteReminder
+  };
 
   const renderView = () => {
     switch (activeView) {
       case "reminders":
-        return <RemindersView reminders={reminders} />;
+        return (
+          <RemindersView 
+            reminders={reminders}
+            setReminders={() => fetchReminders()}
+            familyMembers={familyMembers}
+            setFamilyMembers={() => fetchFamilyMembers()}
+            completedTasks={completedTasks.length}
+            onTaskComplete={handleTaskComplete}
+            selectedTask={selectedTask}
+            setSelectedTask={setSelectedTask}
+            setIsModalOpen={setIsModalOpen}
+            isEditMode={isEditMode}
+            setIsEditMode={setIsEditMode}
+            reminderViewMode={reminderViewMode}
+            setReminderViewMode={setReminderViewMode}
+            isFamilyModalOpen={isFamilyModalOpen}
+            setIsFamilyModalOpen={setIsFamilyModalOpen}
+            onNavigateToCompleted={handleNavigateToCompleted}
+            supabaseOperations={supabaseOperations}
+          />
+        );
       case "completed":
         return <CompletedTasksView completedTasks={completedTasks} />;
       case "calendar":
-        return <ReminderCalendarView reminders={reminders} />;
+        return (
+          <ReminderCalendarView 
+            tasks={reminders.slice(0, 3).map(reminder => ({
+              title: reminder.title,
+              description: reminder.description,
+              estimatedTime: reminder.estimated_time,
+              difficulty: reminder.difficulty as 'Easy' | 'Medium' | 'Hard',
+              dueDate: reminder.due_date || 'Not set',
+            }))}
+            reminders={reminders}
+            onTaskClick={(task) => {
+              setSelectedTask(task);
+              setIsModalOpen(true);
+            }}
+            onTaskComplete={handleTaskComplete}
+            familyMembers={familyMembers}
+            supabaseOperations={supabaseOperations}
+          />
+        );
       case "contractors":
         return <ContractorsView reminders={reminders} />;
       default:
-        return <RemindersView reminders={reminders} />;
+        return (
+          <RemindersView 
+            reminders={reminders}
+            setReminders={() => fetchReminders()}
+            familyMembers={familyMembers}
+            setFamilyMembers={() => fetchFamilyMembers()}
+            completedTasks={completedTasks.length}
+            onTaskComplete={handleTaskComplete}
+            selectedTask={selectedTask}
+            setSelectedTask={setSelectedTask}
+            setIsModalOpen={setIsModalOpen}
+            isEditMode={isEditMode}
+            setIsEditMode={setIsEditMode}
+            reminderViewMode={reminderViewMode}
+            setReminderViewMode={setReminderViewMode}
+            isFamilyModalOpen={isFamilyModalOpen}
+            setIsFamilyModalOpen={setIsFamilyModalOpen}
+            onNavigateToCompleted={handleNavigateToCompleted}
+            supabaseOperations={supabaseOperations}
+          />
+        );
     }
   };
 
@@ -45,7 +141,27 @@ const Index = () => {
         <main className="container mx-auto px-4 py-6 pb-20">
           {renderView()}
         </main>
-        <Navigation activeView={activeView} onViewChange={setActiveView} />
+        <Navigation activeTab={activeView} onTabChange={setActiveView} />
+        
+        {/* Task Detail Modal */}
+        {isModalOpen && selectedTask && (
+          <TaskDetailModal
+            task={selectedTask}
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            onComplete={() => handleTaskComplete(selectedTask)}
+          />
+        )}
+
+        {/* Family Members Modal */}
+        {isFamilyModalOpen && (
+          <FamilyMembersModal
+            familyMembers={familyMembers}
+            isOpen={isFamilyModalOpen}
+            onClose={() => setIsFamilyModalOpen(false)}
+            onUpdateMembers={() => fetchFamilyMembers()}
+          />
+        )}
       </div>
     </ProtectedRoute>
   );
