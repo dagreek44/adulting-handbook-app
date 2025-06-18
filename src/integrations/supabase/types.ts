@@ -18,6 +18,7 @@ export type Database = {
           difficulty: string | null
           estimated_budget: string | null
           estimated_time: string | null
+          family_id: string | null
           id: string
           reminder_id: string | null
           title: string
@@ -30,6 +31,7 @@ export type Database = {
           difficulty?: string | null
           estimated_budget?: string | null
           estimated_time?: string | null
+          family_id?: string | null
           id?: string
           reminder_id?: string | null
           title: string
@@ -42,6 +44,7 @@ export type Database = {
           difficulty?: string | null
           estimated_budget?: string | null
           estimated_time?: string | null
+          family_id?: string | null
           id?: string
           reminder_id?: string | null
           title?: string
@@ -64,6 +67,7 @@ export type Database = {
           id: string
           invited_at: string
           name: string
+          profile_id: string | null
           role: string | null
           updated_at: string
         }
@@ -74,6 +78,7 @@ export type Database = {
           id?: string
           invited_at?: string
           name: string
+          profile_id?: string | null
           role?: string | null
           updated_at?: string
         }
@@ -84,8 +89,47 @@ export type Database = {
           id?: string
           invited_at?: string
           name?: string
+          profile_id?: string | null
           role?: string | null
           updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "family_members_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          family_id: string
+          first_name: string
+          id: string
+          last_name: string
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          family_id?: string
+          first_name: string
+          id: string
+          last_name: string
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          family_id?: string
+          first_name?: string
+          id?: string
+          last_name?: string
+          updated_at?: string
+          username?: string
         }
         Relationships: []
       }
@@ -99,6 +143,7 @@ export type Database = {
           enabled: boolean | null
           estimated_budget: string | null
           estimated_time: string | null
+          family_id: string | null
           frequency: string
           id: string
           instructions: string[] | null
@@ -118,6 +163,7 @@ export type Database = {
           enabled?: boolean | null
           estimated_budget?: string | null
           estimated_time?: string | null
+          family_id?: string | null
           frequency: string
           id?: string
           instructions?: string[] | null
@@ -137,6 +183,7 @@ export type Database = {
           enabled?: boolean | null
           estimated_budget?: string | null
           estimated_time?: string | null
+          family_id?: string | null
           frequency?: string
           id?: string
           instructions?: string[] | null

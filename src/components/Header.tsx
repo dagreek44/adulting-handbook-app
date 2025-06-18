@@ -1,38 +1,42 @@
 
-import { useState } from 'react';
-import { House, Wrench, Flame } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { LogOut } from "lucide-react";
 
 const Header = () => {
-  const [adultingLevel] = useState(3);
-  const [adultingProgress] = useState(65);
+  const { signOut, user } = useAuth();
+
+  const handleSignOut = () => {
+    signOut();
+  };
 
   return (
-    <div className="bg-gradient-to-r from-sage to-sage-light p-6 rounded-b-3xl shadow-lg">
-      <div className="flex items-center justify-between mb-4">
+    <header className="bg-white shadow-sm">
+      <div className="container mx-auto px-4 py-4 flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-1">Adulting</h1>
-          <p className="text-white/90 text-sm italic">Because life doesn't come with a manual.</p>
+          <h1 className="text-2xl font-bold text-gray-800">Adulting</h1>
+          <p className="text-sm text-gray-600">Because life doesn't come with a manual</p>
         </div>
-        <div className="text-right">
-          <div className="text-white/90 text-xs uppercase tracking-wide mb-1">Level {adultingLevel}</div>
-          <div className="text-2xl">🏆</div>
+        <div className="flex items-center space-x-4">
+          {user && (
+            <>
+              <span className="text-sm text-gray-600">
+                Welcome back!
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSignOut}
+                className="flex items-center space-x-2"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Sign Out</span>
+              </Button>
+            </>
+          )}
         </div>
       </div>
-      
-      <div className="bg-white/20 rounded-full p-1 mb-4">
-        <div className="bg-white rounded-full p-2 flex items-center justify-between">
-          <span className="text-sage font-semibold text-sm">Adulting Progress</span>
-          <span className="text-sage font-bold">{adultingProgress}%</span>
-        </div>
-      </div>
-      
-      <div className="bg-white/10 rounded-full h-3 overflow-hidden">
-        <div 
-          className="bg-coral h-full rounded-full transition-all duration-700 ease-out"
-          style={{ width: `${adultingProgress}%` }}
-        />
-      </div>
-    </div>
+    </header>
   );
 };
 
