@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -144,13 +143,24 @@ export const useSupabaseData = () => {
     try {
       if (!user) return;
       
+      const familyId = await getCurrentFamilyId();
+      if (!familyId) {
+        console.log('No family_id found for user');
+        return;
+      }
+
+      console.log('Fetching reminders for family_id:', familyId);
+      
       const { data, error } = await supabase
         .from('reminders')
         .select('*')
+        .eq('family_id', familyId)
         .eq('enabled', true)
         .order('due_date', { ascending: true, nullsFirst: true });
 
       if (error) throw error;
+      
+      console.log('Fetched reminders:', data);
       
       const convertedReminders = (data || []).map(convertSupabaseRowToReminder);
       
@@ -197,9 +207,13 @@ export const useSupabaseData = () => {
     try {
       if (!user) return;
       
+      const familyId = await getCurrentFamilyId();
+      if (!familyId) return;
+      
       const { data, error } = await supabase
         .from('completed_tasks')
         .select('*')
+        .eq('family_id', familyId)
         .order('completed_at', { ascending: false })
         .limit(3);
 
@@ -321,6 +335,7 @@ export const useSupabaseData = () => {
       const { data: allCompleted, error: fetchError } = await supabase
         .from('completed_tasks')
         .select('*')
+        .eq('family_id', familyId)
         .order('completed_at', { ascending: false });
 
       if (fetchError) throw fetchError;

@@ -136,12 +136,14 @@ const Index = () => {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-cream">
+      <div className="min-h-screen bg-cream flex flex-col">
         <Header />
-        <main className="container mx-auto px-4 py-6 pb-20">
+        <main className="flex-1 container mx-auto px-4 py-6 pb-20 max-w-md">
           {renderView()}
         </main>
-        <Navigation activeTab={activeView} onTabChange={setActiveView} />
+        <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto">
+          <Navigation activeTab={activeView} onTabChange={setActiveView} />
+        </div>
         
         {/* Task Detail Modal */}
         {isModalOpen && selectedTask && (

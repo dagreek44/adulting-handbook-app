@@ -106,6 +106,7 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          "Email Address": string | null
           family_id: string
           first_name: string
           id: string
@@ -115,6 +116,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          "Email Address"?: string | null
           family_id?: string
           first_name: string
           id: string
@@ -124,6 +126,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          "Email Address"?: string | null
           family_id?: string
           first_name?: string
           id?: string
