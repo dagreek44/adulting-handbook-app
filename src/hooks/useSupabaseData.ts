@@ -8,6 +8,7 @@ type SupabaseReminderRow = Database['public']['Tables']['reminders']['Row'];
 type SupabaseReminderInsert = Database['public']['Tables']['reminders']['Insert'];
 type SupabaseReminderUpdate = Database['public']['Tables']['reminders']['Update'];
 type FamilyMemberRow = Database['public']['Tables']['family_members']['Row'];
+type UserTaskRow = Database['public']['Tables']['user_tasks']['Row'];
 
 export interface SupabaseReminder {
   id: string;
@@ -27,6 +28,31 @@ export interface SupabaseReminder {
   assignees: string[];
   created_at: string;
   updated_at: string;
+  isPastDue?: boolean;
+  assignedToNames?: string[];
+}
+
+export interface UserTask {
+  id: string;
+  reminder_id: string;
+  completed_date: string | null;
+  family_id: string;
+  enabled: boolean;
+  due_date: string;
+  frequency: string;
+  reminder_type: string;
+  created_at: string;
+  // Combined with reminder data
+  title?: string;
+  description?: string;
+  difficulty?: string;
+  estimated_time?: string;
+  estimated_budget?: string;
+  video_url?: string | null;
+  instructions?: string[];
+  tools?: any[];
+  supplies?: any[];
+  assignees?: string[];
   isPastDue?: boolean;
   assignedToNames?: string[];
 }
@@ -66,12 +92,12 @@ const convertSupabaseRowToReminder = (row: SupabaseReminderRow): SupabaseReminde
   estimated_budget: row.estimated_budget || '',
   due_date: row.due_date,
   video_url: row.video_url,
-  instructions: row.instructions || [],
+  instructions: Array.isArray(row.instructions) ? row.instructions : [],
   tools: Array.isArray(row.tools) ? row.tools : [],
   supplies: Array.isArray(row.supplies) ? row.supplies : [],
   enabled: row.enabled || true,
   is_custom: row.is_custom || false,
-  assignees: row.assignees || [],
+  assignees: Array.isArray(row.assignees) ? row.assignees : [],
   created_at: row.created_at,
   updated_at: row.updated_at
 });
@@ -89,6 +115,7 @@ const convertFamilyMemberRow = (row: FamilyMemberRow): FamilyMember => ({
 
 export const useSupabaseData = () => {
   const [reminders, setReminders] = useState<SupabaseReminder[]>([]);
+  const [userTasks, setUserTasks] = useState<UserTask[]>([]);
   const [completedTasks, setCompletedTasks] = useState<CompletedTask[]>([]);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -168,6 +195,86 @@ export const useSupabaseData = () => {
     }
   };
 
+  const fetchUserTasks = async () => {
+    try {
+      // Fetch user tasks with reminder data
+      const { data, error } = await supabase
+        .from('user_tasks')
+        .select(`
+          *,
+          reminders (
+            title,
+            description,
+            difficulty,
+            estimated_time,
+            estimated_budget,
+            video_url,
+            instructions,
+            tools,
+            supplies,
+            assignees
+          )
+        `)
+        .eq('enabled', true)
+        .order('due_date', { ascending: true });
+
+      if (error) throw error;
+      
+      const members = await fetchFamilyMembers();
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const enrichedTasks = (data || []).map(task => {
+        const reminderData = task.reminders as any;
+        const isPastDue = new Date(task.due_date) < today;
+        
+        let assignedToNames: string[] = [];
+        if (reminderData?.assignees && reminderData.assignees.length > 0) {
+          assignedToNames = reminderData.assignees
+            .map((assigneeId: string) => members.find(m => m.id === assigneeId)?.name)
+            .filter(Boolean) as string[];
+        }
+        
+        if (assignedToNames.length === 0) {
+          assignedToNames = ['Family'];
+        }
+        
+        return {
+          id: task.id,
+          reminder_id: task.reminder_id,
+          completed_date: task.completed_date,
+          family_id: task.family_id,
+          enabled: task.enabled,
+          due_date: task.due_date,
+          frequency: task.frequency,
+          reminder_type: task.reminder_type,
+          created_at: task.created_at,
+          title: reminderData?.title || 'Unknown Task',
+          description: reminderData?.description || '',
+          difficulty: reminderData?.difficulty || 'Easy',
+          estimated_time: reminderData?.estimated_time || '30 min',
+          estimated_budget: reminderData?.estimated_budget || '',
+          video_url: reminderData?.video_url,
+          instructions: Array.isArray(reminderData?.instructions) ? reminderData.instructions : [],
+          tools: Array.isArray(reminderData?.tools) ? reminderData.tools : [],
+          supplies: Array.isArray(reminderData?.supplies) ? reminderData.supplies : [],
+          assignees: Array.isArray(reminderData?.assignees) ? reminderData.assignees : [],
+          isPastDue,
+          assignedToNames
+        };
+      });
+      
+      setUserTasks(enrichedTasks);
+    } catch (error) {
+      console.error('Error fetching user tasks:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch user tasks",
+        variant: "destructive"
+      });
+    }
+  };
+
   const fetchCompletedTasks = async () => {
     try {
       const { data, error } = await supabase
@@ -188,32 +295,32 @@ export const useSupabaseData = () => {
     }
   };
 
-  const completeTask = async (reminder: SupabaseReminder) => {
+  const completeTask = async (userTask: UserTask) => {
     try {
       const today = new Date();
-      const completedDate = today.toISOString().split('T')[0]; // Today's date in YYYY-MM-DD format
+      const completedDate = today.toISOString().split('T')[0];
       
-      // Add to completed tasks with completed_date
+      // Add to completed tasks
       const { error: insertError } = await supabase
         .from('completed_tasks')
         .insert({
-          reminder_id: reminder.id,
-          title: reminder.title,
-          description: reminder.description,
-          difficulty: reminder.difficulty,
-          estimated_time: reminder.estimated_time,
-          estimated_budget: reminder.estimated_budget,
+          reminder_id: userTask.reminder_id,
+          title: userTask.title || 'Unknown Task',
+          description: userTask.description || '',
+          difficulty: userTask.difficulty || 'Easy',
+          estimated_time: userTask.estimated_time || '30 min',
+          estimated_budget: userTask.estimated_budget || '',
           completed_date: completedDate
         });
 
       if (insertError) throw insertError;
 
-      // Calculate new due date based on today's date plus frequency
+      // Calculate new due date based on frequency
       let newDueDate: string | null = null;
-      if (reminder.frequency !== 'once') {
+      if (userTask.frequency !== 'once') {
         const nextDate = new Date(today);
         
-        switch (reminder.frequency) {
+        switch (userTask.frequency) {
           case 'weekly':
             nextDate.setDate(nextDate.getDate() + 7);
             break;
@@ -236,27 +343,34 @@ export const useSupabaseData = () => {
         newDueDate = nextDate.toISOString().split('T')[0];
       }
 
-      // Update reminder's due_date (or disable if frequency is 'once')
-      if (reminder.frequency === 'once') {
+      // Update user task
+      if (userTask.frequency === 'once') {
+        // Disable the task if it's a one-time task
         const { error: updateError } = await supabase
-          .from('reminders')
-          .update({ enabled: false })
-          .eq('id', reminder.id);
+          .from('user_tasks')
+          .update({ 
+            enabled: false,
+            completed_date: completedDate
+          })
+          .eq('id', userTask.id);
 
         if (updateError) throw updateError;
       } else {
+        // Update the due date for recurring tasks
         const { error: updateError } = await supabase
-          .from('reminders')
-          .update({ due_date: newDueDate })
-          .eq('id', reminder.id);
+          .from('user_tasks')
+          .update({ 
+            due_date: newDueDate!,
+            completed_date: completedDate
+          })
+          .eq('id', userTask.id);
 
         if (updateError) throw updateError;
       }
 
       // Update adulting progress for assigned family members
-      if (reminder.assignees && reminder.assignees.length > 0) {
-        for (const assigneeId of reminder.assignees) {
-          // Get current progress first
+      if (userTask.assignees && userTask.assignees.length > 0) {
+        for (const assigneeId of userTask.assignees) {
           const { data: currentMember, error: fetchError } = await supabase
             .from('family_members')
             .select('adulting_progress')
@@ -305,7 +419,7 @@ export const useSupabaseData = () => {
       }
 
       // Refresh data
-      await Promise.all([fetchReminders(), fetchCompletedTasks(), fetchFamilyMembers()]);
+      await Promise.all([fetchUserTasks(), fetchCompletedTasks(), fetchFamilyMembers()]);
 
       toast({
         title: "Great job! 🎉",
@@ -324,7 +438,6 @@ export const useSupabaseData = () => {
 
   const addReminder = async (reminder: Partial<SupabaseReminder>) => {
     try {
-      // Convert our interface to Supabase insert format
       const reminderInsert: SupabaseReminderInsert = {
         title: reminder.title || '',
         description: reminder.description || null,
@@ -342,12 +455,30 @@ export const useSupabaseData = () => {
         assignees: reminder.assignees || null
       };
 
-      const { error } = await supabase
+      const { data: newReminder, error } = await supabase
         .from('reminders')
-        .insert(reminderInsert);
+        .insert(reminderInsert)
+        .select()
+        .single();
 
       if (error) throw error;
-      await fetchReminders();
+
+      // Create a user task for this reminder
+      if (newReminder) {
+        const { error: taskError } = await supabase
+          .from('user_tasks')
+          .insert({
+            reminder_id: newReminder.id,
+            family_id: 'temp-family-id', // You'll need to get the actual family_id
+            due_date: newReminder.due_date || new Date().toISOString().split('T')[0],
+            frequency: newReminder.frequency,
+            reminder_type: newReminder.is_custom ? 'custom' : 'global'
+          });
+
+        if (taskError) throw taskError;
+      }
+
+      await Promise.all([fetchReminders(), fetchUserTasks()]);
     } catch (error) {
       console.error('Error adding reminder:', error);
       toast({
@@ -360,7 +491,6 @@ export const useSupabaseData = () => {
 
   const updateReminder = async (id: string, updates: Partial<SupabaseReminder>) => {
     try {
-      // Convert our interface to Supabase update format
       const reminderUpdate: SupabaseReminderUpdate = {
         title: updates.title,
         description: updates.description,
@@ -384,7 +514,7 @@ export const useSupabaseData = () => {
         .eq('id', id);
 
       if (error) throw error;
-      await fetchReminders();
+      await Promise.all([fetchReminders(), fetchUserTasks()]);
     } catch (error) {
       console.error('Error updating reminder:', error);
       toast({
@@ -403,7 +533,7 @@ export const useSupabaseData = () => {
         .eq('id', id);
 
       if (error) throw error;
-      await fetchReminders();
+      await Promise.all([fetchReminders(), fetchUserTasks()]);
     } catch (error) {
       console.error('Error deleting reminder:', error);
       toast({
@@ -417,7 +547,7 @@ export const useSupabaseData = () => {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([fetchReminders(), fetchCompletedTasks(), fetchFamilyMembers()]);
+      await Promise.all([fetchReminders(), fetchUserTasks(), fetchCompletedTasks(), fetchFamilyMembers()]);
       setLoading(false);
     };
 
@@ -425,7 +555,7 @@ export const useSupabaseData = () => {
   }, []);
 
   return {
-    reminders,
+    reminders: userTasks, // Return user tasks as reminders for compatibility
     completedTasks,
     familyMembers,
     loading,
@@ -433,7 +563,7 @@ export const useSupabaseData = () => {
     addReminder,
     updateReminder,
     deleteReminder,
-    fetchReminders,
+    fetchReminders: fetchUserTasks,
     fetchCompletedTasks,
     fetchFamilyMembers
   };
