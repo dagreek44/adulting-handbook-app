@@ -20,16 +20,17 @@ const Index = () => {
   const [isFamilyModalOpen, setIsFamilyModalOpen] = useState(false);
   
   const { 
-    reminders, 
-    completedTasks, 
-    familyMembers, 
+    reminders,
+    completedTasks,
+    familyMembers,
     loading,
     completeTask,
     addReminder,
     updateReminder,
     deleteReminder,
+    enableGlobalReminder,
     fetchReminders,
-    fetchCompletedTasks,
+    fetchUserTasks,
     fetchFamilyMembers
   } = useSupabaseData();
 
@@ -48,7 +49,8 @@ const Index = () => {
   const supabaseOperations = {
     addReminder,
     updateReminder,
-    deleteReminder
+    deleteReminder,
+    enableGlobalReminder
   };
 
   const renderView = () => {

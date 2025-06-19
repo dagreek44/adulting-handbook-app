@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -7,6 +8,8 @@ import { Database } from '@/integrations/supabase/types';
 type SupabaseReminderRow = Database['public']['Tables']['reminders']['Row'];
 type SupabaseReminderInsert = Database['public']['Tables']['reminders']['Insert'];
 type SupabaseReminderUpdate = Database['public']['Tables']['reminders']['Update'];
+type GlobalReminderRow = Database['public']['Tables']['global_reminders']['Row'];
+type UserTaskRow = Database['public']['Tables']['user_tasks']['Row'];
 type FamilyMemberRow = Database['public']['Tables']['family_members']['Row'];
 
 export interface SupabaseReminder {
@@ -24,6 +27,7 @@ export interface SupabaseReminder {
   supplies: any[];
   enabled: boolean;
   is_custom: boolean;
+  is_global?: boolean;
   assignees: string[];
   created_at: string;
   updated_at: string;
@@ -31,9 +35,10 @@ export interface SupabaseReminder {
   assignedToNames?: string[];
 }
 
-export interface CompletedTask {
+export interface UserTask {
   id: string;
   reminder_id: string | null;
+  global_reminder_id: string | null;
   title: string;
   description: string;
   difficulty: string;
@@ -41,6 +46,10 @@ export interface CompletedTask {
   estimated_budget: string;
   completed_at: string;
   completed_date: string | null;
+  due_date: string | null;
+  enabled: boolean;
+  reminder_type: 'global' | 'custom';
+  frequency: string | null;
   created_at: string;
 }
 
@@ -55,7 +64,23 @@ export interface FamilyMember {
   updated_at: string;
 }
 
-// Helper function to convert Supabase row to our interface
+export interface GlobalReminder {
+  id: string;
+  title: string;
+  description: string;
+  frequency: string;
+  difficulty: string;
+  estimated_time: string;
+  estimated_budget: string;
+  video_url: string | null;
+  instructions: string[];
+  tools: any[];
+  supplies: any[];
+  created_at: string;
+  updated_at: string;
+}
+
+// Helper functions to convert database rows to our interfaces
 const convertSupabaseRowToReminder = (row: SupabaseReminderRow): SupabaseReminder => ({
   id: row.id,
   title: row.title,
@@ -76,6 +101,27 @@ const convertSupabaseRowToReminder = (row: SupabaseReminderRow): SupabaseReminde
   updated_at: row.updated_at
 });
 
+const convertGlobalReminderToReminder = (row: GlobalReminderRow, userTask?: UserTaskRow): SupabaseReminder => ({
+  id: userTask?.id || row.id,
+  title: row.title,
+  description: row.description || '',
+  frequency: row.frequency,
+  difficulty: row.difficulty || 'Easy',
+  estimated_time: row.estimated_time || '30 min',
+  estimated_budget: row.estimated_budget || '',
+  due_date: userTask?.due_date || null,
+  video_url: row.video_url,
+  instructions: row.instructions || [],
+  tools: Array.isArray(row.tools) ? row.tools : [],
+  supplies: Array.isArray(row.supplies) ? row.supplies : [],
+  enabled: userTask?.enabled ?? false,
+  is_custom: false,
+  is_global: true,
+  assignees: [],
+  created_at: row.created_at,
+  updated_at: row.updated_at
+});
+
 const convertFamilyMemberRow = (row: FamilyMemberRow): FamilyMember => ({
   id: row.id,
   name: row.name,
@@ -89,7 +135,8 @@ const convertFamilyMemberRow = (row: FamilyMemberRow): FamilyMember => ({
 
 export const useSupabaseData = () => {
   const [reminders, setReminders] = useState<SupabaseReminder[]>([]);
-  const [completedTasks, setCompletedTasks] = useState<CompletedTask[]>([]);
+  const [globalReminders, setGlobalReminders] = useState<GlobalReminder[]>([]);
+  const [userTasks, setUserTasks] = useState<UserTask[]>([]);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -139,6 +186,54 @@ export const useSupabaseData = () => {
     }
   };
 
+  const fetchGlobalReminders = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('global_reminders')
+        .select('*')
+        .order('title', { ascending: true });
+
+      if (error) throw error;
+      setGlobalReminders(data || []);
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching global reminders:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch global reminders",
+        variant: "destructive"
+      });
+      return [];
+    }
+  };
+
+  const fetchUserTasks = async () => {
+    try {
+      if (!user) return;
+      
+      const familyId = await getCurrentFamilyId();
+      if (!familyId) return;
+      
+      const { data, error } = await supabase
+        .from('user_tasks')
+        .select('*')
+        .eq('family_id', familyId)
+        .order('completed_at', { ascending: false });
+
+      if (error) throw error;
+      setUserTasks(data || []);
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching user tasks:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch user tasks",
+        variant: "destructive"
+      });
+      return [];
+    }
+  };
+
   const fetchReminders = async () => {
     try {
       if (!user) return;
@@ -149,20 +244,35 @@ export const useSupabaseData = () => {
         return;
       }
 
-      console.log('Fetching reminders for family_id:', familyId);
-      
-      const { data, error } = await supabase
+      // Fetch custom family reminders
+      const { data: customReminders, error: customError } = await supabase
         .from('reminders')
         .select('*')
         .eq('family_id', familyId)
         .eq('enabled', true)
         .order('due_date', { ascending: true, nullsFirst: true });
 
-      if (error) throw error;
+      if (customError) throw customError;
+
+      // Fetch global reminders and user tasks
+      const [globalRems, tasks] = await Promise.all([
+        fetchGlobalReminders(),
+        fetchUserTasks()
+      ]);
+
+      // Combine custom reminders and enabled global reminders
+      const convertedCustomReminders = (customReminders || []).map(convertSupabaseRowToReminder);
       
-      console.log('Fetched reminders:', data);
-      
-      const convertedReminders = (data || []).map(convertSupabaseRowToReminder);
+      const enabledGlobalReminders = globalRems
+        .map(globalRem => {
+          const userTask = tasks.find(task => 
+            task.global_reminder_id === globalRem.id && task.enabled
+          );
+          return convertGlobalReminderToReminder(globalRem, userTask);
+        })
+        .filter(rem => rem.enabled);
+
+      const allReminders = [...convertedCustomReminders, ...enabledGlobalReminders];
       
       // Get family members for assignment names
       const members = await fetchFamilyMembers();
@@ -171,7 +281,7 @@ export const useSupabaseData = () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
-      const enrichedReminders = convertedReminders.map(reminder => {
+      const enrichedReminders = allReminders.map(reminder => {
         const isPastDue = reminder.due_date ? new Date(reminder.due_date) < today : false;
         
         let assignedToNames: string[] = [];
@@ -203,27 +313,39 @@ export const useSupabaseData = () => {
     }
   };
 
-  const fetchCompletedTasks = async () => {
+  const enableGlobalReminder = async (globalReminderId: string, dueDate?: string) => {
     try {
       if (!user) return;
       
       const familyId = await getCurrentFamilyId();
       if (!familyId) return;
       
-      const { data, error } = await supabase
-        .from('completed_tasks')
-        .select('*')
-        .eq('family_id', familyId)
-        .order('completed_at', { ascending: false })
-        .limit(3);
+      const globalReminder = globalReminders.find(gr => gr.id === globalReminderId);
+      if (!globalReminder) return;
+
+      const { error } = await supabase
+        .from('user_tasks')
+        .insert({
+          global_reminder_id: globalReminderId,
+          title: globalReminder.title,
+          description: globalReminder.description,
+          difficulty: globalReminder.difficulty,
+          estimated_time: globalReminder.estimated_time,
+          estimated_budget: globalReminder.estimated_budget,
+          reminder_type: 'global',
+          enabled: true,
+          due_date: dueDate || null,
+          frequency: globalReminder.frequency,
+          family_id: familyId
+        });
 
       if (error) throw error;
-      setCompletedTasks(data || []);
+      await fetchReminders();
     } catch (error) {
-      console.error('Error fetching completed tasks:', error);
+      console.error('Error enabling global reminder:', error);
       toast({
         title: "Error",
-        description: "Failed to fetch completed tasks",
+        description: "Failed to enable reminder",
         variant: "destructive"
       });
     }
@@ -239,71 +361,120 @@ export const useSupabaseData = () => {
       const today = new Date();
       const completedDate = today.toISOString().split('T')[0];
       
-      // Add to completed tasks with family_id
-      const { error: insertError } = await supabase
-        .from('completed_tasks')
-        .insert({
-          reminder_id: reminder.id,
-          title: reminder.title,
-          description: reminder.description,
-          difficulty: reminder.difficulty,
-          estimated_time: reminder.estimated_time,
-          estimated_budget: reminder.estimated_budget,
-          completed_date: completedDate,
-          family_id: familyId
-        });
-
-      if (insertError) throw insertError;
-
-      // Calculate new due date based on today's date plus frequency
-      let newDueDate: string | null = null;
-      if (reminder.frequency !== 'once') {
-        const nextDate = new Date(today);
+      if (reminder.is_global) {
+        // Update existing user task for global reminder
+        const userTask = userTasks.find(task => 
+          task.global_reminder_id && globalReminders.find(gr => gr.id === task.global_reminder_id)?.title === reminder.title
+        );
         
-        switch (reminder.frequency) {
-          case 'weekly':
-            nextDate.setDate(nextDate.getDate() + 7);
-            break;
-          case 'monthly':
-            nextDate.setMonth(nextDate.getMonth() + 1);
-            break;
-          case 'quarterly':
-            nextDate.setDate(nextDate.getDate() + 90);
-            break;
-          case 'seasonally':
-            nextDate.setDate(nextDate.getDate() + 90);
-            break;
-          case 'yearly':
-            nextDate.setFullYear(nextDate.getFullYear() + 1);
-            break;
-          default:
-            nextDate.setMonth(nextDate.getMonth() + 1);
+        if (userTask) {
+          // Calculate new due date
+          let newDueDate: string | null = null;
+          if (userTask.frequency && userTask.frequency !== 'once') {
+            const nextDate = new Date(today);
+            
+            switch (userTask.frequency) {
+              case 'weekly':
+                nextDate.setDate(nextDate.getDate() + 7);
+                break;
+              case 'monthly':
+                nextDate.setMonth(nextDate.getMonth() + 1);
+                break;
+              case 'quarterly':
+                nextDate.setDate(nextDate.getDate() + 90);
+                break;
+              case 'seasonally':
+                nextDate.setDate(nextDate.getDate() + 90);
+                break;
+              case 'yearly':
+                nextDate.setFullYear(nextDate.getFullYear() + 1);
+                break;
+              default:
+                nextDate.setMonth(nextDate.getMonth() + 1);
+            }
+            
+            newDueDate = nextDate.toISOString().split('T')[0];
+          }
+
+          // Update the user task with new due date and completion info
+          const { error: updateError } = await supabase
+            .from('user_tasks')
+            .update({
+              completed_at: new Date().toISOString(),
+              completed_date: completedDate,
+              due_date: newDueDate,
+              enabled: userTask.frequency !== 'once'
+            })
+            .eq('id', userTask.id);
+
+          if (updateError) throw updateError;
         }
-        
-        newDueDate = nextDate.toISOString().split('T')[0];
-      }
-
-      // Update reminder's due_date (or disable if frequency is 'once')
-      if (reminder.frequency === 'once') {
-        const { error: updateError } = await supabase
-          .from('reminders')
-          .update({ enabled: false })
-          .eq('id', reminder.id);
-
-        if (updateError) throw updateError;
       } else {
-        const { error: updateError } = await supabase
-          .from('reminders')
-          .update({ due_date: newDueDate })
-          .eq('id', reminder.id);
+        // Handle custom reminder completion (existing logic)
+        const { error: insertError } = await supabase
+          .from('user_tasks')
+          .insert({
+            reminder_id: reminder.id,
+            title: reminder.title,
+            description: reminder.description,
+            difficulty: reminder.difficulty,
+            estimated_time: reminder.estimated_time,
+            estimated_budget: reminder.estimated_budget,
+            completed_date: completedDate,
+            reminder_type: 'custom',
+            family_id: familyId
+          });
 
-        if (updateError) throw updateError;
+        if (insertError) throw insertError;
+
+        // Update custom reminder due date or disable
+        let newDueDate: string | null = null;
+        if (reminder.frequency !== 'once') {
+          const nextDate = new Date(today);
+          
+          switch (reminder.frequency) {
+            case 'weekly':
+              nextDate.setDate(nextDate.getDate() + 7);
+              break;
+            case 'monthly':
+              nextDate.setMonth(nextDate.getMonth() + 1);
+              break;
+            case 'quarterly':
+              nextDate.setDate(nextDate.getDate() + 90);
+              break;
+            case 'seasonally':
+              nextDate.setDate(nextDate.getDate() + 90);
+              break;
+            case 'yearly':
+              nextDate.setFullYear(nextDate.getFullYear() + 1);
+              break;
+            default:
+              nextDate.setMonth(nextDate.getMonth() + 1);
+          }
+          
+          newDueDate = nextDate.toISOString().split('T')[0];
+        }
+
+        if (reminder.frequency === 'once') {
+          const { error: updateError } = await supabase
+            .from('reminders')
+            .update({ enabled: false })
+            .eq('id', reminder.id);
+
+          if (updateError) throw updateError;
+        } else {
+          const { error: updateError } = await supabase
+            .from('reminders')
+            .update({ due_date: newDueDate })
+            .eq('id', reminder.id);
+
+          if (updateError) throw updateError;
+        }
       }
 
-      // Update adulting progress for assigned family members
+      // Update family member progress
       if (reminder.assignees && reminder.assignees.length > 0) {
         for (const assigneeId of reminder.assignees) {
-          // Get current progress first
           const { data: currentMember, error: fetchError } = await supabase
             .from('family_members')
             .select('adulting_progress')
@@ -331,29 +502,8 @@ export const useSupabaseData = () => {
         }
       }
 
-      // Clean up old completed tasks (keep only latest 3)
-      const { data: allCompleted, error: fetchError } = await supabase
-        .from('completed_tasks')
-        .select('*')
-        .eq('family_id', familyId)
-        .order('completed_at', { ascending: false });
-
-      if (fetchError) throw fetchError;
-
-      if (allCompleted && allCompleted.length > 3) {
-        const tasksToDelete = allCompleted.slice(3);
-        const idsToDelete = tasksToDelete.map(task => task.id);
-        
-        const { error: deleteError } = await supabase
-          .from('completed_tasks')
-          .delete()
-          .in('id', idsToDelete);
-
-        if (deleteError) throw deleteError;
-      }
-
       // Refresh data
-      await Promise.all([fetchReminders(), fetchCompletedTasks(), fetchFamilyMembers()]);
+      await Promise.all([fetchReminders(), fetchUserTasks(), fetchFamilyMembers()]);
 
       toast({
         title: "Great job! 🎉",
@@ -377,7 +527,6 @@ export const useSupabaseData = () => {
       const familyId = await getCurrentFamilyId();
       if (!familyId) return;
       
-      // Convert our interface to Supabase insert format
       const reminderInsert: SupabaseReminderInsert = {
         title: reminder.title || '',
         description: reminder.description || null,
@@ -391,7 +540,7 @@ export const useSupabaseData = () => {
         tools: reminder.tools || null,
         supplies: reminder.supplies || null,
         enabled: reminder.enabled ?? true,
-        is_custom: reminder.is_custom ?? false,
+        is_custom: reminder.is_custom ?? true,
         assignees: reminder.assignees || null,
         family_id: familyId
       };
@@ -414,7 +563,6 @@ export const useSupabaseData = () => {
 
   const updateReminder = async (id: string, updates: Partial<SupabaseReminder>) => {
     try {
-      // Convert our interface to Supabase update format
       const reminderUpdate: SupabaseReminderUpdate = {
         title: updates.title,
         description: updates.description,
@@ -476,7 +624,7 @@ export const useSupabaseData = () => {
       }
       
       setLoading(true);
-      await Promise.all([fetchReminders(), fetchCompletedTasks(), fetchFamilyMembers()]);
+      await Promise.all([fetchReminders(), fetchUserTasks(), fetchFamilyMembers()]);
       setLoading(false);
     };
 
@@ -485,15 +633,18 @@ export const useSupabaseData = () => {
 
   return {
     reminders,
-    completedTasks,
+    globalReminders,
+    userTasks,
+    completedTasks: userTasks.filter(task => task.completed_at),
     familyMembers,
     loading,
     completeTask,
     addReminder,
     updateReminder,
     deleteReminder,
+    enableGlobalReminder,
     fetchReminders,
-    fetchCompletedTasks,
+    fetchUserTasks,
     fetchFamilyMembers
   };
 };

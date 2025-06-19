@@ -1,10 +1,10 @@
 
 import { CheckCircle2, Trophy, Calendar } from 'lucide-react';
-import { CompletedTask } from '@/hooks/useSupabaseData';
+import { UserTask } from '@/hooks/useSupabaseData';
 import { format } from 'date-fns';
 
 interface CompletedTasksViewProps {
-  completedTasks: CompletedTask[];
+  completedTasks: UserTask[];
 }
 
 const CompletedTasksView = ({ completedTasks }: CompletedTasksViewProps) => {
@@ -42,6 +42,11 @@ const CompletedTasksView = ({ completedTasks }: CompletedTasksViewProps) => {
                     {task.title}
                   </h4>
                   <p className="text-gray-600 text-sm mb-2">{task.description}</p>
+                  <div className="flex items-center space-x-2 text-xs">
+                    <span className="px-2 py-1 rounded-full bg-blue-100 text-blue-800">
+                      {task.reminder_type === 'global' ? 'Standard' : 'Custom'}
+                    </span>
+                  </div>
                 </div>
               </div>
               

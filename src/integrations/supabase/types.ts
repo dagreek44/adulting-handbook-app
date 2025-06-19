@@ -9,56 +9,6 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      completed_tasks: {
-        Row: {
-          completed_at: string
-          completed_date: string | null
-          created_at: string
-          description: string | null
-          difficulty: string | null
-          estimated_budget: string | null
-          estimated_time: string | null
-          family_id: string | null
-          id: string
-          reminder_id: string | null
-          title: string
-        }
-        Insert: {
-          completed_at?: string
-          completed_date?: string | null
-          created_at?: string
-          description?: string | null
-          difficulty?: string | null
-          estimated_budget?: string | null
-          estimated_time?: string | null
-          family_id?: string | null
-          id?: string
-          reminder_id?: string | null
-          title: string
-        }
-        Update: {
-          completed_at?: string
-          completed_date?: string | null
-          created_at?: string
-          description?: string | null
-          difficulty?: string | null
-          estimated_budget?: string | null
-          estimated_time?: string | null
-          family_id?: string | null
-          id?: string
-          reminder_id?: string | null
-          title?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "completed_tasks_reminder_id_fkey"
-            columns: ["reminder_id"]
-            isOneToOne: false
-            referencedRelation: "reminders"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       family_members: {
         Row: {
           adulting_progress: number | null
@@ -102,6 +52,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      global_reminders: {
+        Row: {
+          created_at: string
+          description: string | null
+          difficulty: string | null
+          estimated_budget: string | null
+          estimated_time: string | null
+          frequency: string
+          id: string
+          instructions: string[] | null
+          supplies: Json | null
+          title: string
+          tools: Json | null
+          updated_at: string
+          video_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          difficulty?: string | null
+          estimated_budget?: string | null
+          estimated_time?: string | null
+          frequency: string
+          id?: string
+          instructions?: string[] | null
+          supplies?: Json | null
+          title: string
+          tools?: Json | null
+          updated_at?: string
+          video_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          difficulty?: string | null
+          estimated_budget?: string | null
+          estimated_time?: string | null
+          frequency?: string
+          id?: string
+          instructions?: string[] | null
+          supplies?: Json | null
+          title?: string
+          tools?: Json | null
+          updated_at?: string
+          video_url?: string | null
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -198,6 +196,78 @@ export type Database = {
           video_url?: string | null
         }
         Relationships: []
+      }
+      user_tasks: {
+        Row: {
+          completed_at: string
+          completed_date: string | null
+          created_at: string
+          description: string | null
+          difficulty: string | null
+          due_date: string | null
+          enabled: boolean | null
+          estimated_budget: string | null
+          estimated_time: string | null
+          family_id: string | null
+          frequency: string | null
+          global_reminder_id: string | null
+          id: string
+          reminder_id: string | null
+          reminder_type: string | null
+          title: string
+        }
+        Insert: {
+          completed_at?: string
+          completed_date?: string | null
+          created_at?: string
+          description?: string | null
+          difficulty?: string | null
+          due_date?: string | null
+          enabled?: boolean | null
+          estimated_budget?: string | null
+          estimated_time?: string | null
+          family_id?: string | null
+          frequency?: string | null
+          global_reminder_id?: string | null
+          id?: string
+          reminder_id?: string | null
+          reminder_type?: string | null
+          title: string
+        }
+        Update: {
+          completed_at?: string
+          completed_date?: string | null
+          created_at?: string
+          description?: string | null
+          difficulty?: string | null
+          due_date?: string | null
+          enabled?: boolean | null
+          estimated_budget?: string | null
+          estimated_time?: string | null
+          family_id?: string | null
+          frequency?: string | null
+          global_reminder_id?: string | null
+          id?: string
+          reminder_id?: string | null
+          reminder_type?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "completed_tasks_reminder_id_fkey"
+            columns: ["reminder_id"]
+            isOneToOne: false
+            referencedRelation: "reminders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_tasks_global_reminder_id_fkey"
+            columns: ["global_reminder_id"]
+            isOneToOne: false
+            referencedRelation: "global_reminders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

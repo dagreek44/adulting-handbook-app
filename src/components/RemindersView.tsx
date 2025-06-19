@@ -4,7 +4,8 @@ import ReminderEditMode from '@/components/ReminderEditMode';
 import ReminderCalendarView from '@/components/ReminderCalendarView';
 import TaskCard from '@/components/TaskCard';
 import AddCustomReminder from '@/components/AddCustomReminder';
-import { Users, Edit, CalendarDays, List, CheckCircle2 } from 'lucide-react';
+import GlobalRemindersSection from '@/components/GlobalRemindersSection';
+import { Users, Edit, CalendarDays, List, CheckCircle2, Plus } from 'lucide-react';
 import { SupabaseReminder, FamilyMember } from '@/hooks/useSupabaseData';
 
 interface RemindersViewProps {
@@ -28,6 +29,7 @@ interface RemindersViewProps {
     addReminder: (reminder: Partial<SupabaseReminder>) => Promise<void>;
     updateReminder: (id: string, updates: Partial<SupabaseReminder>) => Promise<void>;
     deleteReminder: (id: string) => Promise<void>;
+    enableGlobalReminder?: (globalReminderId: string, dueDate?: string) => Promise<void>;
   };
 }
 
@@ -50,6 +52,9 @@ const RemindersView = ({
   onNavigateToCompleted,
   supabaseOperations
 }: RemindersViewProps) => {
+  const [showAddCustom, setShowAddCustom] = useState(false);
+  const [showGlobalReminders, setShowGlobalReminders] = useState(false);
+
   // Get only the next 3 upcoming tasks
   const upcomingTasks = reminders.slice(0, 3);
 
@@ -133,32 +138,84 @@ const RemindersView = ({
       </div>
 
       {reminderViewMode === 'list' ? (
-        <div className="bg-white p-4 rounded-xl shadow-md">
-          <h3 className="text-xl font-bold text-gray-800 mb-4">Next 3 Upcoming Tasks</h3>
-          <div className="space-y-4">
-            {upcomingTasks.map((reminder) => (
-              <TaskCard
-                key={reminder.id}
-                title={reminder.title}
-                description={reminder.description}
-                estimatedTime={reminder.estimated_time}
-                difficulty={reminder.difficulty as 'Easy' | 'Medium' | 'Hard'}
-                estimatedBudget={reminder.estimated_budget}
-                dueDate={reminder.due_date || 'Not set'}
-                isPastDue={reminder.isPastDue}
-                assignedToNames={reminder.assignedToNames}
-                isCompleted={false}
-                onComplete={() => onTaskComplete(reminder)}
-                onClick={() => handleTaskClick(reminder)}
-              />
-            ))}
-            {upcomingTasks.length === 0 && (
-              <div className="text-center py-8">
-                <p className="text-gray-500">No upcoming tasks. Great job!</p>
-              </div>
-            )}
+        <>
+          {/* Summary Stats */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white p-4 rounded-xl shadow-md text-center">
+              <div className="text-2xl font-bold text-sage">{upcomingTasks.length}</div>
+              <div className="text-sm text-gray-600">Active Tasks</div>
+            </div>
+            <div className="bg-white p-4 rounded-xl shadow-md text-center">
+              <div className="text-2xl font-bold text-green-600">{completedTasks}</div>
+              <div className="text-sm text-gray-600">Recently Completed</div>
+            </div>
           </div>
-        </div>
+
+          {/* Upcoming Tasks */}
+          <div className="bg-white p-4 rounded-xl shadow-md">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Next 3 Upcoming Tasks</h3>
+            <div className="space-y-4">
+              {upcomingTasks.map((reminder) => (
+                <TaskCard
+                  key={reminder.id}
+                  title={reminder.title}
+                  description={reminder.description}
+                  estimatedTime={reminder.estimated_time}
+                  difficulty={reminder.difficulty as 'Easy' | 'Medium' | 'Hard'}
+                  estimatedBudget={reminder.estimated_budget}
+                  dueDate={reminder.due_date || 'Not set'}
+                  isPastDue={reminder.isPastDue}
+                  assignedToNames={reminder.assignedToNames}
+                  isCompleted={false}
+                  onComplete={() => onTaskComplete(reminder)}
+                  onClick={() => handleTaskClick(reminder)}
+                />
+              ))}
+              {upcomingTasks.length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">No upcoming tasks. Add some reminders to get started!</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Add Reminder Options */}
+          <div className="space-y-3">
+            <button
+              onClick={() => setShowGlobalReminders(!showGlobalReminders)}
+              className="w-full bg-blue-soft text-white py-3 rounded-lg font-medium hover:bg-blue-400 transition-colors flex items-center justify-center"
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              Enable Standard Reminders
+            </button>
+            
+            <button
+              onClick={() => setShowAddCustom(!showAddCustom)}
+              className="w-full bg-sage text-white py-3 rounded-lg font-medium hover:bg-sage/90 transition-colors flex items-center justify-center"
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              Add Custom Reminder
+            </button>
+          </div>
+
+          {/* Global Reminders Section */}
+          {showGlobalReminders && (
+            <GlobalRemindersSection
+              familyMembers={familyMembers}
+              enableGlobalReminder={supabaseOperations.enableGlobalReminder}
+              onClose={() => setShowGlobalReminders(false)}
+            />
+          )}
+
+          {/* Add Custom Reminder */}
+          {showAddCustom && (
+            <AddCustomReminder
+              familyMembers={familyMembers}
+              supabaseOperations={supabaseOperations}
+              onClose={() => setShowAddCustom(false)}
+            />
+          )}
+        </>
       ) : (
         <ReminderCalendarView
           tasks={upcomingTasks.map(reminder => ({
@@ -175,12 +232,6 @@ const RemindersView = ({
           supabaseOperations={supabaseOperations}
         />
       )}
-
-      {/* Always show Add Custom Reminder */}
-      <AddCustomReminder
-        familyMembers={familyMembers}
-        supabaseOperations={supabaseOperations}
-      />
 
       {/* Button to navigate to completed tasks */}
       <button
