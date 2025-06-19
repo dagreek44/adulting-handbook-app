@@ -9,6 +9,53 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      completed_tasks: {
+        Row: {
+          completed_at: string
+          completed_date: string | null
+          created_at: string
+          description: string | null
+          difficulty: string | null
+          estimated_budget: string | null
+          estimated_time: string | null
+          id: string
+          reminder_id: string | null
+          title: string
+        }
+        Insert: {
+          completed_at?: string
+          completed_date?: string | null
+          created_at?: string
+          description?: string | null
+          difficulty?: string | null
+          estimated_budget?: string | null
+          estimated_time?: string | null
+          id?: string
+          reminder_id?: string | null
+          title: string
+        }
+        Update: {
+          completed_at?: string
+          completed_date?: string | null
+          created_at?: string
+          description?: string | null
+          difficulty?: string | null
+          estimated_budget?: string | null
+          estimated_time?: string | null
+          id?: string
+          reminder_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "completed_tasks_reminder_id_fkey"
+            columns: ["reminder_id"]
+            isOneToOne: false
+            referencedRelation: "reminders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       family_members: {
         Row: {
           adulting_progress: number | null
@@ -17,7 +64,6 @@ export type Database = {
           id: string
           invited_at: string
           name: string
-          profile_id: string | null
           role: string | null
           updated_at: string
         }
@@ -28,7 +74,6 @@ export type Database = {
           id?: string
           invited_at?: string
           name: string
-          profile_id?: string | null
           role?: string | null
           updated_at?: string
         }
@@ -39,98 +84,8 @@ export type Database = {
           id?: string
           invited_at?: string
           name?: string
-          profile_id?: string | null
           role?: string | null
           updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "family_members_profile_id_fkey"
-            columns: ["profile_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      global_reminders: {
-        Row: {
-          created_at: string
-          description: string | null
-          difficulty: string | null
-          estimated_budget: string | null
-          estimated_time: string | null
-          frequency: string
-          id: string
-          instructions: string[] | null
-          supplies: Json | null
-          title: string
-          tools: Json | null
-          updated_at: string
-          video_url: string | null
-        }
-        Insert: {
-          created_at?: string
-          description?: string | null
-          difficulty?: string | null
-          estimated_budget?: string | null
-          estimated_time?: string | null
-          frequency: string
-          id?: string
-          instructions?: string[] | null
-          supplies?: Json | null
-          title: string
-          tools?: Json | null
-          updated_at?: string
-          video_url?: string | null
-        }
-        Update: {
-          created_at?: string
-          description?: string | null
-          difficulty?: string | null
-          estimated_budget?: string | null
-          estimated_time?: string | null
-          frequency?: string
-          id?: string
-          instructions?: string[] | null
-          supplies?: Json | null
-          title?: string
-          tools?: Json | null
-          updated_at?: string
-          video_url?: string | null
-        }
-        Relationships: []
-      }
-      profiles: {
-        Row: {
-          created_at: string
-          "Email Address": string | null
-          family_id: string
-          first_name: string
-          id: string
-          last_name: string
-          updated_at: string
-          username: string
-        }
-        Insert: {
-          created_at?: string
-          "Email Address"?: string | null
-          family_id?: string
-          first_name: string
-          id: string
-          last_name: string
-          updated_at?: string
-          username: string
-        }
-        Update: {
-          created_at?: string
-          "Email Address"?: string | null
-          family_id?: string
-          first_name?: string
-          id?: string
-          last_name?: string
-          updated_at?: string
-          username?: string
         }
         Relationships: []
       }
@@ -144,7 +99,6 @@ export type Database = {
           enabled: boolean | null
           estimated_budget: string | null
           estimated_time: string | null
-          family_id: string | null
           frequency: string
           id: string
           instructions: string[] | null
@@ -164,7 +118,6 @@ export type Database = {
           enabled?: boolean | null
           estimated_budget?: string | null
           estimated_time?: string | null
-          family_id?: string | null
           frequency: string
           id?: string
           instructions?: string[] | null
@@ -184,7 +137,6 @@ export type Database = {
           enabled?: boolean | null
           estimated_budget?: string | null
           estimated_time?: string | null
-          family_id?: string | null
           frequency?: string
           id?: string
           instructions?: string[] | null
@@ -196,78 +148,6 @@ export type Database = {
           video_url?: string | null
         }
         Relationships: []
-      }
-      user_tasks: {
-        Row: {
-          completed_at: string
-          completed_date: string | null
-          created_at: string
-          description: string | null
-          difficulty: string | null
-          due_date: string | null
-          enabled: boolean | null
-          estimated_budget: string | null
-          estimated_time: string | null
-          family_id: string | null
-          frequency: string | null
-          global_reminder_id: string | null
-          id: string
-          reminder_id: string | null
-          reminder_type: string | null
-          title: string
-        }
-        Insert: {
-          completed_at?: string
-          completed_date?: string | null
-          created_at?: string
-          description?: string | null
-          difficulty?: string | null
-          due_date?: string | null
-          enabled?: boolean | null
-          estimated_budget?: string | null
-          estimated_time?: string | null
-          family_id?: string | null
-          frequency?: string | null
-          global_reminder_id?: string | null
-          id?: string
-          reminder_id?: string | null
-          reminder_type?: string | null
-          title: string
-        }
-        Update: {
-          completed_at?: string
-          completed_date?: string | null
-          created_at?: string
-          description?: string | null
-          difficulty?: string | null
-          due_date?: string | null
-          enabled?: boolean | null
-          estimated_budget?: string | null
-          estimated_time?: string | null
-          family_id?: string | null
-          frequency?: string | null
-          global_reminder_id?: string | null
-          id?: string
-          reminder_id?: string | null
-          reminder_type?: string | null
-          title?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "completed_tasks_reminder_id_fkey"
-            columns: ["reminder_id"]
-            isOneToOne: false
-            referencedRelation: "reminders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_tasks_global_reminder_id_fkey"
-            columns: ["global_reminder_id"]
-            isOneToOne: false
-            referencedRelation: "global_reminders"
-            referencedColumns: ["id"]
-          },
-        ]
       }
     }
     Views: {
