@@ -58,7 +58,7 @@ const CompletedTasksView = ({ completedTasks }: CompletedTasksViewProps) => {
                 <div className="flex items-center text-gray-500">
                   <Calendar className="w-4 h-4 mr-1" />
                   <span className="text-xs">
-                    Completed {format(new Date(task.completed_at), 'MMM d, yyyy')}
+                    Completed {format(new Date(task.completed_date), 'MMM d, yyyy')}
                   </span>
                 </div>
               </div>
