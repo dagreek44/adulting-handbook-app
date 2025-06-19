@@ -49,6 +49,7 @@ export interface UserTask {
   enabled: boolean;
   reminder_type: 'global' | 'custom';
   frequency: string | null;
+  family_id: string | null;
   created_at: string;
 }
 
@@ -131,6 +132,7 @@ const convertUserTaskRow = (row: UserTaskRow): UserTask => ({
   enabled: row.enabled || true,
   reminder_type: (row.reminder_type as 'global' | 'custom') || 'custom',
   frequency: row.frequency,
+  family_id: row.family_id,
   created_at: row.created_at
 });
 
