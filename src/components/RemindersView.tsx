@@ -5,11 +5,12 @@ import ReminderCalendarView from '@/components/ReminderCalendarView';
 import TaskCard from '@/components/TaskCard';
 import AddCustomReminder from '@/components/AddCustomReminder';
 import { Users, Edit, CalendarDays, List, CheckCircle2 } from 'lucide-react';
-import { UserTask, FamilyMember } from '@/hooks/useSupabaseData';
+import { UserTask, FamilyMember, SupabaseReminder } from '@/hooks/useSupabaseData';
 
 interface RemindersViewProps {
   reminders: UserTask[];
   setReminders: (reminders: UserTask[]) => void;
+  allReminders: SupabaseReminder[];
   familyMembers: FamilyMember[];
   setFamilyMembers: (members: FamilyMember[]) => void;
   completedTasks: number;
@@ -25,15 +26,17 @@ interface RemindersViewProps {
   setIsFamilyModalOpen: (b: boolean) => void;
   onNavigateToCompleted: () => void;
   supabaseOperations: {
-    addReminder: (reminder: Partial<UserTask>) => Promise<void>;
-    updateReminder: (id: string, updates: Partial<UserTask>) => Promise<void>;
+    addReminder: (reminder: Partial<SupabaseReminder>) => Promise<void>;
+    updateReminder: (id: string, updates: Partial<SupabaseReminder>) => Promise<void>;
     deleteReminder: (id: string) => Promise<void>;
+    toggleReminderEnabled: (id: string, enabled: boolean) => Promise<void>;
   };
 }
 
 const RemindersView = ({
   reminders,
   setReminders,
+  allReminders,
   familyMembers,
   setFamilyMembers,
   completedTasks,
@@ -100,8 +103,7 @@ const RemindersView = ({
       <ReminderEditMode
         isEditMode={isEditMode}
         onExitEdit={() => setIsEditMode(false)}
-        reminders={reminders}
-        onUpdateReminders={setReminders}
+        allReminders={allReminders}
         familyMembers={familyMembers}
         supabaseOperations={supabaseOperations}
       />

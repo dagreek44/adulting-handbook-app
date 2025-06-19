@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Wrench, Calendar, Trophy, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -24,13 +23,15 @@ const Index = () => {
 
   const {
     reminders,
+    allReminders,
     completedTasks,
     familyMembers,
     loading,
     completeTask,
     addReminder,
     updateReminder,
-    deleteReminder
+    deleteReminder,
+    toggleReminderEnabled
   } = useSupabaseData();
 
   // Get only the next 3 upcoming tasks
@@ -185,6 +186,7 @@ const Index = () => {
             setReminders={(newReminders) => {
               // This will be handled by the Supabase operations
             }}
+            allReminders={allReminders}
             familyMembers={familyMembers}
             setFamilyMembers={() => {}}
             completedTasks={completedTasks.length}
@@ -202,7 +204,8 @@ const Index = () => {
             supabaseOperations={{
               addReminder,
               updateReminder,
-              deleteReminder
+              deleteReminder,
+              toggleReminderEnabled
             }}
           />
         );

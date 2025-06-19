@@ -11,13 +11,13 @@ import { SupabaseReminder, FamilyMember } from '@/hooks/useSupabaseData';
 interface ReminderEditModeProps {
   isEditMode: boolean;
   onExitEdit: () => void;
-  reminders: SupabaseReminder[];
-  onUpdateReminders: (reminders: SupabaseReminder[]) => void;
+  allReminders: SupabaseReminder[];
   familyMembers: FamilyMember[];
   supabaseOperations: {
     addReminder: (reminder: Partial<SupabaseReminder>) => Promise<void>;
     updateReminder: (id: string, updates: Partial<SupabaseReminder>) => Promise<void>;
     deleteReminder: (id: string) => Promise<void>;
+    toggleReminderEnabled: (id: string, enabled: boolean) => Promise<void>;
   };
 }
 
@@ -33,8 +33,7 @@ const frequencies = [
 const ReminderEditMode = ({
   isEditMode,
   onExitEdit,
-  reminders,
-  onUpdateReminders,
+  allReminders,
   familyMembers,
   supabaseOperations
 }: ReminderEditModeProps) => {
@@ -48,11 +47,8 @@ const ReminderEditMode = ({
   });
   const [editSelectedDate, setEditSelectedDate] = useState<Date>();
 
-  const toggleReminder = async (id: string) => {
-    const reminder = reminders.find(r => r.id === id);
-    if (reminder) {
-      await supabaseOperations.updateReminder(id, { enabled: !reminder.enabled });
-    }
+  const toggleReminder = async (id: string, currentEnabled: boolean) => {
+    await supabaseOperations.toggleReminderEnabled(id, !currentEnabled);
   };
 
   const deleteReminder = async (id: string) => {
@@ -98,7 +94,7 @@ const ReminderEditMode = ({
       </div>
 
       <div className="space-y-3 mb-4">
-        {reminders.map((reminder) => (
+        {allReminders.map((reminder) => (
           <div key={reminder.id} className="flex flex-col gap-2 bg-gray-50 p-3 rounded-lg">
             {(editId === reminder.id) ? (
               <>
@@ -222,7 +218,7 @@ const ReminderEditMode = ({
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => toggleReminder(reminder.id)}
+                    onClick={() => toggleReminder(reminder.id, reminder.enabled)}
                     className={`transition-colors ${reminder.enabled ? 'text-sage' : 'text-gray-400'}`}
                   >
                     {reminder.enabled ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}

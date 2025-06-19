@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -30,6 +29,7 @@ export interface SupabaseReminder {
   updated_at: string;
   isPastDue?: boolean;
   assignedToNames?: string[];
+  family_id?: string | null;
 }
 
 export interface UserTask {
@@ -100,7 +100,8 @@ const convertSupabaseRowToReminder = (row: SupabaseReminderRow): SupabaseReminde
   is_custom: row.is_custom || false,
   assignees: Array.isArray(row.assignees) ? row.assignees : [],
   created_at: row.created_at,
-  updated_at: row.updated_at
+  updated_at: row.updated_at,
+  family_id: row.family_id
 });
 
 const convertFamilyMemberRow = (row: FamilyMemberRow): FamilyMember => ({
@@ -145,54 +146,50 @@ export const useSupabaseData = () => {
     }
   };
 
-  const fetchReminders = async () => {
+  const fetchAllReminders = async () => {
     try {
+      // Get user's family_id (for now using a placeholder - you'll need to implement auth)
+      const userFamilyId = 'temp-family-id';
+      
       const { data, error } = await supabase
         .from('reminders')
         .select('*')
-        .eq('enabled', true)
-        .order('due_date', { ascending: true, nullsFirst: true });
+        .or(`is_custom.eq.false,family_id.eq.${userFamilyId}`)
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
       
       const convertedReminders = (data || []).map(convertSupabaseRowToReminder);
       
-      // Get family members for assignment names
-      const members = await fetchFamilyMembers();
-      
-      // Add past due flags and assignment names
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const enrichedReminders = convertedReminders.map(reminder => {
-        const isPastDue = reminder.due_date ? new Date(reminder.due_date) < today : false;
-        
-        let assignedToNames: string[] = [];
-        if (reminder.assignees && reminder.assignees.length > 0) {
-          assignedToNames = reminder.assignees
-            .map(assigneeId => members.find(m => m.id === assigneeId)?.name)
-            .filter(Boolean) as string[];
-        }
-        
-        if (assignedToNames.length === 0) {
-          assignedToNames = ['Family'];
-        }
-        
-        return {
-          ...reminder,
-          isPastDue,
-          assignedToNames
-        };
-      });
+      // Get existing user tasks to mark which reminders are enabled
+      const { data: userTasksData, error: userTasksError } = await supabase
+        .from('user_tasks')
+        .select('reminder_id, enabled');
+
+      if (userTasksError) throw userTasksError;
+
+      const enabledReminderIds = new Set(
+        (userTasksData || [])
+          .filter(task => task.enabled)
+          .map(task => task.reminder_id)
+      );
+
+      // Mark reminders as enabled if they have corresponding user tasks
+      const enrichedReminders = convertedReminders.map(reminder => ({
+        ...reminder,
+        enabled: enabledReminderIds.has(reminder.id)
+      }));
       
       setReminders(enrichedReminders);
+      return enrichedReminders;
     } catch (error) {
-      console.error('Error fetching reminders:', error);
+      console.error('Error fetching all reminders:', error);
       toast({
         title: "Error",
         description: "Failed to fetch reminders",
         variant: "destructive"
       });
+      return [];
     }
   };
 
@@ -270,6 +267,7 @@ export const useSupabaseData = () => {
       });
       
       setUserTasks(enrichedTasks);
+      return enrichedTasks;
     } catch (error) {
       console.error('Error fetching user tasks:', error);
       toast({
@@ -277,6 +275,7 @@ export const useSupabaseData = () => {
         description: "Failed to fetch user tasks",
         variant: "destructive"
       });
+      return [];
     }
   };
 
@@ -322,6 +321,81 @@ export const useSupabaseData = () => {
       toast({
         title: "Error",
         description: "Failed to fetch completed tasks",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const toggleReminderEnabled = async (reminderId: string, enabled: boolean) => {
+    try {
+      const familyId = 'temp-family-id'; // You'll need to get actual family_id
+      
+      if (enabled) {
+        // Get reminder details to create user task
+        const { data: reminderData, error: reminderError } = await supabase
+          .from('reminders')
+          .select('*')
+          .eq('id', reminderId)
+          .single();
+
+        if (reminderError) throw reminderError;
+
+        // Check if user task already exists
+        const { data: existingTask } = await supabase
+          .from('user_tasks')
+          .select('id, enabled')
+          .eq('reminder_id', reminderId)
+          .eq('family_id', familyId)
+          .maybeSingle();
+
+        if (existingTask) {
+          // Update existing task to enabled
+          const { error: updateError } = await supabase
+            .from('user_tasks')
+            .update({ enabled: true })
+            .eq('id', existingTask.id);
+
+          if (updateError) throw updateError;
+        } else {
+          // Create new user task
+          const dueDate = reminderData.due_date || new Date().toISOString().split('T')[0];
+          
+          const { error: insertError } = await supabase
+            .from('user_tasks')
+            .insert({
+              reminder_id: reminderId,
+              family_id: familyId,
+              due_date: dueDate,
+              frequency: reminderData.frequency,
+              reminder_type: reminderData.is_custom ? 'custom' : 'global',
+              enabled: true
+            });
+
+          if (insertError) throw insertError;
+        }
+      } else {
+        // Disable the user task
+        const { error: updateError } = await supabase
+          .from('user_tasks')
+          .update({ enabled: false })
+          .eq('reminder_id', reminderId)
+          .eq('family_id', familyId);
+
+        if (updateError) throw updateError;
+      }
+
+      // Refresh data
+      await Promise.all([fetchAllReminders(), fetchUserTasks()]);
+
+      toast({
+        title: enabled ? "Reminder enabled" : "Reminder disabled",
+        description: enabled ? "Task has been added to your list" : "Task has been removed from your list",
+      });
+    } catch (error) {
+      console.error('Error toggling reminder:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update reminder",
         variant: "destructive"
       });
     }
@@ -475,7 +549,7 @@ export const useSupabaseData = () => {
         if (taskError) throw taskError;
       }
 
-      await Promise.all([fetchReminders(), fetchUserTasks()]);
+      await Promise.all([fetchAllReminders(), fetchUserTasks()]);
     } catch (error) {
       console.error('Error adding reminder:', error);
       toast({
@@ -511,7 +585,7 @@ export const useSupabaseData = () => {
         .eq('id', id);
 
       if (error) throw error;
-      await Promise.all([fetchReminders(), fetchUserTasks()]);
+      await Promise.all([fetchAllReminders(), fetchUserTasks()]);
     } catch (error) {
       console.error('Error updating reminder:', error);
       toast({
@@ -530,7 +604,7 @@ export const useSupabaseData = () => {
         .eq('id', id);
 
       if (error) throw error;
-      await Promise.all([fetchReminders(), fetchUserTasks()]);
+      await Promise.all([fetchAllReminders(), fetchUserTasks()]);
     } catch (error) {
       console.error('Error deleting reminder:', error);
       toast({
@@ -544,7 +618,7 @@ export const useSupabaseData = () => {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([fetchReminders(), fetchUserTasks(), fetchCompletedTasks(), fetchFamilyMembers()]);
+      await Promise.all([fetchAllReminders(), fetchUserTasks(), fetchCompletedTasks(), fetchFamilyMembers()]);
       setLoading(false);
     };
 
@@ -552,7 +626,8 @@ export const useSupabaseData = () => {
   }, []);
 
   return {
-    reminders: userTasks, // Return user tasks as reminders for compatibility
+    reminders: userTasks, // Return user tasks as reminders for compatibility with existing components
+    allReminders: reminders, // Full list of available reminders for edit mode
     completedTasks,
     familyMembers,
     loading,
@@ -560,7 +635,9 @@ export const useSupabaseData = () => {
     addReminder,
     updateReminder,
     deleteReminder,
+    toggleReminderEnabled,
     fetchReminders: fetchUserTasks,
+    fetchAllReminders,
     fetchCompletedTasks,
     fetchFamilyMembers
   };
