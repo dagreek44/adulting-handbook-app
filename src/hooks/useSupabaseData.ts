@@ -42,31 +42,32 @@ export interface UserTask {
   frequency: string;
   reminder_type: string;
   created_at: string;
-  // Combined with reminder data
-  title?: string;
-  description?: string;
-  difficulty?: string;
-  estimated_time?: string;
-  estimated_budget?: string;
-  video_url?: string | null;
-  instructions?: string[];
-  tools?: any[];
-  supplies?: any[];
-  assignees?: string[];
+  // Combined with reminder data to match SupabaseReminder interface
+  title: string;
+  description: string;
+  difficulty: string;
+  estimated_time: string;
+  estimated_budget: string;
+  video_url: string | null;
+  instructions: string[];
+  tools: any[];
+  supplies: any[];
+  assignees: string[];
+  is_custom: boolean;
+  updated_at: string;
   isPastDue?: boolean;
   assignedToNames?: string[];
 }
 
 export interface CompletedTask {
   id: string;
-  reminder_id: string | null;
+  reminder_id: string;
   title: string;
   description: string;
   difficulty: string;
   estimated_time: string;
   estimated_budget: string;
-  completed_at: string;
-  completed_date: string | null;
+  completed_date: string;
   created_at: string;
 }
 
@@ -212,7 +213,9 @@ export const useSupabaseData = () => {
             instructions,
             tools,
             supplies,
-            assignees
+            assignees,
+            is_custom,
+            updated_at
           )
         `)
         .eq('enabled', true)
@@ -259,6 +262,8 @@ export const useSupabaseData = () => {
           tools: Array.isArray(reminderData?.tools) ? reminderData.tools : [],
           supplies: Array.isArray(reminderData?.supplies) ? reminderData.supplies : [],
           assignees: Array.isArray(reminderData?.assignees) ? reminderData.assignees : [],
+          is_custom: reminderData?.is_custom || false,
+          updated_at: reminderData?.updated_at || task.created_at,
           isPastDue,
           assignedToNames
         };
@@ -277,14 +282,41 @@ export const useSupabaseData = () => {
 
   const fetchCompletedTasks = async () => {
     try {
+      // Fetch completed tasks from user_tasks where completed_date is not null
       const { data, error } = await supabase
-        .from('completed_tasks')
-        .select('*')
-        .order('completed_at', { ascending: false })
+        .from('user_tasks')
+        .select(`
+          *,
+          reminders (
+            title,
+            description,
+            difficulty,
+            estimated_time,
+            estimated_budget
+          )
+        `)
+        .not('completed_date', 'is', null)
+        .order('completed_date', { ascending: false })
         .limit(3);
 
       if (error) throw error;
-      setCompletedTasks(data || []);
+      
+      const completedTasksData = (data || []).map(task => {
+        const reminderData = task.reminders as any;
+        return {
+          id: task.id,
+          reminder_id: task.reminder_id,
+          title: reminderData?.title || 'Unknown Task',
+          description: reminderData?.description || '',
+          difficulty: reminderData?.difficulty || 'Easy',
+          estimated_time: reminderData?.estimated_time || '30 min',
+          estimated_budget: reminderData?.estimated_budget || '',
+          completed_date: task.completed_date || '',
+          created_at: task.created_at
+        };
+      });
+      
+      setCompletedTasks(completedTasksData);
     } catch (error) {
       console.error('Error fetching completed tasks:', error);
       toast({
@@ -300,21 +332,6 @@ export const useSupabaseData = () => {
       const today = new Date();
       const completedDate = today.toISOString().split('T')[0];
       
-      // Add to completed tasks
-      const { error: insertError } = await supabase
-        .from('completed_tasks')
-        .insert({
-          reminder_id: userTask.reminder_id,
-          title: userTask.title || 'Unknown Task',
-          description: userTask.description || '',
-          difficulty: userTask.difficulty || 'Easy',
-          estimated_time: userTask.estimated_time || '30 min',
-          estimated_budget: userTask.estimated_budget || '',
-          completed_date: completedDate
-        });
-
-      if (insertError) throw insertError;
-
       // Calculate new due date based on frequency
       let newDueDate: string | null = null;
       if (userTask.frequency !== 'once') {
@@ -396,26 +413,6 @@ export const useSupabaseData = () => {
             console.error('Error updating adulting progress:', progressError);
           }
         }
-      }
-
-      // Clean up old completed tasks (keep only latest 3)
-      const { data: allCompleted, error: fetchError } = await supabase
-        .from('completed_tasks')
-        .select('*')
-        .order('completed_at', { ascending: false });
-
-      if (fetchError) throw fetchError;
-
-      if (allCompleted && allCompleted.length > 3) {
-        const tasksToDelete = allCompleted.slice(3);
-        const idsToDelete = tasksToDelete.map(task => task.id);
-        
-        const { error: deleteError } = await supabase
-          .from('completed_tasks')
-          .delete()
-          .in('id', idsToDelete);
-
-        if (deleteError) throw deleteError;
       }
 
       // Refresh data

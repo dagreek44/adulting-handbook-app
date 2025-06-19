@@ -5,11 +5,11 @@ import ReminderCalendarView from '@/components/ReminderCalendarView';
 import TaskCard from '@/components/TaskCard';
 import AddCustomReminder from '@/components/AddCustomReminder';
 import { Users, Edit, CalendarDays, List, CheckCircle2 } from 'lucide-react';
-import { SupabaseReminder, FamilyMember } from '@/hooks/useSupabaseData';
+import { UserTask, FamilyMember } from '@/hooks/useSupabaseData';
 
 interface RemindersViewProps {
-  reminders: SupabaseReminder[];
-  setReminders: (reminders: SupabaseReminder[]) => void;
+  reminders: UserTask[];
+  setReminders: (reminders: UserTask[]) => void;
   familyMembers: FamilyMember[];
   setFamilyMembers: (members: FamilyMember[]) => void;
   completedTasks: number;
@@ -25,8 +25,8 @@ interface RemindersViewProps {
   setIsFamilyModalOpen: (b: boolean) => void;
   onNavigateToCompleted: () => void;
   supabaseOperations: {
-    addReminder: (reminder: Partial<SupabaseReminder>) => Promise<void>;
-    updateReminder: (id: string, updates: Partial<SupabaseReminder>) => Promise<void>;
+    addReminder: (reminder: Partial<UserTask>) => Promise<void>;
+    updateReminder: (id: string, updates: Partial<UserTask>) => Promise<void>;
     deleteReminder: (id: string) => Promise<void>;
   };
 }
@@ -53,7 +53,7 @@ const RemindersView = ({
   // Get only the next 3 upcoming tasks
   const upcomingTasks = reminders.slice(0, 3);
 
-  const handleTaskClick = (reminder: SupabaseReminder) => {
+  const handleTaskClick = (reminder: UserTask) => {
     const taskDetails = {
       id: reminder.id,
       title: reminder.title,

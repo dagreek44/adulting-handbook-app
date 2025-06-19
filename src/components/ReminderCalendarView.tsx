@@ -4,7 +4,7 @@ import { Wrench, Plus, X } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { format, isSameDay, parse, isValid } from 'date-fns';
 import TaskCard from './TaskCard';
-import { SupabaseReminder, FamilyMember } from '@/hooks/useSupabaseData';
+import { UserTask, FamilyMember } from '@/hooks/useSupabaseData';
 
 interface ReminderCalendarViewProps {
   tasks: Array<{
@@ -14,12 +14,12 @@ interface ReminderCalendarViewProps {
     difficulty: 'Easy' | 'Medium' | 'Hard';
     dueDate: string;
   }>;
-  reminders: SupabaseReminder[];
+  reminders: UserTask[];
   onTaskClick: (task: any) => void;
   onTaskComplete: () => void;
   familyMembers: FamilyMember[];
   supabaseOperations: {
-    addReminder: (reminder: Partial<SupabaseReminder>) => Promise<void>;
+    addReminder: (reminder: Partial<UserTask>) => Promise<void>;
   };
 }
 
@@ -131,7 +131,7 @@ const ReminderCalendarView = ({
   const handleAddReminder = async () => {
     if (!selectedDate || !newReminderTitle.trim()) return;
     
-    const customReminder: Partial<SupabaseReminder> = {
+    const customReminder: Partial<UserTask> = {
       title: newReminderTitle,
       description: newReminderDesc,
       frequency: newReminderFreq,

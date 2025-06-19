@@ -48,24 +48,24 @@ const Index = () => {
     }
   };
 
-  const convertSupabaseToTaskFormat = (reminder: any) => {
+  const convertTaskFormat = (task: any) => {
     return {
-      id: reminder.id,
-      title: reminder.title,
-      description: reminder.description,
-      estimatedTime: reminder.estimated_time,
-      difficulty: reminder.difficulty as 'Easy' | 'Medium' | 'Hard',
-      estimatedBudget: reminder.estimated_budget,
-      dueDate: reminder.due_date || 'Not set',
-      videoUrl: reminder.video_url,
-      instructions: reminder.instructions || [],
-      tools: reminder.tools || [],
-      supplies: reminder.supplies || []
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      estimatedTime: task.estimated_time,
+      difficulty: task.difficulty as 'Easy' | 'Medium' | 'Hard',
+      estimatedBudget: task.estimated_budget,
+      dueDate: task.due_date || 'Not set',
+      videoUrl: task.video_url,
+      instructions: task.instructions || [],
+      tools: task.tools || [],
+      supplies: task.supplies || []
     };
   };
 
   const handleTaskClick = (task: any) => {
-    const formattedTask = convertSupabaseToTaskFormat(task);
+    const formattedTask = convertTaskFormat(task);
     setSelectedTask(formattedTask);
     setIsModalOpen(true);
   };
