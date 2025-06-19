@@ -33,7 +33,24 @@ const GlobalRemindersSection = ({ familyMembers, enableGlobalReminder, onClose }
         return;
       }
 
-      setGlobalReminders(data || []);
+      // Convert the data to match our GlobalReminder interface
+      const convertedReminders: GlobalReminder[] = (data || []).map(row => ({
+        id: row.id,
+        title: row.title,
+        description: row.description || '',
+        frequency: row.frequency,
+        difficulty: row.difficulty || 'Easy',
+        estimated_time: row.estimated_time || '30 min',
+        estimated_budget: row.estimated_budget || '',
+        video_url: row.video_url,
+        instructions: row.instructions || [],
+        tools: Array.isArray(row.tools) ? row.tools : [],
+        supplies: Array.isArray(row.supplies) ? row.supplies : [],
+        created_at: row.created_at,
+        updated_at: row.updated_at
+      }));
+
+      setGlobalReminders(convertedReminders);
     };
 
     fetchGlobalReminders();

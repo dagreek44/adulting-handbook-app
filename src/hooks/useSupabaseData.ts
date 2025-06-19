@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -101,6 +100,40 @@ const convertSupabaseRowToReminder = (row: SupabaseReminderRow): SupabaseReminde
   updated_at: row.updated_at
 });
 
+const convertGlobalReminderRow = (row: GlobalReminderRow): GlobalReminder => ({
+  id: row.id,
+  title: row.title,
+  description: row.description || '',
+  frequency: row.frequency,
+  difficulty: row.difficulty || 'Easy',
+  estimated_time: row.estimated_time || '30 min',
+  estimated_budget: row.estimated_budget || '',
+  video_url: row.video_url,
+  instructions: row.instructions || [],
+  tools: Array.isArray(row.tools) ? row.tools : [],
+  supplies: Array.isArray(row.supplies) ? row.supplies : [],
+  created_at: row.created_at,
+  updated_at: row.updated_at
+});
+
+const convertUserTaskRow = (row: UserTaskRow): UserTask => ({
+  id: row.id,
+  reminder_id: row.reminder_id,
+  global_reminder_id: row.global_reminder_id,
+  title: row.title,
+  description: row.description || '',
+  difficulty: row.difficulty || 'Easy',
+  estimated_time: row.estimated_time || '30 min',
+  estimated_budget: row.estimated_budget || '',
+  completed_at: row.completed_at,
+  completed_date: row.completed_date,
+  due_date: row.due_date,
+  enabled: row.enabled || true,
+  reminder_type: (row.reminder_type as 'global' | 'custom') || 'custom',
+  frequency: row.frequency,
+  created_at: row.created_at
+});
+
 const convertGlobalReminderToReminder = (row: GlobalReminderRow, userTask?: UserTaskRow): SupabaseReminder => ({
   id: userTask?.id || row.id,
   title: row.title,
@@ -194,8 +227,9 @@ export const useSupabaseData = () => {
         .order('title', { ascending: true });
 
       if (error) throw error;
-      setGlobalReminders(data || []);
-      return data || [];
+      const convertedReminders = (data || []).map(convertGlobalReminderRow);
+      setGlobalReminders(convertedReminders);
+      return convertedReminders;
     } catch (error) {
       console.error('Error fetching global reminders:', error);
       toast({
@@ -221,8 +255,9 @@ export const useSupabaseData = () => {
         .order('completed_at', { ascending: false });
 
       if (error) throw error;
-      setUserTasks(data || []);
-      return data || [];
+      const convertedTasks = (data || []).map(convertUserTaskRow);
+      setUserTasks(convertedTasks);
+      return convertedTasks;
     } catch (error) {
       console.error('Error fetching user tasks:', error);
       toast({
