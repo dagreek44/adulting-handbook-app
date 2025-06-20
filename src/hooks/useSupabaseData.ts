@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -118,12 +119,65 @@ const convertFamilyMemberRow = (row: FamilyMemberRow): FamilyMember => ({
 
 export const useSupabaseData = () => {
   const { user, userProfile } = useAuth();
+  const { toast } = useToast();
+  
+  // Initialize all state hooks first, unconditionally
   const [reminders, setReminders] = useState<SupabaseReminder[]>([]);
   const [userTasks, setUserTasks] = useState<UserTask[]>([]);
   const [completedTasks, setCompletedTasks] = useState<CompletedTask[]>([]);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
+
+  const fetchCompletedTasks = async () => {
+    if (!user?.id) return [];
+    
+    try {
+      const { data, error } = await supabase
+        .from('user_tasks')
+        .select(`
+          *,
+          reminders (
+            title,
+            description,
+            difficulty,
+            estimated_time,
+            estimated_budget
+          )
+        `)
+        .eq('user_id', user.id)
+        .not('completed_date', 'is', null)
+        .order('completed_date', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+      
+      const formattedCompletedTasks = (data || []).map(task => {
+        const reminderData = task.reminders as any;
+        return {
+          id: task.id,
+          reminder_id: task.reminder_id,
+          title: reminderData?.title || 'Unknown Task',
+          description: reminderData?.description || '',
+          difficulty: reminderData?.difficulty || 'Easy',
+          estimated_time: reminderData?.estimated_time || '30 min',
+          estimated_budget: reminderData?.estimated_budget || '',
+          completed_date: task.completed_date || '',
+          created_at: task.created_at
+        };
+      });
+      
+      setCompletedTasks(formattedCompletedTasks);
+      return formattedCompletedTasks;
+    } catch (error) {
+      console.error('Error fetching completed tasks:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch completed tasks",
+        variant: "destructive"
+      });
+      return [];
+    }
+  };
 
   const fetchFamilyMembers = async () => {
     if (!userProfile?.family_id) return [];
@@ -477,6 +531,8 @@ export const useSupabaseData = () => {
   };
 
   const addReminder = async (reminder: Partial<SupabaseReminder>) => {
+    if (!userProfile?.family_id) return;
+    
     try {
       const reminderInsert: SupabaseReminderInsert = {
         title: reminder.title || '',
@@ -491,8 +547,9 @@ export const useSupabaseData = () => {
         tools: reminder.tools || null,
         supplies: reminder.supplies || null,
         enabled: reminder.enabled ?? true,
-        is_custom: reminder.is_custom ?? false,
-        assignees: reminder.assignees || null
+        is_custom: reminder.is_custom ?? true,
+        assignees: reminder.assignees || null,
+        family_id: userProfile.family_id
       };
 
       const { data: newReminder, error } = await supabase
@@ -584,9 +641,13 @@ export const useSupabaseData = () => {
     }
   };
 
+  // Only run effects when we have both user and userProfile
   useEffect(() => {
     const loadData = async () => {
-      if (!user || !userProfile) return;
+      if (!user || !userProfile) {
+        setLoading(false);
+        return;
+      }
       
       setLoading(true);
       await Promise.all([fetchAllReminders(), fetchUserTasks(), fetchCompletedTasks(), fetchFamilyMembers()]);
