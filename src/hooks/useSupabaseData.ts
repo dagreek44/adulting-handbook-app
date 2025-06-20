@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -121,17 +120,21 @@ export const useSupabaseData = () => {
   const { user, userProfile } = useAuth();
   const { toast } = useToast();
   
-  // Initialize all state hooks first, unconditionally
-  const [reminders, setReminders] = useState<SupabaseReminder[]>([]);
-  const [userTasks, setUserTasks] = useState<UserTask[]>([]);
+  // Initialize all state hooks first, unconditionally with clearer names
+  const [allAvailableReminders, setAllAvailableReminders] = useState<SupabaseReminder[]>([]);
+  const [enabledUserTasks, setEnabledUserTasks] = useState<UserTask[]>([]);
   const [completedTasks, setCompletedTasks] = useState<CompletedTask[]>([]);
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchCompletedTasks = async () => {
-    if (!user?.id) return [];
+    if (!user?.id) {
+      console.log('fetchCompletedTasks: No user ID available');
+      return [];
+    }
     
     try {
+      console.log('fetchCompletedTasks: Fetching for user:', user.id);
       const { data, error } = await supabase
         .from('user_tasks')
         .select(`
@@ -166,6 +169,7 @@ export const useSupabaseData = () => {
         };
       });
       
+      console.log('fetchCompletedTasks: Found', formattedCompletedTasks.length, 'completed tasks');
       setCompletedTasks(formattedCompletedTasks);
       return formattedCompletedTasks;
     } catch (error) {
@@ -180,9 +184,13 @@ export const useSupabaseData = () => {
   };
 
   const fetchFamilyMembers = async () => {
-    if (!userProfile?.family_id) return [];
+    if (!userProfile?.family_id) {
+      console.log('fetchFamilyMembers: No family_id available');
+      return [];
+    }
     
     try {
+      console.log('fetchFamilyMembers: Fetching for family:', userProfile.family_id);
       const { data, error } = await supabase
         .from('users')
         .select('id, first_name, last_name, email, username, family_id, created_at, updated_at')
@@ -202,6 +210,7 @@ export const useSupabaseData = () => {
         updated_at: member.updated_at
       }));
       
+      console.log('fetchFamilyMembers: Found', convertedMembers.length, 'family members');
       setFamilyMembers(convertedMembers);
       return convertedMembers;
     } catch (error) {
@@ -216,18 +225,25 @@ export const useSupabaseData = () => {
   };
 
   const fetchAllReminders = async () => {
-    if (!userProfile?.family_id) return [];
+    if (!userProfile?.family_id) {
+      console.log('fetchAllReminders: No family_id available');
+      return [];
+    }
     
     try {
+      console.log('fetchAllReminders: Fetching for family:', userProfile.family_id);
+      
+      // Fixed query: Get global reminders (is_custom = false) OR family-specific reminders
       const { data, error } = await supabase
         .from('reminders')
         .select('*')
-        .or(`is_custom.eq.false,family_id.eq.${userProfile.family_id}`)
+        .or(`is_custom.eq.false,and(is_custom.eq.true,family_id.eq.${userProfile.family_id})`)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
       
       const convertedReminders = (data || []).map(convertSupabaseRowToReminder);
+      console.log('fetchAllReminders: Found', convertedReminders.length, 'total reminders');
       
       // Get existing user tasks to mark which reminders are enabled
       const { data: userTasksData, error: userTasksError } = await supabase
@@ -248,7 +264,8 @@ export const useSupabaseData = () => {
         enabled: enabledReminderIds.has(reminder.id)
       }));
       
-      setReminders(enrichedReminders);
+      console.log('fetchAllReminders: Enriched with enabled status, found', enabledReminderIds.size, 'enabled');
+      setAllAvailableReminders(enrichedReminders);
       return enrichedReminders;
     } catch (error) {
       console.error('Error fetching all reminders:', error);
@@ -262,9 +279,13 @@ export const useSupabaseData = () => {
   };
 
   const fetchUserTasks = async () => {
-    if (!user?.id) return [];
+    if (!user?.id) {
+      console.log('fetchUserTasks: No user ID available');
+      return [];
+    }
     
     try {
+      console.log('fetchUserTasks: Fetching enabled tasks for user:', user.id);
       const { data, error } = await supabase
         .from('user_tasks')
         .select(`
@@ -336,7 +357,8 @@ export const useSupabaseData = () => {
         };
       });
       
-      setUserTasks(enrichedTasks);
+      console.log('fetchUserTasks: Found', enrichedTasks.length, 'enabled user tasks');
+      setEnabledUserTasks(enrichedTasks);
       return enrichedTasks;
     } catch (error) {
       console.error('Error fetching user tasks:', error);
@@ -645,10 +667,12 @@ export const useSupabaseData = () => {
   useEffect(() => {
     const loadData = async () => {
       if (!user || !userProfile) {
+        console.log('loadData: Missing user or userProfile, skipping data load');
         setLoading(false);
         return;
       }
       
+      console.log('loadData: Starting data load for user:', user.id, 'family:', userProfile.family_id);
       setLoading(true);
       await Promise.all([fetchAllReminders(), fetchUserTasks(), fetchCompletedTasks(), fetchFamilyMembers()]);
       setLoading(false);
@@ -657,9 +681,10 @@ export const useSupabaseData = () => {
     loadData();
   }, [user, userProfile]);
 
+  // Return the correct mapping: user's active tasks as 'reminders', all available as 'allReminders'
   return {
-    reminders: userTasks,
-    allReminders: reminders,
+    reminders: enabledUserTasks, // User's active tasks for main list
+    allReminders: allAvailableReminders, // Complete list for edit mode
     completedTasks,
     familyMembers,
     loading,
