@@ -24,19 +24,7 @@ const Index = () => {
   const [reminderViewMode, setReminderViewMode] = useState<'list' | 'calendar'>('list');
   const { toast } = useToast();
 
-  // Redirect to auth if not authenticated
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-cream flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sage"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
-
+  // Call useSupabaseData unconditionally
   const {
     reminders,
     allReminders,
@@ -49,6 +37,19 @@ const Index = () => {
     deleteReminder,
     toggleReminderEnabled
   } = useSupabaseData();
+
+  // Handle loading states and redirects after all hooks
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-cream flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sage"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
 
   // Get only the next 3 upcoming tasks
   const upcomingTasks = reminders.slice(0, 3);
