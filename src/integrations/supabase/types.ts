@@ -9,6 +9,44 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      family_invitations: {
+        Row: {
+          created_at: string
+          expires_at: string
+          family_id: string
+          id: string
+          invitee_email: string
+          inviter_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          family_id: string
+          id?: string
+          invitee_email: string
+          inviter_id: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          family_id?: string
+          id?: string
+          invitee_email?: string
+          inviter_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "family_invitations_inviter_id_fkey"
+            columns: ["inviter_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       family_members: {
         Row: {
           adulting_progress: number | null
@@ -155,33 +193,33 @@ export type Database = {
           created_at: string
           due_date: string
           enabled: boolean
-          family_id: string
           frequency: string
           id: string
           reminder_id: string
           reminder_type: string
+          user_id: string | null
         }
         Insert: {
           completed_date?: string | null
           created_at?: string
           due_date: string
           enabled?: boolean
-          family_id: string
           frequency: string
           id?: string
           reminder_id: string
           reminder_type?: string
+          user_id?: string | null
         }
         Update: {
           completed_date?: string | null
           created_at?: string
           due_date?: string
           enabled?: boolean
-          family_id?: string
           frequency?: string
           id?: string
           reminder_id?: string
           reminder_type?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -191,7 +229,50 @@ export type Database = {
             referencedRelation: "reminders"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "user_tasks_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      users: {
+        Row: {
+          created_at: string
+          email: string
+          family_id: string
+          first_name: string
+          id: string
+          last_name: string
+          password_hash: string
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          family_id?: string
+          first_name: string
+          id?: string
+          last_name: string
+          password_hash: string
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          family_id?: string
+          first_name?: string
+          id?: string
+          last_name?: string
+          password_hash?: string
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
       }
     }
     Views: {

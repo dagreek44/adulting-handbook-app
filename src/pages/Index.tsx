@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { Wrench, Calendar, Trophy, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import Header from '@/components/Header';
 import DashboardCard from '@/components/DashboardCard';
@@ -13,6 +15,7 @@ import CompletedTasksView from "@/components/CompletedTasksView";
 import AchievementBadge from '@/components/AchievementBadge';
 
 const Index = () => {
+  const { user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('home');
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedTask, setSelectedTask] = useState<any>(null);
@@ -20,6 +23,19 @@ const Index = () => {
   const [isFamilyModalOpen, setIsFamilyModalOpen] = useState(false);
   const [reminderViewMode, setReminderViewMode] = useState<'list' | 'calendar'>('list');
   const { toast } = useToast();
+
+  // Redirect to auth if not authenticated
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-cream flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sage"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
 
   const {
     reminders,

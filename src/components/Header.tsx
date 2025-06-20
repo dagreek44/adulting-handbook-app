@@ -1,38 +1,67 @@
 
 import { useState } from 'react';
-import { House, Wrench, Flame } from 'lucide-react';
+import { Home, LogOut } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Header = () => {
-  const [adultingLevel] = useState(3);
-  const [adultingProgress] = useState(65);
+  const { userProfile, signOut } = useAuth();
+  const [showUserMenu, setShowUserMenu] = useState(false);
+
+  const handleSignOut = async () => {
+    await signOut();
+    setShowUserMenu(false);
+  };
 
   return (
-    <div className="bg-gradient-to-r from-sage to-sage-light p-6 rounded-b-3xl shadow-lg">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-1">Adulting</h1>
-          <p className="text-white/90 text-sm italic">Because life doesn't come with a manual.</p>
+    <header className="bg-white shadow-sm border-b border-gray-100 p-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="bg-sage p-2 rounded-lg">
+            <Home className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-800">Adulting</h1>
+            <p className="text-sm text-gray-600">Master life's essentials</p>
+          </div>
         </div>
-        <div className="text-right">
-          <div className="text-white/90 text-xs uppercase tracking-wide mb-1">Level {adultingLevel}</div>
-          <div className="text-2xl">🏆</div>
-        </div>
+        
+        {userProfile && (
+          <div className="relative">
+            <button
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="flex items-center space-x-2 bg-gray-50 hover:bg-gray-100 px-3 py-2 rounded-lg transition-colors"
+            >
+              <div className="w-8 h-8 bg-sage rounded-full flex items-center justify-center">
+                <span className="text-white text-sm font-medium">
+                  {userProfile.first_name.charAt(0)}{userProfile.last_name.charAt(0)}
+                </span>
+              </div>
+              <span className="text-sm font-medium text-gray-700">
+                {userProfile.first_name}
+              </span>
+            </button>
+            
+            {showUserMenu && (
+              <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                <div className="px-4 py-2 border-b border-gray-100">
+                  <p className="text-sm font-medium text-gray-900">
+                    {userProfile.first_name} {userProfile.last_name}
+                  </p>
+                  <p className="text-xs text-gray-500">@{userProfile.username}</p>
+                </div>
+                <button
+                  onClick={handleSignOut}
+                  className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Sign Out
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-      
-      <div className="bg-white/20 rounded-full p-1 mb-4">
-        <div className="bg-white rounded-full p-2 flex items-center justify-between">
-          <span className="text-sage font-semibold text-sm">Adulting Progress</span>
-          <span className="text-sage font-bold">{adultingProgress}%</span>
-        </div>
-      </div>
-      
-      <div className="bg-white/10 rounded-full h-3 overflow-hidden">
-        <div 
-          className="bg-coral h-full rounded-full transition-all duration-700 ease-out"
-          style={{ width: `${adultingProgress}%` }}
-        />
-      </div>
-    </div>
+    </header>
   );
 };
 
