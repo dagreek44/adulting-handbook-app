@@ -184,17 +184,52 @@ export const useSupabaseData = () => {
   };
 
   const fetchFamilyMembers = async () => {
-    if (!userProfile?.family_id) {
-      console.log('fetchFamilyMembers: No family_id available');
-      return [];
+    const familyId = userProfile?.family_id;
+    
+    if (!familyId) {
+      console.log('fetchFamilyMembers: No family_id available, userProfile:', !!userProfile);
+      
+      // Try to fetch family members only when no family_id is available
+      try {
+        console.log('fetchFamilyMembers: Fetching family members only');
+        const { data, error } = await supabase
+          .from('users')
+          .select('id, first_name, last_name, email, username, family_id, created_at, updated_at')
+          .order('created_at', { ascending: true });
+
+        if (error) throw error;
+        
+        const convertedMembers = (data || []).map(member => ({
+          id: member.id,
+          name: `${member.first_name} ${member.last_name}`,
+          email: member.email,
+          role: 'Member' as 'Admin' | 'Member',
+          adulting_progress: 0,
+          invited_at: member.created_at,
+          created_at: member.created_at,
+          updated_at: member.updated_at
+        }));
+        
+        console.log('fetchFamilyMembers: Found', convertedMembers.length, 'family members');
+        setFamilyMembers(convertedMembers);
+        return convertedMembers;
+      } catch (error) {
+        console.error('Error fetching family members:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch family members",
+          variant: "destructive"
+        });
+        return [];
+      }
     }
     
     try {
-      console.log('fetchFamilyMembers: Fetching for family:', userProfile.family_id);
+      console.log('fetchFamilyMembers: Fetching for family:', familyId);
       const { data, error } = await supabase
         .from('users')
         .select('id, first_name, last_name, email, username, family_id, created_at, updated_at')
-        .eq('family_id', userProfile.family_id)
+        .eq('family_id', familyId)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -225,19 +260,40 @@ export const useSupabaseData = () => {
   };
 
   const fetchAllReminders = async () => {
-    if (!userProfile?.family_id) {
-      console.log('fetchAllReminders: No family_id available');
-      return [];
+    const familyId = userProfile?.family_id;
+    
+    if (!familyId) {
+      console.log('fetchAllReminders: No family_id available, userProfile:', !!userProfile);
+      
+      // Try to fetch global reminders only when no family_id is available
+      try {
+        console.log('fetchAllReminders: Fetching global reminders only');
+        const { data, error } = await supabase
+          .from('reminders')
+          .select('*')
+          .eq('is_custom', false)
+          .order('created_at', { ascending: true });
+
+        if (error) throw error;
+        
+        const convertedReminders = (data || []).map(convertSupabaseRowToReminder);
+        console.log('fetchAllReminders: Found', convertedReminders.length, 'global reminders');
+        setAllAvailableReminders(convertedReminders);
+        return convertedReminders;
+      } catch (error) {
+        console.error('Error fetching global reminders:', error);
+        return [];
+      }
     }
     
     try {
-      console.log('fetchAllReminders: Fetching for family:', userProfile.family_id);
+      console.log('fetchAllReminders: Fetching for family:', familyId);
       
-      // Fixed query: Get global reminders (is_custom = false) OR family-specific reminders
+      // Get global reminders (is_custom = false) OR family-specific reminders
       const { data, error } = await supabase
         .from('reminders')
         .select('*')
-        .or(`is_custom.eq.false,and(is_custom.eq.true,family_id.eq.${userProfile.family_id})`)
+        .or(`is_custom.eq.false,and(is_custom.eq.true,family_id.eq.${familyId})`)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -251,7 +307,9 @@ export const useSupabaseData = () => {
         .select('reminder_id, enabled')
         .eq('user_id', user?.id);
 
-      if (userTasksError) throw userTasksError;
+      if (userTasksError) {
+        console.error('Error fetching user tasks for enabled status:', userTasksError);
+      }
 
       const enabledReminderIds = new Set(
         (userTasksData || [])
@@ -666,20 +724,41 @@ export const useSupabaseData = () => {
   // Only run effects when we have both user and userProfile
   useEffect(() => {
     const loadData = async () => {
-      if (!user || !userProfile) {
-        console.log('loadData: Missing user or userProfile, skipping data load');
+      console.log('loadData: Starting, user:', !!user, 'userProfile:', !!userProfile);
+      
+      if (!user) {
+        console.log('loadData: No user available, skipping data load');
         setLoading(false);
         return;
       }
       
-      console.log('loadData: Starting data load for user:', user.id, 'family:', userProfile.family_id);
+      // Always try to load some data even if userProfile is missing
+      console.log('loadData: Starting data load for user:', user.id);
       setLoading(true);
-      await Promise.all([fetchAllReminders(), fetchUserTasks(), fetchCompletedTasks(), fetchFamilyMembers()]);
-      setLoading(false);
+      
+      try {
+        // Always try to fetch global reminders and user tasks
+        await Promise.all([
+          fetchAllReminders(),
+          fetchUserTasks(),
+          fetchCompletedTasks()
+        ]);
+        
+        // Only fetch family members if we have a family_id
+        if (userProfile?.family_id) {
+          await fetchFamilyMembers();
+        } else {
+          console.log('loadData: Skipping family members fetch - no family_id');
+        }
+      } catch (error) {
+        console.error('loadData: Error during data loading:', error);
+      } finally {
+        setLoading(false);
+      }
     };
 
     loadData();
-  }, [user, userProfile]);
+  }, [user, userProfile?.family_id]); // Depend on family_id specifically to avoid unnecessary reloads
 
   // Return the correct mapping: user's active tasks as 'reminders', all available as 'allReminders'
   return {
