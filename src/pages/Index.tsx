@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Wrench, Calendar, Trophy, CheckCircle2 } from 'lucide-react';
@@ -199,10 +200,6 @@ const Index = () => {
       case 'reminders':
         return (
           <RemindersView
-            reminders={reminders}
-            setReminders={(newReminders) => {
-              // This will be handled by the Supabase operations
-            }}
             allReminders={allReminders}
             familyMembers={familyMembers}
             setFamilyMembers={() => {}}
