@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -71,6 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           first_name: firstName,
           last_name: lastName,
           username: username,
+          password_hash: 'authenticated_via_supabase_auth', // Placeholder since user is already authenticated
           family_id: user.user_metadata?.family_id || undefined // Let it generate a new family_id
         })
         .select()
