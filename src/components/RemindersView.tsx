@@ -6,10 +6,9 @@ import TaskCard from '@/components/TaskCard';
 import AddCustomReminder from '@/components/AddCustomReminder';
 import { Users, Edit, CalendarDays, List, CheckCircle2 } from 'lucide-react';
 import { UserTask, FamilyMember, SupabaseReminder } from '@/hooks/useSupabaseData';
+import { useReminders } from '@/contexts/ReminderContext';
 
 interface RemindersViewProps {
-  reminders: UserTask[];
-  setReminders: (reminders: UserTask[]) => void;
   allReminders: SupabaseReminder[];
   familyMembers: FamilyMember[];
   setFamilyMembers: (members: FamilyMember[]) => void;
@@ -34,8 +33,6 @@ interface RemindersViewProps {
 }
 
 const RemindersView = ({
-  reminders,
-  setReminders,
   allReminders,
   familyMembers,
   setFamilyMembers,
@@ -53,6 +50,9 @@ const RemindersView = ({
   onNavigateToCompleted,
   supabaseOperations
 }: RemindersViewProps) => {
+  // Use reminders from context instead of props
+  const { reminders, loading, refreshReminders } = useReminders();
+
   // Get only the next 3 upcoming tasks
   const upcomingTasks = reminders.slice(0, 3);
 
@@ -73,6 +73,20 @@ const RemindersView = ({
     setSelectedTask(taskDetails);
     setIsModalOpen(true);
   };
+
+  const handleTaskComplete = async (task?: any) => {
+    await onTaskComplete(task);
+    // Refresh reminders after completing a task
+    await refreshReminders();
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-8">
+        <div className="text-gray-500">Loading reminders...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -150,7 +164,7 @@ const RemindersView = ({
                 isPastDue={reminder.isPastDue}
                 assignedToNames={reminder.assignedToNames}
                 isCompleted={false}
-                onComplete={() => onTaskComplete(reminder)}
+                onComplete={() => handleTaskComplete(reminder)}
                 onClick={() => handleTaskClick(reminder)}
               />
             ))}
@@ -172,7 +186,7 @@ const RemindersView = ({
           }))}
           reminders={reminders}
           onTaskClick={handleTaskClick}
-          onTaskComplete={onTaskComplete}
+          onTaskComplete={handleTaskComplete}
           familyMembers={familyMembers}
           supabaseOperations={supabaseOperations}
         />

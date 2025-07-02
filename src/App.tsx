@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ReminderProvider } from "@/contexts/ReminderContext";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import PostJob from "./pages/PostJob";
@@ -19,12 +20,14 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/" element={<Index />} />
-            <Route path="/post-job" element={<PostJob />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <ReminderProvider>
+            <Routes>
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/" element={<Index />} />
+              <Route path="/post-job" element={<PostJob />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </ReminderProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
