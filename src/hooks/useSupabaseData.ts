@@ -430,9 +430,14 @@ export const useSupabaseData = () => {
   };
 
   const toggleReminderEnabled = async (reminderId: string, enabled: boolean) => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      console.log('toggleReminderEnabled: No user ID available');
+      return;
+    }
     
     try {
+      console.log('toggleReminderEnabled: Toggling reminder', reminderId, 'enabled:', enabled, 'for user:', user.id);
+      
       if (enabled) {
         // Get reminder details to create user task
         const { data: reminderData, error: reminderError } = await supabase
@@ -441,26 +446,41 @@ export const useSupabaseData = () => {
           .eq('id', reminderId)
           .single();
 
-        if (reminderError) throw reminderError;
+        if (reminderError) {
+          console.error('toggleReminderEnabled: Error fetching reminder:', reminderError);
+          throw reminderError;
+        }
+
+        console.log('toggleReminderEnabled: Found reminder data:', reminderData);
 
         // Check if user task already exists
-        const { data: existingTask } = await supabase
+        const { data: existingTask, error: existingTaskError } = await supabase
           .from('user_tasks')
           .select('id, enabled')
           .eq('reminder_id', reminderId)
           .eq('user_id', user.id)
           .maybeSingle();
 
+        if (existingTaskError) {
+          console.error('toggleReminderEnabled: Error checking existing task:', existingTaskError);
+          throw existingTaskError;
+        }
+
         if (existingTask) {
+          console.log('toggleReminderEnabled: Updating existing task to enabled');
           // Update existing task to enabled
           const { error: updateError } = await supabase
             .from('user_tasks')
             .update({ enabled: true })
             .eq('id', existingTask.id);
 
-          if (updateError) throw updateError;
+          if (updateError) {
+            console.error('toggleReminderEnabled: Error updating existing task:', updateError);
+            throw updateError;
+          }
         } else {
-          // Create new user task
+          console.log('toggleReminderEnabled: Creating new user task');
+          // Create new user task with proper due date calculation
           const dueDate = reminderData.due_date || new Date().toISOString().split('T')[0];
           
           const { error: insertError } = await supabase
@@ -474,9 +494,15 @@ export const useSupabaseData = () => {
               enabled: true
             });
 
-          if (insertError) throw insertError;
+          if (insertError) {
+            console.error('toggleReminderEnabled: Error creating new task:', insertError);
+            throw insertError;
+          }
+          
+          console.log('toggleReminderEnabled: Successfully created new user task');
         }
       } else {
+        console.log('toggleReminderEnabled: Disabling user task');
         // Disable the user task
         const { error: updateError } = await supabase
           .from('user_tasks')
@@ -484,10 +510,14 @@ export const useSupabaseData = () => {
           .eq('reminder_id', reminderId)
           .eq('user_id', user.id);
 
-        if (updateError) throw updateError;
+        if (updateError) {
+          console.error('toggleReminderEnabled: Error disabling task:', updateError);
+          throw updateError;
+        }
       }
 
-      // Refresh data
+      // Refresh data to show changes immediately
+      console.log('toggleReminderEnabled: Refreshing data after toggle');
       await Promise.all([fetchAllReminders(), fetchUserTasks()]);
 
       toast({
@@ -495,7 +525,7 @@ export const useSupabaseData = () => {
         description: enabled ? "Task has been added to your list" : "Task has been removed from your list",
       });
     } catch (error) {
-      console.error('Error toggling reminder:', error);
+      console.error('toggleReminderEnabled: Error toggling reminder:', error);
       toast({
         title: "Error",
         description: "Failed to update reminder",
