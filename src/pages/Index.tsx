@@ -230,7 +230,28 @@ const Index = () => {
         );
 
       case 'contractors':
-        return <ContractorsView reminders={pendingTasks} />;
+        // Convert userTasks to a format that matches SupabaseReminder for ContractorsView
+        const convertedTasksForContractors = pendingTasks.map(task => ({
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          difficulty: task.difficulty,
+          estimated_time: task.estimated_time,
+          estimated_budget: task.estimated_budget,
+          frequency: 'monthly', // Default frequency
+          due_date: task.due_date,
+          enabled: true,
+          video_url: task.video_url,
+          instructions: task.instructions,
+          tools: task.tools,
+          supplies: task.supplies,
+          is_custom: task.is_custom,
+          created_at: task.created_at,
+          updated_at: task.created_at,
+          family_id: null,
+          assignees: task.assignees
+        }));
+        return <ContractorsView reminders={convertedTasksForContractors} />;
 
       case 'completed':
         return <CompletedTasksView completedTasks={completedTasks} />;

@@ -112,7 +112,38 @@ const RemindersView = ({
     next_due: task.due_date
   }));
 
-  // Convert for calendar view
+  // Convert for calendar view - create mock reminders that match the expected interface
+  const convertedCalendarReminders = upcomingTasks.map(task => ({
+    id: task.id,
+    user_id: task.user_id,
+    reminder_id: task.reminder_id,
+    title: task.title,
+    description: task.description,
+    difficulty: task.difficulty,
+    estimated_time: task.estimated_time,
+    estimated_budget: task.estimated_budget,
+    frequency_days: task.frequency_days,
+    due_date: task.due_date,
+    last_completed: task.last_completed,
+    status: task.status,
+    video_url: task.video_url,
+    instructions: task.instructions,
+    tools: task.tools,
+    supplies: task.supplies,
+    reminder_type: task.reminder_type,
+    is_custom: task.is_custom,
+    created_at: task.created_at,
+    assignees: task.assignees,
+    assignedToNames: task.assignedToNames,
+    isPastDue: task.isPastDue,
+    // Add missing properties for SupabaseReminder compatibility
+    frequency: 'monthly',
+    enabled: true,
+    updated_at: task.created_at,
+    family_id: null,
+    completed_date: task.last_completed
+  }));
+
   const convertedCalendarTasks = upcomingTasks.map(task => ({
     title: task.title,
     description: task.description,
@@ -144,7 +175,7 @@ const RemindersView = ({
         ) : (
           <ReminderCalendarView
             tasks={convertedCalendarTasks}
-            reminders={convertedUpcomingTasks}
+            reminders={convertedCalendarReminders}
             onTaskClick={handleTaskClick}
             onTaskComplete={handleTaskComplete}
             familyMembers={familyMembers}
