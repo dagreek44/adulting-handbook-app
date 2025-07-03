@@ -1,6 +1,7 @@
 
 import { useState } from 'react';
 import { Wrench, Clock, CheckCircle2, ChevronRight, DollarSign, AlertTriangle, Users } from 'lucide-react';
+import { format } from 'date-fns';
 
 interface TaskCardProps {
   title: string;
@@ -12,6 +13,8 @@ interface TaskCardProps {
   isPastDue?: boolean;
   assignedToNames?: string[];
   isCompleted?: boolean;
+  lastCompleted?: string | null;
+  nextDue?: string;
   onComplete: () => void;
   onClick?: () => void;
 }
@@ -26,6 +29,8 @@ const TaskCard = ({
   isPastDue = false,
   assignedToNames = ['Family'],
   isCompleted = false,
+  lastCompleted,
+  nextDue,
   onComplete,
   onClick 
 }: TaskCardProps) => {
@@ -54,6 +59,16 @@ const TaskCard = ({
     if (isPastDue) return 'border-l-red-500';
     return 'border-l-sage';
   };
+
+  const formatDate = (dateString: string) => {
+    try {
+      return format(new Date(dateString), 'MMM dd, yyyy');
+    } catch {
+      return dateString;
+    }
+  };
+
+  const displayDueDate = nextDue || dueDate;
 
   return (
     <div 
@@ -84,6 +99,13 @@ const TaskCard = ({
             <Users className="w-3 h-3 mr-1" />
             <span>Assigned to: {assignedToNames.join(', ')}</span>
           </div>
+
+          {/* Last Completed Info */}
+          {lastCompleted && (
+            <div className="text-xs text-gray-500 mb-2">
+              Last completed: {formatDate(lastCompleted)}
+            </div>
+          )}
         </div>
         <div className="flex items-center ml-3 space-x-2">
           {!completed && onClick && (
@@ -119,9 +141,11 @@ const TaskCard = ({
             </div>
           )}
         </div>
-        <span className={`text-xs ${isPastDue && !completed ? 'text-red-500 font-medium' : 'text-gray-500'}`}>
-          {dueDate}
-        </span>
+        <div className="text-right">
+          <span className={`text-xs ${isPastDue && !completed ? 'text-red-500 font-medium' : 'text-gray-500'}`}>
+            {nextDue ? `Next due: ${formatDate(displayDueDate)}` : formatDate(displayDueDate)}
+          </span>
+        </div>
       </div>
     </div>
   );

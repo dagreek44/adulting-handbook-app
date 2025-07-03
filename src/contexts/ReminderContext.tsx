@@ -1,6 +1,6 @@
 
 import React, { createContext, useState, useEffect, useContext } from "react";
-import { getReminders, saveReminders, initializeStorage } from "../services/ReminderService";
+import { getReminders, saveReminders, initializeStorage, markReminderCompleted as markCompleted } from "../services/ReminderService";
 import { UserTask } from "@/hooks/useSupabaseData";
 
 interface ReminderContextType {
@@ -10,6 +10,7 @@ interface ReminderContextType {
   updateReminder: (updatedReminder: UserTask) => Promise<void>;
   deleteReminder: (reminderId: string) => Promise<void>;
   refreshReminders: () => Promise<void>;
+  markReminderCompleted: (reminderId: string) => Promise<void>;
 }
 
 export const ReminderContext = createContext<ReminderContextType | undefined>(undefined);
@@ -75,6 +76,15 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     await saveReminders(updatedReminders);
   };
 
+  const markReminderCompleted = async (reminderId: string) => {
+    try {
+      const updatedReminders = await markCompleted(reminderId);
+      setReminders(updatedReminders);
+    } catch (error) {
+      console.error("Failed to mark reminder as completed:", error);
+    }
+  };
+
   return (
     <ReminderContext.Provider
       value={{
@@ -84,6 +94,7 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         updateReminder,
         deleteReminder,
         refreshReminders,
+        markReminderCompleted,
       }}
     >
       {children}

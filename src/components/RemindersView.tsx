@@ -52,10 +52,13 @@ const RemindersView = ({
   supabaseOperations
 }: RemindersViewProps) => {
   // Use reminders from context instead of props
-  const { reminders, loading, refreshReminders } = useReminders();
+  const { reminders, loading, refreshReminders, markReminderCompleted } = useReminders();
 
+  // Filter to show only pending reminders (not completed ones)
+  const pendingReminders = reminders.filter(reminder => reminder.status !== 'completed');
+  
   // Get only the next 3 upcoming tasks
-  const upcomingTasks = reminders.slice(0, 3);
+  const upcomingTasks = pendingReminders.slice(0, 3);
 
   const handleTaskClick = (reminder: UserTask) => {
     const taskDetails = {
@@ -75,10 +78,15 @@ const RemindersView = ({
     setIsModalOpen(true);
   };
 
-  const handleTaskComplete = async (task?: any) => {
-    await onTaskComplete(task);
-    // Refresh reminders after completing a task
-    await refreshReminders();
+  const handleTaskComplete = async (reminder: UserTask) => {
+    try {
+      await markReminderCompleted(reminder.id);
+      await onTaskComplete(reminder);
+      // Refresh reminders after completing a task
+      await refreshReminders();
+    } catch (error) {
+      console.error('Failed to complete task:', error);
+    }
   };
 
   return (
@@ -141,7 +149,7 @@ const RemindersView = ({
         </button>
       </div>
 
-      <ReminderLoadingState loading={loading} reminders={reminders}>
+      <ReminderLoadingState loading={loading} reminders={pendingReminders}>
         {reminderViewMode === 'list' ? (
           <div className="bg-white p-4 rounded-xl shadow-md">
             <h3 className="text-xl font-bold text-gray-800 mb-4">Next 3 Upcoming Tasks</h3>
@@ -157,7 +165,9 @@ const RemindersView = ({
                   dueDate={reminder.due_date || 'Not set'}
                   isPastDue={reminder.isPastDue}
                   assignedToNames={reminder.assignedToNames}
-                  isCompleted={false}
+                  isCompleted={reminder.status === 'completed'}
+                  lastCompleted={reminder.last_completed}
+                  nextDue={reminder.next_due}
                   onComplete={() => handleTaskComplete(reminder)}
                   onClick={() => handleTaskClick(reminder)}
                 />
@@ -171,9 +181,9 @@ const RemindersView = ({
               description: reminder.description,
               estimatedTime: reminder.estimated_time,
               difficulty: reminder.difficulty as 'Easy' | 'Medium' | 'Hard',
-              dueDate: reminder.due_date || 'Not set',
+              dueDate: reminder.next_due || reminder.due_date || 'Not set',
             }))}
-            reminders={reminders}
+            reminders={pendingReminders}
             onTaskClick={handleTaskClick}
             onTaskComplete={handleTaskComplete}
             familyMembers={familyMembers}

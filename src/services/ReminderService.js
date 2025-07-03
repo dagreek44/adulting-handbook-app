@@ -26,6 +26,9 @@ const mockReminders = [
     assignees: ['Family'],
     is_custom: false,
     updated_at: '2024-01-01T00:00:00Z',
+    last_completed: null,
+    next_due: '2024-01-15',
+    status: 'pending',
     isPastDue: false,
     assignedToNames: ['Family']
   },
@@ -51,6 +54,9 @@ const mockReminders = [
     assignees: ['Family'],
     is_custom: false,
     updated_at: '2024-01-01T00:00:00Z',
+    last_completed: null,
+    next_due: '2024-01-20',
+    status: 'pending',
     isPastDue: false,
     assignedToNames: ['Family']
   }
@@ -69,7 +75,7 @@ export const getReminders = async () => {
     
     return reminders.map(reminder => ({
       ...reminder,
-      isPastDue: new Date(reminder.due_date) < today
+      isPastDue: new Date(reminder.next_due || reminder.due_date) < today
     }));
   } catch (error) {
     console.error('Error loading reminders from storage:', error);
@@ -86,7 +92,42 @@ export const saveReminders = async (reminders) => {
 };
 
 export const getNextDueDate = (lastCompleted, frequencyDays) => {
-  return new Date(new Date(lastCompleted).getTime() + frequencyDays * 86400000);
+  const completedDate = new Date(lastCompleted);
+  return new Date(completedDate.getTime() + frequencyDays * 86400000);
+};
+
+export const markReminderCompleted = async (reminderId) => {
+  try {
+    const reminders = await getReminders();
+    const today = new Date();
+    
+    const updatedReminders = reminders.map(reminder => {
+      if (reminder.id !== reminderId) return reminder;
+      
+      const nextDue = getNextDueDate(today, reminder.frequency_days);
+      
+      return {
+        ...reminder,
+        last_completed: today.toISOString(),
+        next_due: nextDue.toISOString(),
+        status: 'completed',
+        completed_date: today.toISOString().split('T')[0]
+      };
+    });
+    
+    await saveReminders(updatedReminders);
+    return updatedReminders;
+  } catch (error) {
+    console.error('Error marking reminder as completed:', error);
+    throw error;
+  }
+};
+
+export const isOverdue = (reminder) => {
+  const dueDate = new Date(reminder.next_due || reminder.due_date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return dueDate < today;
 };
 
 // Initialize storage with mock data if empty
