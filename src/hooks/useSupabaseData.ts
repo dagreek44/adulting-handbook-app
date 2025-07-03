@@ -41,6 +41,7 @@ export interface UserTask {
   enabled: boolean;
   due_date: string;
   frequency: string;
+  frequency_days: number;
   reminder_type: string;
   created_at: string;
   // Combined with reminder data to match SupabaseReminder interface
@@ -58,6 +59,10 @@ export interface UserTask {
   updated_at: string;
   isPastDue?: boolean;
   assignedToNames?: string[];
+  // Add missing properties for completion tracking
+  last_completed: string | null;
+  next_due: string;
+  status: string;
 }
 
 export interface CompletedTask {
