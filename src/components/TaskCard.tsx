@@ -15,7 +15,7 @@ interface TaskCardProps {
   isCompleted?: boolean;
   lastCompleted?: string | null;
   nextDue?: string;
-  onComplete: (task?: any) => void; // Updated to accept optional parameter
+  onComplete: () => void; // Changed back to no parameters
   onClick?: () => void;
 }
 
