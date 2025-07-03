@@ -365,7 +365,8 @@ export const useSupabaseData = () => {
             supplies,
             assignees,
             is_custom,
-            updated_at
+            updated_at,
+            frequency
           )
         `)
         .eq('user_id', user.id)
@@ -392,6 +393,29 @@ export const useSupabaseData = () => {
         if (assignedToNames.length === 0) {
           assignedToNames = ['Family'];
         }
+
+        // Calculate frequency_days from frequency string
+        const getFrequencyDays = (frequency: string) => {
+          switch (frequency) {
+            case 'weekly': return 7;
+            case 'monthly': return 30;
+            case 'quarterly': return 90;
+            case 'seasonally': return 90;
+            case 'yearly': return 365;
+            default: return 30;
+          }
+        };
+
+        // Calculate next_due date if not already set
+        const calculateNextDue = () => {
+          if (task.completed_date) {
+            const completedDate = new Date(task.completed_date);
+            const frequencyDays = getFrequencyDays(task.frequency);
+            const nextDue = new Date(completedDate.getTime() + frequencyDays * 24 * 60 * 60 * 1000);
+            return nextDue.toISOString().split('T')[0];
+          }
+          return task.due_date;
+        };
         
         return {
           id: task.id,
@@ -401,6 +425,7 @@ export const useSupabaseData = () => {
           enabled: task.enabled,
           due_date: task.due_date,
           frequency: task.frequency,
+          frequency_days: getFrequencyDays(task.frequency),
           reminder_type: task.reminder_type,
           created_at: task.created_at,
           title: reminderData?.title || 'Unknown Task',
@@ -416,7 +441,10 @@ export const useSupabaseData = () => {
           is_custom: reminderData?.is_custom || false,
           updated_at: reminderData?.updated_at || task.created_at,
           isPastDue,
-          assignedToNames
+          assignedToNames,
+          last_completed: task.completed_date,
+          next_due: calculateNextDue(),
+          status: task.completed_date ? 'completed' : 'pending'
         };
       });
       
