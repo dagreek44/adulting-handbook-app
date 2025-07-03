@@ -25,13 +25,14 @@ const Index = () => {
   const [reminderViewMode, setReminderViewMode] = useState<'list' | 'calendar'>('list');
   const { toast } = useToast();
 
-  // Call useSupabaseData unconditionally
+  // Use the new reminder context
+  const { userTasks, loading: tasksLoading } = useReminders();
+
+  // Call useSupabaseData for family members and completed tasks
   const {
-    reminders,
-    allReminders,
     completedTasks,
     familyMembers,
-    loading,
+    loading: supabaseLoading,
     completeTask,
     addReminder,
     updateReminder,
@@ -52,8 +53,9 @@ const Index = () => {
     return <Navigate to="/auth" replace />;
   }
 
-  // Get only the next 3 upcoming tasks
-  const upcomingTasks = reminders.slice(0, 3);
+  // Filter to show only pending tasks
+  const pendingTasks = userTasks.filter(task => task.status !== 'completed');
+  const upcomingTasks = pendingTasks.slice(0, 3);
 
   const handleTaskComplete = async (task?: any) => {
     if (task && task.id) {
@@ -115,6 +117,8 @@ const Index = () => {
       progress: 0
     }
   ];
+
+  const loading = tasksLoading || supabaseLoading;
 
   if (loading) {
     return (
@@ -200,7 +204,7 @@ const Index = () => {
       case 'reminders':
         return (
           <RemindersView
-            allReminders={allReminders}
+            allReminders={[]}
             familyMembers={familyMembers}
             setFamilyMembers={() => {}}
             completedTasks={completedTasks.length}
@@ -225,7 +229,7 @@ const Index = () => {
         );
 
       case 'contractors':
-        return <ContractorsView reminders={reminders} />;
+        return <ContractorsView reminders={pendingTasks} />;
 
       case 'completed':
         return <CompletedTasksView completedTasks={completedTasks} />;

@@ -7,6 +7,7 @@ import RemindersHeader from '@/components/RemindersHeader';
 import ReminderViewToggle from '@/components/ReminderViewToggle';
 import RemindersList from '@/components/RemindersList';
 import CompletedTasksButton from '@/components/CompletedTasksButton';
+import GlobalRemindersSelector from '@/components/GlobalRemindersSelector';
 import { UserTask, FamilyMember, SupabaseReminder } from '@/hooks/useSupabaseData';
 import { useReminders } from '@/contexts/ReminderContext';
 
@@ -35,7 +36,6 @@ interface RemindersViewProps {
 }
 
 const RemindersView = ({
-  allReminders,
   familyMembers,
   setFamilyMembers,
   completedTasks,
@@ -50,43 +50,48 @@ const RemindersView = ({
   isFamilyModalOpen,
   setIsFamilyModalOpen,
   onNavigateToCompleted,
-  supabaseOperations
 }: RemindersViewProps) => {
-  // Use reminders from context instead of props
-  const { reminders, loading, refreshReminders, markReminderCompleted } = useReminders();
+  // Use the new reminder context
+  const { userTasks, globalReminders, loading, markTaskCompleted, enableReminder } = useReminders();
 
-  // Filter to show only pending reminders (not completed ones)
-  const pendingReminders = reminders.filter(reminder => reminder.status !== 'completed');
+  // Filter to show only pending tasks (not completed ones)
+  const pendingTasks = userTasks.filter(task => task.status !== 'completed');
   
   // Get only the next 3 upcoming tasks
-  const upcomingTasks = pendingReminders.slice(0, 3);
+  const upcomingTasks = pendingTasks.slice(0, 3);
 
-  const handleTaskClick = (reminder: UserTask) => {
+  const handleTaskClick = (task: any) => {
     const taskDetails = {
-      id: reminder.id,
-      title: reminder.title,
-      description: reminder.description,
-      estimatedTime: reminder.estimated_time,
-      difficulty: reminder.difficulty,
-      estimatedBudget: reminder.estimated_budget,
-      dueDate: reminder.due_date || 'Not set',
-      videoUrl: reminder.video_url,
-      instructions: reminder.instructions || [],
-      tools: reminder.tools || [],
-      supplies: reminder.supplies || []
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      estimatedTime: task.estimated_time,
+      difficulty: task.difficulty,
+      estimatedBudget: task.estimated_budget,
+      dueDate: task.due_date || 'Not set',
+      videoUrl: task.video_url,
+      instructions: task.instructions || [],
+      tools: task.tools || [],
+      supplies: task.supplies || []
     };
     setSelectedTask(taskDetails);
     setIsModalOpen(true);
   };
 
-  const handleTaskComplete = async (reminder: UserTask) => {
+  const handleTaskComplete = async (task: any) => {
     try {
-      await markReminderCompleted(reminder.id);
-      await onTaskComplete(reminder);
-      // Refresh reminders after completing a task
-      await refreshReminders();
+      await markTaskCompleted(task.id);
+      await onTaskComplete(task);
     } catch (error) {
       console.error('Failed to complete task:', error);
+    }
+  };
+
+  const handleEnableReminder = async (globalReminder: any) => {
+    try {
+      await enableReminder(globalReminder);
+    } catch (error) {
+      console.error('Failed to enable reminder:', error);
     }
   };
 
@@ -98,20 +103,12 @@ const RemindersView = ({
         setIsFamilyModalOpen={setIsFamilyModalOpen}
       />
 
-      <ReminderEditMode
-        isEditMode={isEditMode}
-        onExitEdit={() => setIsEditMode(false)}
-        allReminders={allReminders}
-        familyMembers={familyMembers}
-        supabaseOperations={supabaseOperations}
-      />
-
       <ReminderViewToggle
         reminderViewMode={reminderViewMode}
         setReminderViewMode={setReminderViewMode}
       />
 
-      <ReminderLoadingState loading={loading} reminders={pendingReminders}>
+      <ReminderLoadingState loading={loading} reminders={pendingTasks}>
         {reminderViewMode === 'list' ? (
           <RemindersList
             upcomingTasks={upcomingTasks}
@@ -120,25 +117,41 @@ const RemindersView = ({
           />
         ) : (
           <ReminderCalendarView
-            tasks={upcomingTasks.map(reminder => ({
-              title: reminder.title,
-              description: reminder.description,
-              estimatedTime: reminder.estimated_time,
-              difficulty: reminder.difficulty as 'Easy' | 'Medium' | 'Hard',
-              dueDate: reminder.next_due || reminder.due_date || 'Not set',
+            tasks={upcomingTasks.map(task => ({
+              title: task.title,
+              description: task.description,
+              estimatedTime: task.estimated_time,
+              difficulty: task.difficulty as 'Easy' | 'Medium' | 'Hard',
+              dueDate: task.due_date || 'Not set',
             }))}
-            reminders={pendingReminders}
+            reminders={pendingTasks}
             onTaskClick={handleTaskClick}
-            onTaskComplete={() => handleTaskComplete}
+            onTaskComplete={handleTaskComplete}
             familyMembers={familyMembers}
-            supabaseOperations={supabaseOperations}
+            supabaseOperations={{
+              addReminder: async () => {},
+              updateReminder: async () => {},
+              deleteReminder: async () => {},
+              toggleReminderEnabled: async () => {}
+            }}
           />
         )}
       </ReminderLoadingState>
 
+      <GlobalRemindersSelector
+        globalReminders={globalReminders}
+        enabledTaskIds={userTasks.map(task => task.reminder_id).filter(Boolean)}
+        onEnableReminder={handleEnableReminder}
+      />
+
       <AddCustomReminder
         familyMembers={familyMembers}
-        supabaseOperations={supabaseOperations}
+        supabaseOperations={{
+          addReminder: async () => {},
+          updateReminder: async () => {},
+          deleteReminder: async () => {},
+          toggleReminderEnabled: async () => {}
+        }}
       />
 
       <CompletedTasksButton onNavigateToCompleted={onNavigateToCompleted} />

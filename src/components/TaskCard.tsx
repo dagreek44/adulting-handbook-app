@@ -15,7 +15,7 @@ interface TaskCardProps {
   isCompleted?: boolean;
   lastCompleted?: string | null;
   nextDue?: string;
-  onComplete: () => void; // Keep as no parameters
+  onComplete: () => void;
   onClick?: () => void;
 }
 
@@ -143,7 +143,7 @@ const TaskCard = ({
         </div>
         <div className="text-right">
           <span className={`text-xs ${isPastDue && !completed ? 'text-red-500 font-medium' : 'text-gray-500'}`}>
-            {nextDue ? `Next due: ${formatDate(displayDueDate)}` : formatDate(displayDueDate)}
+            Due: {formatDate(displayDueDate)}
           </span>
         </div>
       </div>
