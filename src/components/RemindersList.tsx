@@ -1,11 +1,25 @@
 
 import TaskCard from '@/components/TaskCard';
-import { UserTask } from '@/hooks/useSupabaseData';
+
+interface UserTaskForList {
+  id: string;
+  title: string;
+  description: string;
+  estimated_time: string;
+  difficulty: string;
+  estimated_budget: string;
+  due_date: string;
+  isPastDue?: boolean;
+  assignedToNames: string[];
+  status: string;
+  last_completed: string | null;
+  next_due: string;
+}
 
 interface RemindersListProps {
-  upcomingTasks: UserTask[];
-  onTaskClick: (reminder: UserTask) => void;
-  onTaskComplete: (reminder: UserTask) => Promise<void>;
+  upcomingTasks: UserTaskForList[];
+  onTaskClick: (reminder: UserTaskForList) => void;
+  onTaskComplete: (reminder: UserTaskForList) => Promise<void>;
 }
 
 const RemindersList = ({ 

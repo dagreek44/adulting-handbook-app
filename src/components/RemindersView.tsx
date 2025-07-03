@@ -8,7 +8,7 @@ import ReminderViewToggle from '@/components/ReminderViewToggle';
 import RemindersList from '@/components/RemindersList';
 import CompletedTasksButton from '@/components/CompletedTasksButton';
 import GlobalRemindersSelector from '@/components/GlobalRemindersSelector';
-import { UserTask, FamilyMember, SupabaseReminder } from '@/hooks/useSupabaseData';
+import { FamilyMember, SupabaseReminder } from '@/hooks/useSupabaseData';
 import { useReminders } from '@/contexts/ReminderContext';
 
 interface RemindersViewProps {
@@ -50,6 +50,7 @@ const RemindersView = ({
   isFamilyModalOpen,
   setIsFamilyModalOpen,
   onNavigateToCompleted,
+  supabaseOperations
 }: RemindersViewProps) => {
   // Use the new reminder context
   const { userTasks, globalReminders, loading, markTaskCompleted, enableReminder } = useReminders();
@@ -95,6 +96,31 @@ const RemindersView = ({
     }
   };
 
+  // Convert userTasks to format expected by RemindersList
+  const convertedUpcomingTasks = upcomingTasks.map(task => ({
+    id: task.id,
+    title: task.title,
+    description: task.description,
+    estimated_time: task.estimated_time,
+    difficulty: task.difficulty,
+    estimated_budget: task.estimated_budget,
+    due_date: task.due_date,
+    isPastDue: task.isPastDue,
+    assignedToNames: task.assignedToNames,
+    status: task.status,
+    last_completed: task.last_completed,
+    next_due: task.due_date
+  }));
+
+  // Convert for calendar view
+  const convertedCalendarTasks = upcomingTasks.map(task => ({
+    title: task.title,
+    description: task.description,
+    estimatedTime: task.estimated_time,
+    difficulty: task.difficulty as 'Easy' | 'Medium' | 'Hard',
+    dueDate: task.due_date || 'Not set',
+  }));
+
   return (
     <div className="space-y-6">
       <RemindersHeader
@@ -111,29 +137,18 @@ const RemindersView = ({
       <ReminderLoadingState loading={loading} reminders={pendingTasks}>
         {reminderViewMode === 'list' ? (
           <RemindersList
-            upcomingTasks={upcomingTasks}
+            upcomingTasks={convertedUpcomingTasks}
             onTaskClick={handleTaskClick}
             onTaskComplete={handleTaskComplete}
           />
         ) : (
           <ReminderCalendarView
-            tasks={upcomingTasks.map(task => ({
-              title: task.title,
-              description: task.description,
-              estimatedTime: task.estimated_time,
-              difficulty: task.difficulty as 'Easy' | 'Medium' | 'Hard',
-              dueDate: task.due_date || 'Not set',
-            }))}
-            reminders={pendingTasks}
+            tasks={convertedCalendarTasks}
+            reminders={convertedUpcomingTasks}
             onTaskClick={handleTaskClick}
             onTaskComplete={handleTaskComplete}
             familyMembers={familyMembers}
-            supabaseOperations={{
-              addReminder: async () => {},
-              updateReminder: async () => {},
-              deleteReminder: async () => {},
-              toggleReminderEnabled: async () => {}
-            }}
+            supabaseOperations={supabaseOperations}
           />
         )}
       </ReminderLoadingState>
@@ -146,12 +161,7 @@ const RemindersView = ({
 
       <AddCustomReminder
         familyMembers={familyMembers}
-        supabaseOperations={{
-          addReminder: async () => {},
-          updateReminder: async () => {},
-          deleteReminder: async () => {},
-          toggleReminderEnabled: async () => {}
-        }}
+        supabaseOperations={supabaseOperations}
       />
 
       <CompletedTasksButton onNavigateToCompleted={onNavigateToCompleted} />

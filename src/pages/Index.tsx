@@ -5,6 +5,7 @@ import { Wrench, Calendar, Trophy, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
+import { useReminders } from '@/contexts/ReminderContext';
 import Header from '@/components/Header';
 import DashboardCard from '@/components/DashboardCard';
 import Navigation from '@/components/Navigation';
