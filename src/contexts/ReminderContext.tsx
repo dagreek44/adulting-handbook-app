@@ -1,14 +1,14 @@
 
 import React, { createContext, useState, useEffect, useContext } from "react";
-import { getReminders } from "../services/ReminderService";
+import { getReminders, saveReminders, initializeStorage } from "../services/ReminderService";
 import { UserTask } from "@/hooks/useSupabaseData";
 
 interface ReminderContextType {
   reminders: UserTask[];
   loading: boolean;
-  addReminder: (newReminder: UserTask) => void;
-  updateReminder: (updatedReminder: UserTask) => void;
-  deleteReminder: (reminderId: string) => void;
+  addReminder: (newReminder: UserTask) => Promise<void>;
+  updateReminder: (updatedReminder: UserTask) => Promise<void>;
+  deleteReminder: (reminderId: string) => Promise<void>;
   refreshReminders: () => Promise<void>;
 }
 
@@ -26,10 +26,11 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [reminders, setReminders] = useState<UserTask[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load reminders on mount
+  // Initialize storage and load reminders on mount
   useEffect(() => {
     const loadReminders = async () => {
       try {
+        await initializeStorage();
         const data = await getReminders();
         setReminders(data);
       } catch (error) {
@@ -54,22 +55,24 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  const addReminder = (newReminder: UserTask) => {
-    setReminders((prevReminders) => [...prevReminders, newReminder]);
+  const addReminder = async (newReminder: UserTask) => {
+    const updatedReminders = [...reminders, newReminder];
+    setReminders(updatedReminders);
+    await saveReminders(updatedReminders);
   };
 
-  const updateReminder = (updatedReminder: UserTask) => {
-    setReminders((prevReminders) =>
-      prevReminders.map((reminder) =>
-        reminder.id === updatedReminder.id ? updatedReminder : reminder
-      )
+  const updateReminder = async (updatedReminder: UserTask) => {
+    const updatedReminders = reminders.map((reminder) =>
+      reminder.id === updatedReminder.id ? updatedReminder : reminder
     );
+    setReminders(updatedReminders);
+    await saveReminders(updatedReminders);
   };
 
-  const deleteReminder = (reminderId: string) => {
-    setReminders((prevReminders) =>
-      prevReminders.filter((reminder) => reminder.id !== reminderId)
-    );
+  const deleteReminder = async (reminderId: string) => {
+    const updatedReminders = reminders.filter((reminder) => reminder.id !== reminderId);
+    setReminders(updatedReminders);
+    await saveReminders(updatedReminders);
   };
 
   return (

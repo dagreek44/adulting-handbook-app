@@ -1,5 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Mock data for testing
 const mockReminders = [
@@ -10,6 +11,7 @@ const mockReminders = [
     enabled: true,
     due_date: '2024-01-15',
     frequency: 'monthly',
+    frequency_days: 30,
     reminder_type: 'maintenance',
     created_at: '2024-01-01T00:00:00Z',
     title: 'Change Air Filter',
@@ -34,6 +36,7 @@ const mockReminders = [
     enabled: true,
     due_date: '2024-01-20',
     frequency: 'weekly',
+    frequency_days: 7,
     reminder_type: 'cleaning',
     created_at: '2024-01-01T00:00:00Z',
     title: 'Clean Gutters',
@@ -53,6 +56,47 @@ const mockReminders = [
   }
 ];
 
+const STORAGE_KEY = 'reminders';
+
 export const getReminders = async () => {
-  return mockReminders;
+  try {
+    const data = await AsyncStorage.getItem(STORAGE_KEY);
+    const reminders = data ? JSON.parse(data) : mockReminders;
+    
+    // Calculate due status for each reminder
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return reminders.map(reminder => ({
+      ...reminder,
+      isPastDue: new Date(reminder.due_date) < today
+    }));
+  } catch (error) {
+    console.error('Error loading reminders from storage:', error);
+    return mockReminders;
+  }
+};
+
+export const saveReminders = async (reminders) => {
+  try {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(reminders));
+  } catch (error) {
+    console.error('Error saving reminders to storage:', error);
+  }
+};
+
+export const getNextDueDate = (lastCompleted, frequencyDays) => {
+  return new Date(new Date(lastCompleted).getTime() + frequencyDays * 86400000);
+};
+
+// Initialize storage with mock data if empty
+export const initializeStorage = async () => {
+  try {
+    const existing = await AsyncStorage.getItem(STORAGE_KEY);
+    if (!existing) {
+      await saveReminders(mockReminders);
+    }
+  } catch (error) {
+    console.error('Error initializing storage:', error);
+  }
 };

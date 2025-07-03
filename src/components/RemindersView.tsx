@@ -4,6 +4,7 @@ import ReminderEditMode from '@/components/ReminderEditMode';
 import ReminderCalendarView from '@/components/ReminderCalendarView';
 import TaskCard from '@/components/TaskCard';
 import AddCustomReminder from '@/components/AddCustomReminder';
+import ReminderLoadingState from '@/components/ReminderLoadingState';
 import { Users, Edit, CalendarDays, List, CheckCircle2 } from 'lucide-react';
 import { UserTask, FamilyMember, SupabaseReminder } from '@/hooks/useSupabaseData';
 import { useReminders } from '@/contexts/ReminderContext';
@@ -80,14 +81,6 @@ const RemindersView = ({
     await refreshReminders();
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center py-8">
-        <div className="text-gray-500">Loading reminders...</div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -148,49 +141,46 @@ const RemindersView = ({
         </button>
       </div>
 
-      {reminderViewMode === 'list' ? (
-        <div className="bg-white p-4 rounded-xl shadow-md">
-          <h3 className="text-xl font-bold text-gray-800 mb-4">Next 3 Upcoming Tasks</h3>
-          <div className="space-y-4">
-            {upcomingTasks.map((reminder) => (
-              <TaskCard
-                key={reminder.id}
-                title={reminder.title}
-                description={reminder.description}
-                estimatedTime={reminder.estimated_time}
-                difficulty={reminder.difficulty as 'Easy' | 'Medium' | 'Hard'}
-                estimatedBudget={reminder.estimated_budget}
-                dueDate={reminder.due_date || 'Not set'}
-                isPastDue={reminder.isPastDue}
-                assignedToNames={reminder.assignedToNames}
-                isCompleted={false}
-                onComplete={() => handleTaskComplete(reminder)}
-                onClick={() => handleTaskClick(reminder)}
-              />
-            ))}
-            {upcomingTasks.length === 0 && (
-              <div className="text-center py-8">
-                <p className="text-gray-500">No upcoming tasks. Great job!</p>
-              </div>
-            )}
+      <ReminderLoadingState loading={loading} reminders={reminders}>
+        {reminderViewMode === 'list' ? (
+          <div className="bg-white p-4 rounded-xl shadow-md">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Next 3 Upcoming Tasks</h3>
+            <div className="space-y-4">
+              {upcomingTasks.map((reminder) => (
+                <TaskCard
+                  key={reminder.id}
+                  title={reminder.title}
+                  description={reminder.description}
+                  estimatedTime={reminder.estimated_time}
+                  difficulty={reminder.difficulty as 'Easy' | 'Medium' | 'Hard'}
+                  estimatedBudget={reminder.estimated_budget}
+                  dueDate={reminder.due_date || 'Not set'}
+                  isPastDue={reminder.isPastDue}
+                  assignedToNames={reminder.assignedToNames}
+                  isCompleted={false}
+                  onComplete={() => handleTaskComplete(reminder)}
+                  onClick={() => handleTaskClick(reminder)}
+                />
+              ))}
+            </div>
           </div>
-        </div>
-      ) : (
-        <ReminderCalendarView
-          tasks={upcomingTasks.map(reminder => ({
-            title: reminder.title,
-            description: reminder.description,
-            estimatedTime: reminder.estimated_time,
-            difficulty: reminder.difficulty as 'Easy' | 'Medium' | 'Hard',
-            dueDate: reminder.due_date || 'Not set',
-          }))}
-          reminders={reminders}
-          onTaskClick={handleTaskClick}
-          onTaskComplete={handleTaskComplete}
-          familyMembers={familyMembers}
-          supabaseOperations={supabaseOperations}
-        />
-      )}
+        ) : (
+          <ReminderCalendarView
+            tasks={upcomingTasks.map(reminder => ({
+              title: reminder.title,
+              description: reminder.description,
+              estimatedTime: reminder.estimated_time,
+              difficulty: reminder.difficulty as 'Easy' | 'Medium' | 'Hard',
+              dueDate: reminder.due_date || 'Not set',
+            }))}
+            reminders={reminders}
+            onTaskClick={handleTaskClick}
+            onTaskComplete={handleTaskComplete}
+            familyMembers={familyMembers}
+            supabaseOperations={supabaseOperations}
+          />
+        )}
+      </ReminderLoadingState>
 
       {/* Always show Add Custom Reminder */}
       <AddCustomReminder
