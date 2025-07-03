@@ -1,11 +1,12 @@
 
-import { useState } from 'react';
 import ReminderEditMode from '@/components/ReminderEditMode';
 import ReminderCalendarView from '@/components/ReminderCalendarView';
-import TaskCard from '@/components/TaskCard';
 import AddCustomReminder from '@/components/AddCustomReminder';
 import ReminderLoadingState from '@/components/ReminderLoadingState';
-import { Users, Edit, CalendarDays, List, CheckCircle2 } from 'lucide-react';
+import RemindersHeader from '@/components/RemindersHeader';
+import ReminderViewToggle from '@/components/ReminderViewToggle';
+import RemindersList from '@/components/RemindersList';
+import CompletedTasksButton from '@/components/CompletedTasksButton';
 import { UserTask, FamilyMember, SupabaseReminder } from '@/hooks/useSupabaseData';
 import { useReminders } from '@/contexts/ReminderContext';
 
@@ -91,29 +92,11 @@ const RemindersView = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-800">Reminders</h2>
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => setIsFamilyModalOpen(true)}
-            className="flex items-center px-3 py-2 bg-blue-soft text-white rounded-lg hover:bg-blue-400 transition-colors"
-          >
-            <Users className="w-4 h-4 mr-2" />
-            Family
-          </button>
-          <button
-            onClick={() => setIsEditMode(!isEditMode)}
-            className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
-              isEditMode 
-                ? 'bg-sage text-white' 
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            <Edit className="w-4 h-4 mr-2" />
-            {isEditMode ? 'Done' : 'Edit'}
-          </button>
-        </div>
-      </div>
+      <RemindersHeader
+        isEditMode={isEditMode}
+        setIsEditMode={setIsEditMode}
+        setIsFamilyModalOpen={setIsFamilyModalOpen}
+      />
 
       <ReminderEditMode
         isEditMode={isEditMode}
@@ -123,57 +106,18 @@ const RemindersView = ({
         supabaseOperations={supabaseOperations}
       />
 
-      {/* View Toggle */}
-      <div className="flex bg-white p-1 rounded-lg shadow-md">
-        <button
-          onClick={() => setReminderViewMode('list')}
-          className={`flex items-center flex-1 py-2 px-4 rounded-md transition-colors ${
-            reminderViewMode === 'list' 
-              ? 'bg-sage text-white' 
-              : 'text-gray-600 hover:text-gray-800'
-          }`}
-        >
-          <List className="w-4 h-4 mr-2" />
-          List View
-        </button>
-        <button
-          onClick={() => setReminderViewMode('calendar')}
-          className={`flex items-center flex-1 py-2 px-4 rounded-md transition-colors ${
-            reminderViewMode === 'calendar' 
-              ? 'bg-sage text-white' 
-              : 'text-gray-600 hover:text-gray-800'
-          }`}
-        >
-          <CalendarDays className="w-4 h-4 mr-2" />
-          Calendar View
-        </button>
-      </div>
+      <ReminderViewToggle
+        reminderViewMode={reminderViewMode}
+        setReminderViewMode={setReminderViewMode}
+      />
 
       <ReminderLoadingState loading={loading} reminders={pendingReminders}>
         {reminderViewMode === 'list' ? (
-          <div className="bg-white p-4 rounded-xl shadow-md">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Next 3 Upcoming Tasks</h3>
-            <div className="space-y-4">
-              {upcomingTasks.map((reminder) => (
-                <TaskCard
-                  key={reminder.id}
-                  title={reminder.title}
-                  description={reminder.description}
-                  estimatedTime={reminder.estimated_time}
-                  difficulty={reminder.difficulty as 'Easy' | 'Medium' | 'Hard'}
-                  estimatedBudget={reminder.estimated_budget}
-                  dueDate={reminder.due_date || 'Not set'}
-                  isPastDue={reminder.isPastDue}
-                  assignedToNames={reminder.assignedToNames}
-                  isCompleted={reminder.status === 'completed'}
-                  lastCompleted={reminder.last_completed}
-                  nextDue={reminder.next_due}
-                  onComplete={() => handleTaskComplete(reminder)}
-                  onClick={() => handleTaskClick(reminder)}
-                />
-              ))}
-            </div>
-          </div>
+          <RemindersList
+            upcomingTasks={upcomingTasks}
+            onTaskClick={handleTaskClick}
+            onTaskComplete={handleTaskComplete}
+          />
         ) : (
           <ReminderCalendarView
             tasks={upcomingTasks.map(reminder => ({
@@ -185,27 +129,19 @@ const RemindersView = ({
             }))}
             reminders={pendingReminders}
             onTaskClick={handleTaskClick}
-            onTaskComplete={handleTaskComplete}
+            onTaskComplete={() => handleTaskComplete}
             familyMembers={familyMembers}
             supabaseOperations={supabaseOperations}
           />
         )}
       </ReminderLoadingState>
 
-      {/* Always show Add Custom Reminder */}
       <AddCustomReminder
         familyMembers={familyMembers}
         supabaseOperations={supabaseOperations}
       />
 
-      {/* Button to navigate to completed tasks */}
-      <button
-        onClick={onNavigateToCompleted}
-        className="w-full bg-green-500 text-white py-3 rounded-lg font-medium hover:bg-green-600 transition-colors flex items-center justify-center"
-      >
-        <CheckCircle2 className="w-5 h-5 mr-2" />
-        View Recently Completed Tasks
-      </button>
+      <CompletedTasksButton onNavigateToCompleted={onNavigateToCompleted} />
     </div>
   );
 };
