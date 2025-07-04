@@ -1,15 +1,8 @@
 
 import React, { createContext, useState, useEffect, useContext } from "react";
-import { 
-  getUserTasks, 
-  getGlobalReminders,
-  initializeStorage, 
-  markUserTaskCompleted,
-  enableGlobalReminder,
-  addCustomUserTask,
-  deleteUserTask,
-  updateUserTask
-} from "../services/ReminderService";
+import { ReminderService } from "../services/ReminderService";
+import { UserTaskService } from "../services/UserTaskService";
+import { databaseService } from "../services/DatabaseService";
 
 interface UserTask {
   id: string;
@@ -48,8 +41,7 @@ interface GlobalReminder {
   instructions: string[];
   tools: string[];
   supplies: string[];
-  reminder_type: string;
-  is_custom: boolean;
+  category: string;
 }
 
 interface ReminderContextType {
@@ -79,16 +71,26 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [globalReminders, setGlobalReminders] = useState<GlobalReminder[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Initialize storage and load data on mount
+  const currentUserId = 'current-user'; // In a real app, this would come from auth context
+
+  // Initialize database and load data on mount
   useEffect(() => {
     const loadData = async () => {
       try {
-        await initializeStorage();
+        await databaseService.initialize();
         const [tasks, reminders] = await Promise.all([
-          getUserTasks(),
-          getGlobalReminders()
+          UserTaskService.getUserTasks(currentUserId),
+          ReminderService.getReminders()
         ]);
-        setUserTasks(tasks);
+        
+        // Convert database tasks to context format
+        const formattedTasks = tasks.map(task => ({
+          ...task,
+          reminder_type: task.is_custom ? 'custom' : 'global',
+          created_at: task.created_at || new Date().toISOString()
+        }));
+        
+        setUserTasks(formattedTasks);
         setGlobalReminders(reminders);
       } catch (error) {
         console.error("Failed to load data:", error);
@@ -103,8 +105,13 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const refreshTasks = async () => {
     try {
       setLoading(true);
-      const tasks = await getUserTasks();
-      setUserTasks(tasks);
+      const tasks = await UserTaskService.getUserTasks(currentUserId);
+      const formattedTasks = tasks.map(task => ({
+        ...task,
+        reminder_type: task.is_custom ? 'custom' : 'global',
+        created_at: task.created_at || new Date().toISOString()
+      }));
+      setUserTasks(formattedTasks);
     } catch (error) {
       console.error("Failed to refresh tasks:", error);
     } finally {
@@ -114,8 +121,8 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const enableReminder = async (globalReminder: GlobalReminder) => {
     try {
-      const updatedTasks = await enableGlobalReminder(globalReminder);
-      setUserTasks(updatedTasks);
+      await UserTaskService.enableReminderForUser(globalReminder.id, currentUserId);
+      await refreshTasks();
     } catch (error) {
       console.error("Failed to enable reminder:", error);
       throw error;
@@ -124,8 +131,8 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const addCustomTask = async (taskData: Partial<UserTask>) => {
     try {
-      const updatedTasks = await addCustomUserTask(taskData);
-      setUserTasks(updatedTasks);
+      await UserTaskService.addUserTask(currentUserId, taskData);
+      await refreshTasks();
     } catch (error) {
       console.error("Failed to add custom task:", error);
       throw error;
@@ -134,8 +141,8 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const updateTask = async (taskId: string, updates: Partial<UserTask>) => {
     try {
-      const updatedTasks = await updateUserTask(taskId, updates);
-      setUserTasks(updatedTasks);
+      await UserTaskService.updateUserTask(taskId, updates);
+      await refreshTasks();
     } catch (error) {
       console.error("Failed to update task:", error);
       throw error;
@@ -144,8 +151,8 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const deleteTask = async (taskId: string) => {
     try {
-      const updatedTasks = await deleteUserTask(taskId);
-      setUserTasks(updatedTasks);
+      await UserTaskService.deleteUserTask(taskId);
+      await refreshTasks();
     } catch (error) {
       console.error("Failed to delete task:", error);
       throw error;
@@ -154,8 +161,8 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const markTaskCompleted = async (taskId: string) => {
     try {
-      const updatedTasks = await markUserTaskCompleted(taskId);
-      setUserTasks(updatedTasks);
+      await UserTaskService.completeTask(taskId);
+      await refreshTasks();
     } catch (error) {
       console.error("Failed to mark task as completed:", error);
       throw error;
