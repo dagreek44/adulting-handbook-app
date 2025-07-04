@@ -2,7 +2,7 @@
 import React, { createContext, useState, useEffect, useContext } from "react";
 import { ReminderService } from "../services/ReminderService";
 import { UserTaskService } from "../services/UserTaskService";
-import { databaseService } from "../services/DatabaseService";
+import { useAuth } from "./AuthContext";
 
 interface UserTask {
   id: string;
@@ -19,8 +19,8 @@ interface UserTask {
   status: string;
   video_url?: string | null;
   instructions: string[];
-  tools: string[];
-  supplies: string[];
+  tools: any[];
+  supplies: any[];
   reminder_type: string;
   is_custom: boolean;
   created_at: string;
@@ -39,8 +39,8 @@ interface GlobalReminder {
   frequency_days: number;
   video_url?: string | null;
   instructions: string[];
-  tools: string[];
-  supplies: string[];
+  tools: any[];
+  supplies: any[];
   category: string;
 }
 
@@ -70,16 +70,21 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [userTasks, setUserTasks] = useState<UserTask[]>([]);
   const [globalReminders, setGlobalReminders] = useState<GlobalReminder[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  const { user } = useAuth();
 
-  const currentUserId = 'current-user'; // In a real app, this would come from auth context
-
-  // Initialize database and load data on mount
+  // Load data on mount and when user changes
   useEffect(() => {
     const loadData = async () => {
+      if (!user?.id) {
+        setLoading(false);
+        return;
+      }
+      
       try {
-        await databaseService.initialize();
+        setLoading(true);
         const [tasks, reminders] = await Promise.all([
-          UserTaskService.getUserTasks(currentUserId),
+          UserTaskService.getUserTasks(user.id),
           ReminderService.getReminders()
         ]);
         
@@ -100,12 +105,14 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
 
     loadData();
-  }, []);
+  }, [user?.id]);
 
   const refreshTasks = async () => {
+    if (!user?.id) return;
+    
     try {
       setLoading(true);
-      const tasks = await UserTaskService.getUserTasks(currentUserId);
+      const tasks = await UserTaskService.getUserTasks(user.id);
       const formattedTasks = tasks.map(task => ({
         ...task,
         reminder_type: task.is_custom ? 'custom' : 'global',
@@ -120,8 +127,10 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const enableReminder = async (globalReminder: GlobalReminder) => {
+    if (!user?.id) return;
+    
     try {
-      await UserTaskService.enableReminderForUser(globalReminder.id, currentUserId);
+      await UserTaskService.enableReminderForUser(globalReminder.id, user.id);
       await refreshTasks();
     } catch (error) {
       console.error("Failed to enable reminder:", error);
@@ -130,8 +139,10 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const addCustomTask = async (taskData: Partial<UserTask>) => {
+    if (!user?.id) return;
+    
     try {
-      await UserTaskService.addUserTask(currentUserId, taskData);
+      await UserTaskService.addUserTask(user.id, taskData);
       await refreshTasks();
     } catch (error) {
       console.error("Failed to add custom task:", error);

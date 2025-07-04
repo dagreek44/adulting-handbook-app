@@ -1,40 +1,36 @@
 
-import { databaseService } from './DatabaseService';
+import { supabase } from '../integrations/supabase/client';
 import { ReminderService } from './ReminderService';
 
 export class UserTaskService {
   // Get all tasks for a specific user
   static async getUserTasks(userId) {
-    await databaseService.initialize();
-    
     try {
-      const stmt = databaseService.db.prepare(`
-        SELECT * FROM user_tasks 
-        WHERE user_id = ? 
-        ORDER BY due_date ASC
-      `);
-      stmt.bind([userId]);
+      const { data, error } = await supabase
+        .from('user_tasks')
+        .select('*')
+        .eq('user_id', userId)
+        .order('due_date', { ascending: true });
+
+      if (error) throw error;
       
-      const results = [];
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
-      while (stmt.step()) {
-        const row = stmt.getAsObject();
+      const results = (data || []).map(row => {
         const isPastDue = new Date(row.due_date) < today;
         
-        results.push({
+        return {
           ...row,
-          instructions: row.instructions ? JSON.parse(row.instructions) : [],
-          tools: row.tools ? JSON.parse(row.tools) : [],
-          supplies: row.supplies ? JSON.parse(row.supplies) : [],
+          instructions: row.instructions || [],
+          tools: row.tools || [],
+          supplies: row.supplies || [],
           isPastDue,
           assignees: ['Family'],
           assignedToNames: ['Family']
-        });
-      }
+        };
+      });
       
-      stmt.free();
       return results;
     } catch (error) {
       console.error('Error fetching user tasks:', error);
@@ -44,36 +40,33 @@ export class UserTaskService {
 
   // Add a custom user task
   static async addUserTask(userId, task) {
-    await databaseService.initialize();
-    
     try {
-      const stmt = databaseService.db.prepare(`
-        INSERT INTO user_tasks (id, user_id, title, description, frequency_days, due_date, difficulty, estimated_time, estimated_budget, video_url, instructions, tools, supplies, is_custom)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-      `);
-      
-      const id = 'task-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
       const dueDate = this.calculateDueDate(task.frequency_days || 30);
       
-      stmt.run([
-        id,
-        userId,
-        task.title,
-        task.description || '',
-        task.frequency_days || 30,
-        dueDate,
-        task.difficulty || 'Easy',
-        task.estimated_time || '30 min',
-        task.estimated_budget || '',
-        task.video_url || null,
-        JSON.stringify(task.instructions || []),
-        JSON.stringify(task.tools || []),
-        JSON.stringify(task.supplies || [])
-      ]);
+      const { data, error } = await supabase
+        .from('user_tasks')
+        .insert([{
+          user_id: userId,
+          title: task.title,
+          description: task.description || '',
+          frequency_days: task.frequency_days || 30,
+          due_date: dueDate,
+          difficulty: task.difficulty || 'Easy',
+          estimated_time: task.estimated_time || '30 min',
+          estimated_budget: task.estimated_budget || '',
+          video_url: task.video_url || null,
+          instructions: task.instructions || [],
+          tools: task.tools || [],
+          supplies: task.supplies || [],
+          is_custom: true,
+          reminder_type: 'custom'
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
       
-      stmt.free();
-      databaseService.saveToStorage();
-      return id;
+      return data.id;
     } catch (error) {
       console.error('Error adding user task:', error);
       throw error;
@@ -82,21 +75,21 @@ export class UserTaskService {
 
   // Enable a global reminder for a user
   static async enableReminderForUser(reminderId, userId) {
-    await databaseService.initialize();
-    
     try {
       // Check if task already exists for this user
-      const existingStmt = databaseService.db.prepare(`
-        SELECT id FROM user_tasks WHERE reminder_id = ? AND user_id = ?
-      `);
-      existingStmt.bind([reminderId, userId]);
+      const { data: existingTask, error: checkError } = await supabase
+        .from('user_tasks')
+        .select('id')
+        .eq('reminder_id', reminderId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (checkError) throw checkError;
       
-      if (existingStmt.step()) {
-        existingStmt.free();
+      if (existingTask) {
         console.log('Task already exists for user');
         return null;
       }
-      existingStmt.free();
 
       // Get the global reminder
       const reminder = await ReminderService.getReminderById(reminderId);
@@ -105,34 +98,33 @@ export class UserTaskService {
       }
 
       // Create user task from global reminder
-      const id = 'task-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
       const dueDate = this.calculateDueDate(reminder.frequency_days);
 
-      const stmt = databaseService.db.prepare(`
-        INSERT INTO user_tasks (id, user_id, reminder_id, title, description, frequency_days, due_date, difficulty, estimated_time, estimated_budget, video_url, instructions, tools, supplies, is_custom)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-      `);
+      const { data, error } = await supabase
+        .from('user_tasks')
+        .insert([{
+          user_id: userId,
+          reminder_id: reminderId,
+          title: reminder.title,
+          description: reminder.description,
+          frequency_days: reminder.frequency_days,
+          due_date: dueDate,
+          difficulty: reminder.difficulty,
+          estimated_time: reminder.estimated_time,
+          estimated_budget: reminder.estimated_budget,
+          video_url: reminder.video_url,
+          instructions: reminder.instructions,
+          tools: reminder.tools,
+          supplies: reminder.supplies,
+          is_custom: false,
+          reminder_type: 'global'
+        }])
+        .select()
+        .single();
 
-      stmt.run([
-        id,
-        userId,
-        reminderId,
-        reminder.title,
-        reminder.description,
-        reminder.frequency_days,
-        dueDate,
-        reminder.difficulty,
-        reminder.estimated_time,
-        reminder.estimated_budget,
-        reminder.video_url,
-        JSON.stringify(reminder.instructions),
-        JSON.stringify(reminder.tools),
-        JSON.stringify(reminder.supplies)
-      ]);
-
-      stmt.free();
-      databaseService.saveToStorage();
-      return id;
+      if (error) throw error;
+      
+      return data.id;
     } catch (error) {
       console.error('Error enabling reminder for user:', error);
       throw error;
@@ -141,35 +133,32 @@ export class UserTaskService {
 
   // Mark a task as completed
   static async completeTask(taskId) {
-    await databaseService.initialize();
-    
     try {
       // Get current task details
-      const getStmt = databaseService.db.prepare('SELECT * FROM user_tasks WHERE id = ?');
-      getStmt.bind([taskId]);
-      
-      if (!getStmt.step()) {
-        getStmt.free();
-        throw new Error('Task not found');
-      }
-      
-      const task = getStmt.getAsObject();
-      getStmt.free();
+      const { data: task, error: getError } = await supabase
+        .from('user_tasks')
+        .select('*')
+        .eq('id', taskId)
+        .single();
+
+      if (getError) throw getError;
+      if (!task) throw new Error('Task not found');
       
       const today = new Date().toISOString().split('T')[0];
       const nextDueDate = this.calculateNextDueDate(today, task.frequency_days);
       
       // Update task with completion
-      const updateStmt = databaseService.db.prepare(`
-        UPDATE user_tasks 
-        SET last_completed = ?, due_date = ?, status = 'completed'
-        WHERE id = ?
-      `);
+      const { error: updateError } = await supabase
+        .from('user_tasks')
+        .update({
+          last_completed: today,
+          due_date: nextDueDate,
+          status: 'completed'
+        })
+        .eq('id', taskId);
       
-      updateStmt.run([today, nextDueDate, taskId]);
-      updateStmt.free();
+      if (updateError) throw updateError;
       
-      databaseService.saveToStorage();
       return true;
     } catch (error) {
       console.error('Error completing task:', error);
@@ -179,14 +168,14 @@ export class UserTaskService {
 
   // Delete a user task
   static async deleteUserTask(taskId) {
-    await databaseService.initialize();
-    
     try {
-      const stmt = databaseService.db.prepare('DELETE FROM user_tasks WHERE id = ?');
-      stmt.run([taskId]);
-      stmt.free();
+      const { error } = await supabase
+        .from('user_tasks')
+        .delete()
+        .eq('id', taskId);
       
-      databaseService.saveToStorage();
+      if (error) throw error;
+      
       return true;
     } catch (error) {
       console.error('Error deleting user task:', error);
@@ -196,32 +185,14 @@ export class UserTaskService {
 
   // Update a user task
   static async updateUserTask(taskId, updates) {
-    await databaseService.initialize();
-    
     try {
-      const fields = [];
-      const values = [];
+      const { error } = await supabase
+        .from('user_tasks')
+        .update(updates)
+        .eq('id', taskId);
       
-      Object.keys(updates).forEach(key => {
-        if (key === 'instructions' || key === 'tools' || key === 'supplies') {
-          fields.push(`${key} = ?`);
-          values.push(JSON.stringify(updates[key]));
-        } else {
-          fields.push(`${key} = ?`);
-          values.push(updates[key]);
-        }
-      });
+      if (error) throw error;
       
-      values.push(taskId);
-      
-      const stmt = databaseService.db.prepare(`
-        UPDATE user_tasks SET ${fields.join(', ')} WHERE id = ?
-      `);
-      
-      stmt.run(values);
-      stmt.free();
-      
-      databaseService.saveToStorage();
       return true;
     } catch (error) {
       console.error('Error updating user task:', error);
