@@ -1,13 +1,11 @@
 
 import { CheckCircle2, Trophy, Calendar } from 'lucide-react';
-import { CompletedTask } from '@/hooks/useSupabaseData';
 import { format } from 'date-fns';
+import { useReminders } from '@/contexts/ReminderContext';
 
-interface CompletedTasksViewProps {
-  completedTasks: CompletedTask[];
-}
+const CompletedTasksView = () => {
+  const { completedTasks } = useReminders();
 
-const CompletedTasksView = ({ completedTasks }: CompletedTasksViewProps) => {
   if (completedTasks.length === 0) {
     return (
       <div className="space-y-6">

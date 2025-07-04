@@ -38,6 +38,37 @@ export class UserTaskService {
     }
   }
 
+  // Get completed tasks for a specific user
+  static async getCompletedTasks(userId) {
+    try {
+      const { data, error } = await supabase
+        .from('user_tasks')
+        .select('*')
+        .eq('user_id', userId)
+        .not('last_completed', 'is', null)
+        .order('last_completed', { ascending: false })
+        .limit(20);
+
+      if (error) throw error;
+      
+      const results = (data || []).map(row => ({
+        id: row.id,
+        title: row.title,
+        description: row.description || '',
+        difficulty: row.difficulty || 'Easy',
+        estimated_time: row.estimated_time || '30 min',
+        estimated_budget: row.estimated_budget || '',
+        completed_date: row.last_completed,
+        created_at: row.created_at
+      }));
+      
+      return results;
+    } catch (error) {
+      console.error('Error fetching completed tasks:', error);
+      return [];
+    }
+  }
+
   // Add a custom user task
   static async addUserTask(userId, task) {
     try {
@@ -145,16 +176,28 @@ export class UserTaskService {
       if (!task) throw new Error('Task not found');
       
       const today = new Date().toISOString().split('T')[0];
-      const nextDueDate = this.calculateNextDueDate(today, task.frequency_days);
+      
+      // Calculate next due date based on frequency
+      let nextDueDate = null;
+      if (task.frequency_days > 0) {
+        nextDueDate = this.calculateNextDueDate(today, task.frequency_days);
+      }
       
       // Update task with completion
+      const updateData = {
+        last_completed: today,
+        status: 'completed'
+      };
+      
+      // Only set next due date if it's a recurring task
+      if (nextDueDate) {
+        updateData.due_date = nextDueDate;
+        updateData.status = 'pending'; // Reset to pending for recurring tasks
+      }
+      
       const { error: updateError } = await supabase
         .from('user_tasks')
-        .update({
-          last_completed: today,
-          due_date: nextDueDate,
-          status: 'completed'
-        })
+        .update(updateData)
         .eq('id', taskId);
       
       if (updateError) throw updateError;

@@ -136,7 +136,7 @@ const RemindersView = ({
     assignees: task.assignees,
     assignedToNames: task.assignedToNames,
     isPastDue: task.isPastDue,
-    next_due: task.due_date, // Add the missing next_due property
+    next_due: task.due_date,
     // Add missing properties for SupabaseReminder compatibility
     frequency: 'monthly',
     enabled: true,
@@ -191,11 +191,14 @@ const RemindersView = ({
         )}
       </ReminderLoadingState>
 
-      <GlobalRemindersSelector
-        globalReminders={globalReminders}
-        enabledTaskIds={userTasks.map(task => task.reminder_id).filter(Boolean)}
-        onEnableReminder={handleEnableReminder}
-      />
+      {/* Only show GlobalRemindersSelector in edit mode */}
+      {isEditMode && (
+        <GlobalRemindersSelector
+          globalReminders={globalReminders}
+          enabledTaskIds={userTasks.map(task => task.reminder_id).filter(Boolean)}
+          onEnableReminder={handleEnableReminder}
+        />
+      )}
 
       <AddCustomReminder
         familyMembers={familyMembers}

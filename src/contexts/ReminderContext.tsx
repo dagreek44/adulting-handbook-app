@@ -44,9 +44,21 @@ interface GlobalReminder {
   category: string;
 }
 
+interface CompletedTask {
+  id: string;
+  title: string;
+  description: string;
+  difficulty: string;
+  estimated_time: string;
+  estimated_budget: string;
+  completed_date: string;
+  created_at: string;
+}
+
 interface ReminderContextType {
   userTasks: UserTask[];
   globalReminders: GlobalReminder[];
+  completedTasks: CompletedTask[];
   loading: boolean;
   enableReminder: (globalReminder: GlobalReminder) => Promise<void>;
   addCustomTask: (taskData: Partial<UserTask>) => Promise<void>;
@@ -69,6 +81,7 @@ export const useReminders = () => {
 export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [userTasks, setUserTasks] = useState<UserTask[]>([]);
   const [globalReminders, setGlobalReminders] = useState<GlobalReminder[]>([]);
+  const [completedTasks, setCompletedTasks] = useState<CompletedTask[]>([]);
   const [loading, setLoading] = useState(true);
   
   const { user } = useAuth();
@@ -83,9 +96,10 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       
       try {
         setLoading(true);
-        const [tasks, reminders] = await Promise.all([
+        const [tasks, reminders, completed] = await Promise.all([
           UserTaskService.getUserTasks(user.id),
-          ReminderService.getReminders()
+          ReminderService.getReminders(),
+          UserTaskService.getCompletedTasks(user.id)
         ]);
         
         // Convert database tasks to context format
@@ -97,6 +111,7 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         
         setUserTasks(formattedTasks);
         setGlobalReminders(reminders);
+        setCompletedTasks(completed);
       } catch (error) {
         console.error("Failed to load data:", error);
       } finally {
@@ -112,13 +127,19 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     
     try {
       setLoading(true);
-      const tasks = await UserTaskService.getUserTasks(user.id);
+      const [tasks, completed] = await Promise.all([
+        UserTaskService.getUserTasks(user.id),
+        UserTaskService.getCompletedTasks(user.id)
+      ]);
+      
       const formattedTasks = tasks.map(task => ({
         ...task,
         reminder_type: task.is_custom ? 'custom' : 'global',
         created_at: task.created_at || new Date().toISOString()
       }));
+      
       setUserTasks(formattedTasks);
+      setCompletedTasks(completed);
     } catch (error) {
       console.error("Failed to refresh tasks:", error);
     } finally {
@@ -185,6 +206,7 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       value={{
         userTasks,
         globalReminders,
+        completedTasks,
         loading,
         enableReminder,
         addCustomTask,

@@ -27,14 +27,12 @@ const Index = () => {
   const { toast } = useToast();
 
   // Use the new reminder context
-  const { userTasks, loading: tasksLoading } = useReminders();
+  const { userTasks, completedTasks, loading: tasksLoading, markTaskCompleted } = useReminders();
 
-  // Call useSupabaseData for family members and completed tasks
+  // Call useSupabaseData for family members 
   const {
-    completedTasks,
     familyMembers,
     loading: supabaseLoading,
-    completeTask,
     addReminder,
     updateReminder,
     deleteReminder,
@@ -60,7 +58,21 @@ const Index = () => {
 
   const handleTaskComplete = async (task?: any) => {
     if (task && task.id) {
-      await completeTask(task);
+      try {
+        await markTaskCompleted(task.id);
+        toast({
+          title: "Great job! 🎉",
+          description: "Task completed successfully!",
+          duration: 3000,
+        });
+      } catch (error) {
+        console.error('Failed to complete task:', error);
+        toast({
+          title: "Error",
+          description: "Failed to complete task",
+          variant: "destructive"
+        });
+      }
     } else {
       toast({
         title: "Great job! 🎉",
@@ -254,7 +266,7 @@ const Index = () => {
         return <ContractorsView reminders={convertedTasksForContractors} />;
 
       case 'completed':
-        return <CompletedTasksView completedTasks={completedTasks} />;
+        return <CompletedTasksView />;
 
       case 'achievements':
         return (
