@@ -1,57 +1,93 @@
-// DEPRECATED: This file has been replaced by the new database-driven services
-// Use ReminderService.js and UserTaskService.js instead
 
-import { ReminderService as NewReminderService } from './ReminderService';
-import { UserTaskService } from './UserTaskService';
+import { databaseService } from './DatabaseService';
 
-// Legacy functions that redirect to new services for backward compatibility
-export const getUserTasks = async () => {
-  console.warn('DEPRECATED: Use UserTaskService.getUserTasks() instead');
-  return await UserTaskService.getUserTasks('current-user');
-};
+export class ReminderService {
+  // Get all global reminders
+  static async getReminders() {
+    await databaseService.initialize();
+    
+    try {
+      const stmt = databaseService.db.prepare('SELECT * FROM reminders ORDER BY title ASC');
+      const results = [];
+      
+      while (stmt.step()) {
+        const row = stmt.getAsObject();
+        results.push({
+          ...row,
+          instructions: row.instructions ? JSON.parse(row.instructions) : [],
+          tools: row.tools ? JSON.parse(row.tools) : [],
+          supplies: row.supplies ? JSON.parse(row.supplies) : []
+        });
+      }
+      
+      stmt.free();
+      return results;
+    } catch (error) {
+      console.error('Error fetching reminders:', error);
+      return [];
+    }
+  }
 
-export const getGlobalReminders = async () => {
-  console.warn('DEPRECATED: Use ReminderService.getReminders() instead');
-  return await NewReminderService.getReminders();
-};
+  // Get a single reminder by ID
+  static async getReminderById(id) {
+    await databaseService.initialize();
+    
+    try {
+      const stmt = databaseService.db.prepare('SELECT * FROM reminders WHERE id = ?');
+      stmt.bind([id]);
+      
+      if (stmt.step()) {
+        const row = stmt.getAsObject();
+        stmt.free();
+        return {
+          ...row,
+          instructions: row.instructions ? JSON.parse(row.instructions) : [],
+          tools: row.tools ? JSON.parse(row.tools) : [],
+          supplies: row.supplies ? JSON.parse(row.supplies) : []
+        };
+      }
+      
+      stmt.free();
+      return null;
+    } catch (error) {
+      console.error('Error fetching reminder by ID:', error);
+      return null;
+    }
+  }
 
-export const enableGlobalReminder = async (globalReminder) => {
-  console.warn('DEPRECATED: Use UserTaskService.enableReminderForUser() instead');
-  return await UserTaskService.enableReminderForUser(globalReminder.id, 'current-user');
-};
-
-export const markUserTaskCompleted = async (taskId) => {
-  console.warn('DEPRECATED: Use UserTaskService.completeTask() instead');
-  await UserTaskService.completeTask(taskId);
-  return await UserTaskService.getUserTasks('current-user');
-};
-
-export const addCustomUserTask = async (taskData) => {
-  console.warn('DEPRECATED: Use UserTaskService.addUserTask() instead');
-  await UserTaskService.addUserTask('current-user', taskData);
-  return await UserTaskService.getUserTasks('current-user');
-};
-
-export const deleteUserTask = async (taskId) => {
-  console.warn('DEPRECATED: Use UserTaskService.deleteUserTask() instead');
-  await UserTaskService.deleteUserTask(taskId);
-  return await UserTaskService.getUserTasks('current-user');
-};
-
-export const updateUserTask = async (taskId, updates) => {
-  console.warn('DEPRECATED: Use UserTaskService.updateUserTask() instead');
-  await UserTaskService.updateUserTask(taskId, updates);
-  return await UserTaskService.getUserTasks('current-user');
-};
-
-// Keep other utility functions for backward compatibility
-export const initializeStorage = async () => {
-  console.warn('DEPRECATED: Database initialization is now handled automatically');
-};
-
-export const isTaskOverdue = (task) => {
-  const dueDate = new Date(task.due_date);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return dueDate < today;
-};
+  // Add a new global reminder (admin function)
+  static async addReminder(reminder) {
+    await databaseService.initialize();
+    
+    try {
+      const stmt = databaseService.db.prepare(`
+        INSERT INTO reminders (id, title, description, frequency_days, category, difficulty, estimated_time, estimated_budget, video_url, instructions, tools, supplies)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      const id = 'global-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+      
+      stmt.run([
+        id,
+        reminder.title,
+        reminder.description || '',
+        reminder.frequency_days || 30,
+        reminder.category || 'maintenance',
+        reminder.difficulty || 'Easy',
+        reminder.estimated_time || '30 min',
+        reminder.estimated_budget || '',
+        reminder.video_url || null,
+        JSON.stringify(reminder.instructions || []),
+        JSON.stringify(reminder.tools || []),
+        JSON.stringify(reminder.supplies || [])
+      ]);
+      
+      stmt.free();
+      databaseService.saveToStorage();
+      return id;
+    } catch (error) {
+      console.error('Error adding reminder:', error);
+      throw error;
+    }
+  }
+}
