@@ -10,6 +10,7 @@ export class UserTaskService {
         .from('user_tasks')
         .select('*')
         .eq('user_id', userId)
+        .eq('enabled', true)
         .order('due_date', { ascending: true });
 
       if (error) throw error;
@@ -81,6 +82,7 @@ export class UserTaskService {
           title: task.title,
           description: task.description || '',
           frequency_days: task.frequency_days || 30,
+          frequency: this.getFrequencyString(task.frequency_days || 30),
           due_date: dueDate,
           difficulty: task.difficulty || 'Easy',
           estimated_time: task.estimated_time || '30 min',
@@ -90,7 +92,9 @@ export class UserTaskService {
           tools: task.tools || [],
           supplies: task.supplies || [],
           is_custom: true,
-          reminder_type: 'custom'
+          reminder_type: 'custom',
+          enabled: true,
+          status: 'pending'
         }])
         .select()
         .single();
@@ -129,7 +133,7 @@ export class UserTaskService {
       }
 
       // Create user task from global reminder
-      const dueDate = this.calculateDueDate(reminder.frequency_days);
+      const dueDate = this.calculateDueDate(reminder.frequency_days || 30);
 
       const { data, error } = await supabase
         .from('user_tasks')
@@ -138,7 +142,8 @@ export class UserTaskService {
           reminder_id: reminderId,
           title: reminder.title,
           description: reminder.description,
-          frequency_days: reminder.frequency_days,
+          frequency_days: reminder.frequency_days || 30,
+          frequency: reminder.frequency,
           due_date: dueDate,
           difficulty: reminder.difficulty,
           estimated_time: reminder.estimated_time,
@@ -148,7 +153,9 @@ export class UserTaskService {
           tools: reminder.tools,
           supplies: reminder.supplies,
           is_custom: false,
-          reminder_type: 'global'
+          reminder_type: 'global',
+          enabled: true,
+          status: 'pending'
         }])
         .select()
         .single();
@@ -255,5 +262,14 @@ export class UserTaskService {
     const completedDate = new Date(lastCompleted);
     const nextDue = new Date(completedDate.getTime() + frequencyDays * 24 * 60 * 60 * 1000);
     return nextDue.toISOString().split('T')[0];
+  }
+
+  // Helper method to convert frequency days to string
+  static getFrequencyString(days) {
+    if (days <= 7) return 'weekly';
+    if (days <= 30) return 'monthly';
+    if (days <= 90) return 'quarterly';
+    if (days <= 180) return 'seasonally';
+    return 'yearly';
   }
 }
