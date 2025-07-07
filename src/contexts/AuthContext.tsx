@@ -24,19 +24,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  const createMissingUserProfile = async () => {
-    if (!user) {
+  const createMissingUserProfile = async (authUser: User) => {
+    if (!authUser) {
       console.log('createMissingUserProfile: No user available');
       return;
     }
 
-    const profile = await createUserProfile(user, toast);
+    console.log('createMissingUserProfile: Creating profile for user:', authUser.id);
+    const profile = await createUserProfile(authUser, toast);
     if (profile) {
       setUserProfile(profile);
     }
   };
 
-  const handleUserProfileFetch = async (userId: string, retryCount: number = 0) => {
+  const handleUserProfileFetch = async (userId: string, authUser: User, retryCount: number = 0) => {
     const profile = await fetchUserProfile(userId, retryCount);
     
     if (profile) {
@@ -45,9 +46,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUserProfile(null);
       
       // Auto-create profile for authenticated users missing from users table
-      if (retryCount === 0) {
+      if (retryCount === 0 && authUser) {
         console.log('handleUserProfileFetch: Attempting to auto-create missing profile');
-        await createMissingUserProfile();
+        await createMissingUserProfile(authUser);
         // Don't retry to avoid infinite loops
       }
     }
@@ -66,7 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (session?.user) {
           // Defer the profile fetch to avoid blocking auth state changes
           setTimeout(() => {
-            handleUserProfileFetch(session.user.id);
+            handleUserProfileFetch(session.user.id, session.user);
           }, 0);
         } else {
           setUserProfile(null);
@@ -81,7 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        handleUserProfileFetch(session.user.id);
+        handleUserProfileFetch(session.user.id, session.user);
       }
       setLoading(false);
     });
@@ -104,6 +105,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUserProfile(null);
   };
 
+  const createMissingUserProfileWrapper = async () => {
+    if (user) {
+      await createMissingUserProfile(user);
+    }
+  };
+
   const value = {
     user,
     session,
@@ -112,7 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signUp,
     signIn,
     signOut,
-    createMissingUserProfile,
+    createMissingUserProfile: createMissingUserProfileWrapper,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
