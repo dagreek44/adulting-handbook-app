@@ -1,4 +1,3 @@
-
 import { supabase } from '../integrations/supabase/client';
 import { ReminderService } from './ReminderService';
 
@@ -111,60 +110,86 @@ export class UserTaskService {
   // Enable a global reminder for a user
   static async enableReminderForUser(reminderId, userId) {
     try {
+      console.log('UserTaskService: Starting enableReminderForUser', { reminderId, userId });
+      
       // Check if task already exists for this user
       const { data: existingTask, error: checkError } = await supabase
         .from('user_tasks')
-        .select('id')
+        .select('id, enabled')
         .eq('reminder_id', reminderId)
         .eq('user_id', userId)
         .maybeSingle();
 
-      if (checkError) throw checkError;
+      if (checkError) {
+        console.error('UserTaskService: Error checking existing task:', checkError);
+        throw checkError;
+      }
       
       if (existingTask) {
-        console.log('Task already exists for user');
-        return null;
+        console.log('UserTaskService: Task already exists, updating to enabled');
+        // If task exists but is disabled, re-enable it
+        if (!existingTask.enabled) {
+          const { error: updateError } = await supabase
+            .from('user_tasks')
+            .update({ enabled: true })
+            .eq('id', existingTask.id);
+          
+          if (updateError) throw updateError;
+        }
+        return existingTask.id;
       }
 
-      // Get the global reminder
+      // Get the global reminder details
+      console.log('UserTaskService: Fetching reminder details for', reminderId);
       const reminder = await ReminderService.getReminderById(reminderId);
       if (!reminder) {
         throw new Error('Reminder not found');
       }
 
+      console.log('UserTaskService: Found reminder:', reminder.title);
+
       // Create user task from global reminder
       const dueDate = this.calculateDueDate(reminder.frequency_days || 30);
+      console.log('UserTaskService: Calculated due date:', dueDate);
+
+      const taskData = {
+        user_id: userId,
+        reminder_id: reminderId,
+        title: reminder.title,
+        description: reminder.description || '',
+        frequency_days: reminder.frequency_days || 30,
+        frequency: reminder.frequency || this.getFrequencyString(reminder.frequency_days || 30),
+        due_date: dueDate,
+        difficulty: reminder.difficulty || 'Easy',
+        estimated_time: reminder.estimated_time || '30 min',
+        estimated_budget: reminder.estimated_budget || '',
+        video_url: reminder.video_url || null,
+        instructions: reminder.instructions || [],
+        tools: reminder.tools || [],
+        supplies: reminder.supplies || [],
+        is_custom: false,
+        reminder_type: 'global',
+        enabled: true,
+        status: 'pending'
+      };
+
+      console.log('UserTaskService: Inserting task data:', taskData);
 
       const { data, error } = await supabase
         .from('user_tasks')
-        .insert([{
-          user_id: userId,
-          reminder_id: reminderId,
-          title: reminder.title,
-          description: reminder.description,
-          frequency_days: reminder.frequency_days || 30,
-          frequency: reminder.frequency,
-          due_date: dueDate,
-          difficulty: reminder.difficulty,
-          estimated_time: reminder.estimated_time,
-          estimated_budget: reminder.estimated_budget,
-          video_url: reminder.video_url,
-          instructions: reminder.instructions,
-          tools: reminder.tools,
-          supplies: reminder.supplies,
-          is_custom: false,
-          reminder_type: 'global',
-          enabled: true,
-          status: 'pending'
-        }])
+        .insert([taskData])
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('UserTaskService: Error inserting task:', error);
+        throw error;
+      }
       
+      console.log('UserTaskService: Successfully created task:', data.id);
       return data.id;
     } catch (error) {
-      console.error('Error enabling reminder for user:', error);
+      console.error('UserTaskService: Error in enableReminderForUser:', error);
       throw error;
     }
   }

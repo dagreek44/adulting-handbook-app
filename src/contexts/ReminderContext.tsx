@@ -146,15 +146,22 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const enableReminder = async (globalReminder: GlobalReminder) => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      console.error('ReminderContext: No user ID available');
+      return;
+    }
     
     try {
       console.log('ReminderContext: Enabling reminder', globalReminder.id, 'for user', user.id);
-      await UserTaskService.enableReminderForUser(globalReminder.id, user.id);
-      console.log('ReminderContext: Successfully enabled reminder, refreshing tasks');
+      const taskId = await UserTaskService.enableReminderForUser(globalReminder.id, user.id);
+      console.log('ReminderContext: Successfully enabled reminder, created task:', taskId);
+      
+      // Force refresh the tasks to show the new one
+      console.log('ReminderContext: Refreshing tasks...');
       await refreshTasks();
+      console.log('ReminderContext: Tasks refreshed');
     } catch (error) {
-      console.error("Failed to enable reminder:", error);
+      console.error("ReminderContext: Failed to enable reminder:", error);
       throw error;
     }
   };
