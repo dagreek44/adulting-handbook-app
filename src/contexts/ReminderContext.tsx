@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useEffect, useContext } from "react";
 import { ReminderService } from "../services/ReminderService";
 import { UserTaskService } from "../services/UserTaskService";
@@ -86,7 +85,6 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   
   const { user } = useAuth();
 
-  // Load data on mount and when user changes
   useEffect(() => {
     const loadData = async () => {
       if (!user?.id) {
@@ -151,7 +149,9 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (!user?.id) return;
     
     try {
+      console.log('ReminderContext: Enabling reminder', globalReminder.id, 'for user', user.id);
       await UserTaskService.enableReminderForUser(globalReminder.id, user.id);
+      console.log('ReminderContext: Successfully enabled reminder, refreshing tasks');
       await refreshTasks();
     } catch (error) {
       console.error("Failed to enable reminder:", error);

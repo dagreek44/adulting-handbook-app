@@ -90,6 +90,7 @@ const RemindersView = ({
 
   const handleEnableReminder = async (globalReminder: any) => {
     try {
+      console.log('Enabling reminder:', globalReminder);
       await enableReminder(globalReminder);
     } catch (error) {
       console.error('Failed to enable reminder:', error);
@@ -159,6 +160,11 @@ const RemindersView = ({
     console.log('Task completed from calendar view');
   };
 
+  // Get reminder IDs that are already enabled for this user
+  const enabledReminderIds = userTasks
+    .filter(task => task.reminder_id) // Only tasks that come from global reminders
+    .map(task => task.reminder_id);
+
   return (
     <div className="space-y-6">
       <RemindersHeader
@@ -195,7 +201,7 @@ const RemindersView = ({
       {isEditMode && (
         <GlobalRemindersSelector
           globalReminders={globalReminders}
-          enabledTaskIds={userTasks.map(task => task.reminder_id).filter(Boolean)}
+          enabledTaskIds={enabledReminderIds}
           onEnableReminder={handleEnableReminder}
         />
       )}
