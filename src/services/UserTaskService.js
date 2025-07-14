@@ -126,8 +126,44 @@ export class UserTaskService {
       }
 
       if (!userExists) {
-        console.error('UserTaskService: User not found in users table:', userId);
-        throw new Error(`User ${userId} not found in users table. Please set up your profile first.`);
+        console.log('UserTaskService: User not found in users table, attempting to create from profile');
+        
+        // Try to get user data from profiles table and create in users table
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (profileError) {
+          console.error('UserTaskService: Error fetching profile:', profileError);
+          throw profileError;
+        }
+
+        if (!profileData) {
+          console.error('UserTaskService: User not found in profiles table either:', userId);
+          throw new Error(`User ${userId} not found. Please set up your profile first.`);
+        }
+
+        // Create user in users table from profile data
+        const { error: createUserError } = await supabase
+          .from('users')
+          .insert([{
+            id: userId,
+            email: profileData["Email Address"] || 'no-email@example.com',
+            first_name: profileData.first_name,
+            last_name: profileData.last_name,
+            username: profileData.username,
+            family_id: profileData.family_id,
+            password_hash: 'authenticated_via_supabase_auth'
+          }]);
+
+        if (createUserError) {
+          console.error('UserTaskService: Error creating user:', createUserError);
+          throw createUserError;
+        }
+
+        console.log('UserTaskService: Successfully created user from profile data');
       }
 
       console.log('UserTaskService: User exists, proceeding with reminder enable');
