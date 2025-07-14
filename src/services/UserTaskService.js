@@ -112,6 +112,26 @@ export class UserTaskService {
     try {
       console.log('UserTaskService: Starting enableReminderForUser', { reminderId, userId });
       
+      // Check if user exists in users table first
+      console.log('UserTaskService: Checking if user exists in users table');
+      const { data: userExists, error: userCheckError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (userCheckError) {
+        console.error('UserTaskService: Error checking user existence:', userCheckError);
+        throw userCheckError;
+      }
+
+      if (!userExists) {
+        console.error('UserTaskService: User not found in users table:', userId);
+        throw new Error(`User ${userId} not found in users table. Please set up your profile first.`);
+      }
+
+      console.log('UserTaskService: User exists, proceeding with reminder enable');
+      
       // Check if task already exists for this user
       const { data: existingTask, error: checkError } = await supabase
         .from('user_tasks')

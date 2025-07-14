@@ -15,6 +15,18 @@ export const createUserProfile = async (
   try {
     console.log('createUserProfile: Creating profile for user:', user.id);
     
+    // First check if user already exists
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (existingUser) {
+      console.log('createUserProfile: User already exists, returning existing user');
+      return existingUser;
+    }
+    
     // Extract names from user metadata or use defaults
     const firstName = user.user_metadata?.first_name || user.email?.split('@')[0] || 'User';
     const lastName = user.user_metadata?.last_name || '';
@@ -29,7 +41,7 @@ export const createUserProfile = async (
         last_name: lastName,
         username: username,
         password_hash: 'authenticated_via_supabase_auth',
-        family_id: user.user_metadata?.family_id || undefined
+        family_id: user.user_metadata?.family_id || crypto.randomUUID()
       })
       .select()
       .single();
