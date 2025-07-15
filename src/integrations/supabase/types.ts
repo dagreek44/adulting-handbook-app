@@ -323,6 +323,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_family_invitation: {
+        Args: { invitation_email: string }
+        Returns: string
+      }
       calculate_next_due_date: {
         Args: { completed_date: string; frequency: string }
         Returns: string

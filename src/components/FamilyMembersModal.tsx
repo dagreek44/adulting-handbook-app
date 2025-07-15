@@ -4,6 +4,8 @@ import { X, Plus, Users, Mail, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface FamilyMember {
   id: string;
@@ -22,9 +24,11 @@ interface FamilyMembersModalProps {
 const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }: FamilyMembersModalProps) => {
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviteData, setInviteData] = useState({ name: '', email: '' });
+  const [isInviting, setIsInviting] = useState(false);
   const { toast } = useToast();
+  const { user, userProfile } = useAuth();
 
-  const handleInvite = () => {
+  const handleInvite = async () => {
     if (!inviteData.name.trim() || !inviteData.email.trim()) {
       toast({
         title: "Missing Information",
@@ -34,22 +38,95 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
       return;
     }
 
-    const newMember: FamilyMember = {
-      id: Date.now().toString(),
-      name: inviteData.name,
-      email: inviteData.email,
-      role: 'Member'
-    };
+    if (!user?.id || !userProfile?.family_id) {
+      toast({
+        title: "Error",
+        description: "Unable to send invitation. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    onUpdateMembers([...familyMembers, newMember]);
-    setInviteData({ name: '', email: '' });
-    setShowInviteForm(false);
-    
-    toast({
-      title: "Invitation Sent! 📧",
-      description: `${inviteData.name} has been invited to join your family.`,
-      duration: 3000,
-    });
+    setIsInviting(true);
+
+    try {
+      // Check if user already exists with this email
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id, family_id')
+        .eq('email', inviteData.email)
+        .maybeSingle();
+
+      if (existingUser) {
+        if (existingUser.family_id === userProfile.family_id) {
+          toast({
+            title: "Already a Family Member",
+            description: "This person is already part of your family.",
+            variant: "destructive",
+          });
+          setIsInviting(false);
+          return;
+        } else {
+          toast({
+            title: "User Already Registered",
+            description: "This person already has an account with a different family.",
+            variant: "destructive",
+          });
+          setIsInviting(false);
+          return;
+        }
+      }
+
+      // Check if invitation already exists
+      const { data: existingInvitation } = await supabase
+        .from('family_invitations')
+        .select('id, status')
+        .eq('invitee_email', inviteData.email)
+        .eq('family_id', userProfile.family_id)
+        .maybeSingle();
+
+      if (existingInvitation) {
+        if (existingInvitation.status === 'pending') {
+          toast({
+            title: "Invitation Already Sent",
+            description: "An invitation has already been sent to this email.",
+            variant: "destructive",
+          });
+          setIsInviting(false);
+          return;
+        }
+      }
+
+      // Create family invitation
+      const { error } = await supabase
+        .from('family_invitations')
+        .insert({
+          inviter_id: user.id,
+          invitee_email: inviteData.email,
+          family_id: userProfile.family_id,
+          status: 'pending'
+        });
+
+      if (error) throw error;
+
+      setInviteData({ name: '', email: '' });
+      setShowInviteForm(false);
+      
+      toast({
+        title: "Invitation Sent! 📧",
+        description: `${inviteData.name} has been invited to join your family. They'll join when they create their account.`,
+        duration: 5000,
+      });
+    } catch (error) {
+      console.error('Error sending invitation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to send invitation. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsInviting(false);
+    }
   };
 
   const removeMember = (memberId: string) => {
@@ -120,10 +197,11 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
               <div className="flex space-x-2">
                 <button
                   onClick={handleInvite}
-                  className="bg-sage text-white px-4 py-2 rounded-lg hover:bg-sage/90 transition-colors flex items-center"
+                  disabled={isInviting}
+                  className="bg-sage text-white px-4 py-2 rounded-lg hover:bg-sage/90 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Mail className="w-4 h-4 mr-2" />
-                  Send Invite
+                  {isInviting ? 'Sending...' : 'Send Invite'}
                 </button>
                 <button
                   onClick={() => setShowInviteForm(false)}
