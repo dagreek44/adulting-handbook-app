@@ -7,11 +7,13 @@ import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { SupabaseReminder, FamilyMember } from '@/hooks/useSupabaseData';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AddCustomReminderProps {
   familyMembers: FamilyMember[];
   supabaseOperations: {
     addReminder: (reminder: Partial<SupabaseReminder>) => Promise<void>;
+    addUserTask: (userId: string, task: any) => Promise<void>;
   };
 }
 
@@ -38,26 +40,42 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
   const addCustomReminder = async () => {
     if (!newReminder.title?.trim() || !selectedDate) return;
 
-    const customReminder: Partial<SupabaseReminder> = {
-      title: newReminder.title || "",
-      description: newReminder.description || "",
-      frequency: newReminder.frequency || "once",
-      enabled: true,
-      is_custom: true,
-      due_date: format(selectedDate, 'yyyy-MM-dd'),
-      assignees: newReminder.assignees || [],
-      difficulty: 'Easy',
-      estimated_time: '30 min',
-      estimated_budget: '$10-20',
-      instructions: [],
-      tools: [],
-      supplies: []
-    };
+    try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
 
-    await supabaseOperations.addReminder(customReminder);
-    setNewReminder({ title: '', description: '', frequency: 'once', due_date: null, assignees: [] });
-    setSelectedDate(undefined);
-    setShowAddForm(false);
+      // Convert frequency to days for user_tasks table
+      const getFrequencyDays = (freq: string) => {
+        switch (freq) {
+          case 'weekly': return 7;
+          case 'monthly': return 30;
+          case 'quarterly': return 90;
+          case 'seasonally': return 90;
+          case 'yearly': return 365;
+          default: return 0; // 'once'
+        }
+      };
+
+      const customTask = {
+        title: newReminder.title || "",
+        description: newReminder.description || "",
+        frequency_days: getFrequencyDays(newReminder.frequency || "once"),
+        difficulty: 'Easy',
+        estimated_time: '30 min',
+        estimated_budget: '$10-20',
+        instructions: [],
+        tools: [],
+        supplies: []
+      };
+
+      await supabaseOperations.addUserTask(user.id, customTask);
+      setNewReminder({ title: '', description: '', frequency: 'once', due_date: null, assignees: [] });
+      setSelectedDate(undefined);
+      setShowAddForm(false);
+    } catch (error) {
+      console.error('Error adding custom reminder:', error);
+    }
   };
 
   return (

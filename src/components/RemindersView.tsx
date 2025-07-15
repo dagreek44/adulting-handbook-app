@@ -10,6 +10,7 @@ import CompletedTasksButton from '@/components/CompletedTasksButton';
 import GlobalRemindersSelector from '@/components/GlobalRemindersSelector';
 import { FamilyMember, SupabaseReminder } from '@/hooks/useSupabaseData';
 import { useReminders } from '@/contexts/ReminderContext';
+import { UserTaskService } from '@/services/UserTaskService';
 
 interface RemindersViewProps {
   allReminders: SupabaseReminder[];
@@ -53,7 +54,7 @@ const RemindersView = ({
   supabaseOperations
 }: RemindersViewProps) => {
   // Use the new reminder context
-  const { userTasks, globalReminders, loading, markTaskCompleted, enableReminder } = useReminders();
+  const { userTasks, globalReminders, loading, markTaskCompleted, enableReminder, addCustomTask } = useReminders();
 
   // Filter to show only pending tasks (not completed ones)
   const pendingTasks = userTasks.filter(task => task.status !== 'completed');
@@ -165,6 +166,11 @@ const RemindersView = ({
     .filter(task => task.reminder_id) // Only tasks that come from global reminders
     .map(task => task.reminder_id);
 
+  // Wrapper function to match AddCustomReminder's expected signature
+  const handleAddUserTask = async (userId: string, task: any) => {
+    await addCustomTask(task);
+  };
+
   return (
     <div className="space-y-6">
       <RemindersHeader
@@ -208,7 +214,10 @@ const RemindersView = ({
 
       <AddCustomReminder
         familyMembers={familyMembers}
-        supabaseOperations={supabaseOperations}
+        supabaseOperations={{
+          ...supabaseOperations,
+          addUserTask: handleAddUserTask
+        }}
       />
 
       <CompletedTasksButton onNavigateToCompleted={onNavigateToCompleted} />
