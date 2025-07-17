@@ -1,7 +1,7 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Clock, DollarSign, Calendar, Play, CheckCircle2, X } from 'lucide-react';
+import { Clock, DollarSign, Calendar, Play, CheckCircle2, X, ExternalLink } from 'lucide-react';
 
 interface Task {
   id: string;
@@ -15,6 +15,7 @@ interface Task {
   instructions?: string[];
   tools?: any[];
   supplies?: any[];
+  isGlobalReminder?: boolean;
 }
 
 interface TaskDetailModalProps {
@@ -34,6 +35,11 @@ const TaskDetailModal = ({ isOpen, onClose, task, onComplete }: TaskDetailModalP
       case 'Hard': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
+  };
+
+  const generateAmazonSearchUrl = (itemName: string) => {
+    const searchQuery = encodeURIComponent(itemName);
+    return `https://www.amazon.com/s?k=${searchQuery}&ref=nb_sb_noss`;
   };
 
   return (
@@ -108,11 +114,54 @@ const TaskDetailModal = ({ isOpen, onClose, task, onComplete }: TaskDetailModalP
 
           {task.tools && task.tools.length > 0 && (
             <div>
+              <h4 className="font-semibold text-gray-800 mb-2">Tools Needed</h4>
+              <ul className="space-y-2">
+                {task.tools.map((tool, index) => {
+                  const toolName = typeof tool === 'string' ? tool : tool.name || 'Tool';
+                  return (
+                    <li key={index} className="flex items-center justify-between text-sm text-gray-600">
+                      <span>{toolName}</span>
+                      {task.isGlobalReminder && (
+                        <a
+                          href={generateAmazonSearchUrl(toolName)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center text-blue-600 hover:text-blue-800 text-xs"
+                        >
+                          <ExternalLink className="w-3 h-3 mr-1" />
+                          Shop
+                        </a>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {task.supplies && task.supplies.length > 0 && (
+            <div>
               <h4 className="font-semibold text-gray-800 mb-2">Supplies Needed</h4>
-              <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-                {task.tools.map((tool, index) => (
-                  <li key={index}>{typeof tool === 'string' ? tool : tool.name || 'Tool'}</li>
-                ))}
+              <ul className="space-y-2">
+                {task.supplies.map((supply, index) => {
+                  const supplyName = typeof supply === 'string' ? supply : supply.name || 'Supply';
+                  return (
+                    <li key={index} className="flex items-center justify-between text-sm text-gray-600">
+                      <span>{supplyName}</span>
+                      {task.isGlobalReminder && (
+                        <a
+                          href={generateAmazonSearchUrl(supplyName)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center text-blue-600 hover:text-blue-800 text-xs"
+                        >
+                          <ExternalLink className="w-3 h-3 mr-1" />
+                          Shop
+                        </a>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           )}

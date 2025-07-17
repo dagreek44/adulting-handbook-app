@@ -1,5 +1,6 @@
 
-import { Users, Edit } from 'lucide-react';
+import { Edit } from 'lucide-react';
+import SharedHeader from './SharedHeader';
 
 interface RemindersHeaderProps {
   isEditMode: boolean;
@@ -12,30 +13,26 @@ const RemindersHeader = ({
   setIsEditMode, 
   setIsFamilyModalOpen 
 }: RemindersHeaderProps) => {
+  const editButton = (
+    <button
+      onClick={() => setIsEditMode(!isEditMode)}
+      className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
+        isEditMode 
+          ? 'bg-sage text-white' 
+          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+      }`}
+    >
+      <Edit className="w-4 h-4 mr-2" />
+      {isEditMode ? 'Done' : 'Edit'}
+    </button>
+  );
+
   return (
-    <div className="flex justify-between items-center">
-      <h2 className="text-2xl font-bold text-gray-800">Reminders</h2>
-      <div className="flex items-center space-x-2">
-        <button
-          onClick={() => setIsFamilyModalOpen(true)}
-          className="flex items-center px-3 py-2 bg-blue-soft text-white rounded-lg hover:bg-blue-400 transition-colors"
-        >
-          <Users className="w-4 h-4 mr-2" />
-          Family
-        </button>
-        <button
-          onClick={() => setIsEditMode(!isEditMode)}
-          className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
-            isEditMode 
-              ? 'bg-sage text-white' 
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          <Edit className="w-4 h-4 mr-2" />
-          {isEditMode ? 'Done' : 'Edit'}
-        </button>
-      </div>
-    </div>
+    <SharedHeader
+      title="Reminders"
+      setIsFamilyModalOpen={setIsFamilyModalOpen}
+      rightContent={editButton}
+    />
   );
 };
 

@@ -15,6 +15,7 @@ import RemindersView from "@/components/RemindersView";
 import ContractorsView from "@/components/ContractorsView";
 import CompletedTasksView from "@/components/CompletedTasksView";
 import AchievementBadge from '@/components/AchievementBadge';
+import SharedHeader from '@/components/SharedHeader';
 
 const Index = () => {
   const { user, loading: authLoading } = useAuth();
@@ -94,7 +95,8 @@ const Index = () => {
       videoUrl: task.video_url,
       instructions: task.instructions || [],
       tools: task.tools || [],
-      supplies: task.supplies || []
+      supplies: task.supplies || [],
+      isGlobalReminder: task.reminder_id != null // Mark as global reminder if it has a reminder_id
     };
   };
 
@@ -263,14 +265,34 @@ const Index = () => {
           family_id: null,
           assignees: task.assignees
         }));
-        return <ContractorsView reminders={convertedTasksForContractors} />;
+        return (
+          <div className="space-y-6">
+            <SharedHeader
+              title="Contractors"
+              setIsFamilyModalOpen={setIsFamilyModalOpen}
+            />
+            <ContractorsView reminders={convertedTasksForContractors} />
+          </div>
+        );
 
       case 'completed':
-        return <CompletedTasksView />;
+        return (
+          <div className="space-y-6">
+            <SharedHeader
+              title="Completed Tasks"
+              setIsFamilyModalOpen={setIsFamilyModalOpen}
+            />
+            <CompletedTasksView />
+          </div>
+        );
 
       case 'achievements':
         return (
           <div className="space-y-6">
+            <SharedHeader
+              title="Achievements"
+              setIsFamilyModalOpen={setIsFamilyModalOpen}
+            />
             <div className="bg-white p-4 rounded-xl shadow-md">
               <h3 className="text-xl font-bold text-gray-800 mb-4">Your Badges</h3>
               <div className="grid grid-cols-1 gap-4">
