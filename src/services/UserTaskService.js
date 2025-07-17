@@ -265,22 +265,28 @@ export class UserTaskService {
       
       const today = new Date().toISOString().split('T')[0];
       
-      // Calculate next due date based on frequency
-      let nextDueDate = null;
-      if (task.frequency_days > 0) {
-        nextDueDate = this.calculateNextDueDate(today, task.frequency_days);
-      }
-      
-      // Update task with completion
+      // Handle completion based on frequency
       const updateData = {
         last_completed: today,
         status: 'completed'
       };
       
-      // Only set next due date if it's a recurring task
-      if (nextDueDate) {
-        updateData.due_date = nextDueDate;
-        updateData.status = 'pending'; // Reset to pending for recurring tasks
+      // Check if this is a "once" frequency task
+      if (task.frequency === 'once') {
+        // For "once" tasks, disable them so they don't appear in the list
+        updateData.enabled = false;
+      } else {
+        // For recurring tasks, calculate next due date
+        let nextDueDate = null;
+        if (task.frequency_days > 0) {
+          nextDueDate = this.calculateNextDueDate(today, task.frequency_days);
+        }
+        
+        // Only set next due date if it's a recurring task
+        if (nextDueDate) {
+          updateData.due_date = nextDueDate;
+          updateData.status = 'pending'; // Reset to pending for recurring tasks
+        }
       }
       
       const { error: updateError } = await supabase
