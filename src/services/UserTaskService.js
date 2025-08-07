@@ -7,7 +7,20 @@ export class UserTaskService {
     try {
       const { data, error } = await supabase
         .from('user_tasks')
-        .select('*')
+        .select(`
+          *,
+          reminder:reminders(
+            title,
+            description,
+            difficulty,
+            estimated_time,
+            estimated_budget,
+            video_url,
+            instructions,
+            tools,
+            supplies
+          )
+        `)
         .eq('user_id', userId)
         .eq('enabled', true)
         .order('due_date', { ascending: true });
@@ -20,11 +33,21 @@ export class UserTaskService {
       const results = (data || []).map(row => {
         const isPastDue = new Date(row.due_date) < today;
         
+        // Use data from global reminder if it exists, otherwise use task data
+        const reminderData = row.reminder?.[0];
+        
         return {
           ...row,
-          instructions: row.instructions || [],
-          tools: row.tools || [],
-          supplies: row.supplies || [],
+          // Prioritize global reminder data for consistency
+          title: reminderData?.title || row.title,
+          description: reminderData?.description || row.description,
+          difficulty: reminderData?.difficulty || row.difficulty,
+          estimated_time: reminderData?.estimated_time || row.estimated_time,
+          estimated_budget: reminderData?.estimated_budget || row.estimated_budget,
+          video_url: reminderData?.video_url || row.video_url,
+          instructions: reminderData?.instructions || row.instructions || [],
+          tools: reminderData?.tools || row.tools || [],
+          supplies: reminderData?.supplies || row.supplies || [],
           isPastDue,
           assignees: ['Family'],
           assignedToNames: ['Family']
