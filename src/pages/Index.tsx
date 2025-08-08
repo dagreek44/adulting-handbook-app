@@ -349,7 +349,10 @@ const Index = () => {
           isOpen={isFamilyModalOpen}
           onClose={() => setIsFamilyModalOpen(false)}
           familyMembers={familyMembers}
-          onUpdateMembers={() => {}}
+          onUpdateMembers={(updatedMembers) => {
+            // Handle the updated members - the hook will refresh automatically
+            console.log('Family members updated:', updatedMembers);
+          }}
         />
       </div>
     </div>

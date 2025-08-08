@@ -193,40 +193,8 @@ export const useSupabaseData = () => {
     
     if (!familyId) {
       console.log('fetchFamilyMembers: No family_id available, userProfile:', !!userProfile);
-      
-      // Try to fetch family members only when no family_id is available
-      try {
-        console.log('fetchFamilyMembers: Fetching family members only');
-        const { data, error } = await supabase
-          .from('users')
-          .select('id, first_name, last_name, email, username, family_id, created_at, updated_at')
-          .order('created_at', { ascending: true });
-
-        if (error) throw error;
-        
-        const convertedMembers = (data || []).map(member => ({
-          id: member.id,
-          name: `${member.first_name} ${member.last_name}`,
-          email: member.email,
-          role: 'Member' as 'Admin' | 'Member',
-          adulting_progress: 0,
-          invited_at: member.created_at,
-          created_at: member.created_at,
-          updated_at: member.updated_at
-        }));
-        
-        console.log('fetchFamilyMembers: Found', convertedMembers.length, 'family members');
-        setFamilyMembers(convertedMembers);
-        return convertedMembers;
-      } catch (error) {
-        console.error('Error fetching family members:', error);
-        toast({
-          title: "Error",
-          description: "Failed to fetch family members",
-          variant: "destructive"
-        });
-        return [];
-      }
+      setFamilyMembers([]);
+      return [];
     }
     
     try {
@@ -239,11 +207,11 @@ export const useSupabaseData = () => {
 
       if (error) throw error;
       
-      const convertedMembers = (data || []).map(member => ({
+      const convertedMembers = (data || []).map((member, index) => ({
         id: member.id,
-        name: `${member.first_name} ${member.last_name}`,
+        name: `${member.first_name} ${member.last_name}`.trim() || member.username || 'Unknown',
         email: member.email,
-        role: 'Member' as 'Admin' | 'Member',
+        role: (index === 0 ? 'Admin' : 'Member') as 'Admin' | 'Member', // First member is admin
         adulting_progress: 0,
         invited_at: member.created_at,
         created_at: member.created_at,
@@ -807,12 +775,8 @@ export const useSupabaseData = () => {
           fetchCompletedTasks()
         ]);
         
-        // Only fetch family members if we have a family_id
-        if (userProfile?.family_id) {
-          await fetchFamilyMembers();
-        } else {
-          console.log('loadData: Skipping family members fetch - no family_id');
-        }
+        // Always try to fetch family members
+        await fetchFamilyMembers();
       } catch (error) {
         console.error('loadData: Error during data loading:', error);
       } finally {

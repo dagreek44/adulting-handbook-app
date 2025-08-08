@@ -117,6 +117,11 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
         description: `${inviteData.name} has been invited to join your family. They'll join when they create their account.`,
         duration: 5000,
       });
+
+      // Refresh family members list to potentially show updated pending invitations
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (error) {
       console.error('Error sending invitation:', error);
       toast({

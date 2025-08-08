@@ -50,7 +50,8 @@ export class UserTaskService {
           supplies: reminderData?.supplies || row.supplies || [],
           isPastDue,
           assignees: ['Family'],
-          assignedToNames: ['Family']
+          assignedToNames: ['Family'],
+          isGlobalReminder: !!row.reminder_id // Mark as global reminder if it has a reminder_id
         };
       });
       
