@@ -209,7 +209,7 @@ export const useSupabaseData = () => {
       
       const convertedMembers = (data || []).map((member, index) => ({
         id: member.id,
-        name: `${member.first_name} ${member.last_name}`.trim() || member.username || 'Unknown',
+        name: `${member.first_name || ''} ${member.last_name || ''}`.trim() || member.username || member.email || 'Unknown',
         email: member.email,
         role: (index === 0 ? 'Admin' : 'Member') as 'Admin' | 'Member', // First member is admin
         adulting_progress: 0,

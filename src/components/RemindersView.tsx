@@ -75,7 +75,7 @@ const RemindersView = ({
       instructions: task.instructions || [],
       tools: task.tools || [],
       supplies: task.supplies || [],
-      isGlobalReminder: task.reminder_type === 'global' || !task.is_custom
+      isGlobalReminder: task.isGlobalReminder || !!task.reminder_id
     };
     setSelectedTask(taskDetails);
     setIsModalOpen(true);
