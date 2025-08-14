@@ -86,6 +86,7 @@ export interface FamilyMember {
   invited_at: string;
   created_at: string;
   updated_at: string;
+  status: 'active' | 'pending' | 'expired';
 }
 
 // Helper function to convert Supabase row to our interface
@@ -118,7 +119,8 @@ const convertFamilyMemberRow = (row: FamilyMemberRow): FamilyMember => ({
   adulting_progress: row.adulting_progress || 0,
   invited_at: row.invited_at,
   created_at: row.created_at,
-  updated_at: row.updated_at
+  updated_at: row.updated_at,
+  status: 'active' as const
 });
 
 export const useSupabaseData = () => {
@@ -199,15 +201,30 @@ export const useSupabaseData = () => {
     
     try {
       console.log('fetchFamilyMembers: Fetching for family:', familyId);
-      const { data, error } = await supabase
+      
+      // Fetch existing family members
+      const { data: usersData, error: usersError } = await supabase
         .from('users')
         .select('id, first_name, last_name, email, username, family_id, created_at, updated_at')
         .eq('family_id', familyId)
         .order('created_at', { ascending: true });
 
-      if (error) throw error;
+      if (usersError) throw usersError;
       
-      const convertedMembers = (data || []).map((member, index) => ({
+      // Fetch pending invitations
+      const { data: invitationsData, error: invitationsError } = await supabase
+        .from('family_invitations')
+        .select('id, invitee_email, status, created_at, expires_at')
+        .eq('family_id', familyId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true });
+
+      if (invitationsError) throw invitationsError;
+      
+      const now = new Date();
+      
+      // Convert existing users
+      const existingMembers = (usersData || []).map((member, index) => ({
         id: member.id,
         name: `${member.first_name || ''} ${member.last_name || ''}`.trim() || member.username || member.email || 'Unknown',
         email: member.email,
@@ -215,12 +232,31 @@ export const useSupabaseData = () => {
         adulting_progress: 0,
         invited_at: member.created_at,
         created_at: member.created_at,
-        updated_at: member.updated_at
+        updated_at: member.updated_at,
+        status: 'active' as const
       }));
       
-      console.log('fetchFamilyMembers: Found', convertedMembers.length, 'family members');
-      setFamilyMembers(convertedMembers);
-      return convertedMembers;
+      // Convert pending invitations
+      const pendingInvitations = (invitationsData || []).map(invitation => {
+        const isExpired = new Date(invitation.expires_at) < now;
+        return {
+          id: invitation.id,
+          name: invitation.invitee_email.split('@')[0], // Use email prefix as temporary name
+          email: invitation.invitee_email,
+          role: 'Member' as 'Admin' | 'Member',
+          adulting_progress: 0,
+          invited_at: invitation.created_at,
+          created_at: invitation.created_at,
+          updated_at: invitation.created_at,
+          status: isExpired ? 'expired' as const : 'pending' as const
+        };
+      });
+      
+      const allMembers = [...existingMembers, ...pendingInvitations];
+      
+      console.log('fetchFamilyMembers: Found', existingMembers.length, 'active members and', pendingInvitations.length, 'pending invitations');
+      setFamilyMembers(allMembers);
+      return allMembers;
     } catch (error) {
       console.error('Error fetching family members:', error);
       toast({

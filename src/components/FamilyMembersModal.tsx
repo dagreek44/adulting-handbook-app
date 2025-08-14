@@ -12,6 +12,7 @@ interface FamilyMember {
   name: string;
   email: string;
   role: 'Admin' | 'Member';
+  status: 'active' | 'pending' | 'expired';
 }
 
 interface FamilyMembersModalProps {
@@ -118,10 +119,8 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
         duration: 5000,
       });
 
-      // Refresh family members list to potentially show updated pending invitations
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+      // Trigger a refresh of family members data instead of reloading the page
+      onClose(); // Close modal to trigger refresh in parent component
     } catch (error) {
       console.error('Error sending invitation:', error);
       toast({
@@ -134,15 +133,41 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
     }
   };
 
-  const removeMember = (memberId: string) => {
-    const updatedMembers = familyMembers.filter(member => member.id !== memberId);
-    onUpdateMembers(updatedMembers);
-    
-    toast({
-      title: "Member Removed",
-      description: "Family member has been removed from your household.",
-      duration: 3000,
-    });
+  const removeMember = async (memberId: string, memberStatus: string) => {
+    try {
+      if (memberStatus === 'pending' || memberStatus === 'expired') {
+        // Cancel pending invitation
+        const { error } = await supabase
+          .from('family_invitations')
+          .delete()
+          .eq('id', memberId);
+
+        if (error) throw error;
+
+        toast({
+          title: "Invitation Cancelled",
+          description: "The invitation has been cancelled.",
+          duration: 3000,
+        });
+      } else {
+        // Remove active family member
+        const updatedMembers = familyMembers.filter(member => member.id !== memberId);
+        onUpdateMembers(updatedMembers);
+        
+        toast({
+          title: "Member Removed",
+          description: "Family member has been removed from your household.",
+          duration: 3000,
+        });
+      }
+    } catch (error) {
+      console.error('Error removing member:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove member. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -156,11 +181,11 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
         </DialogHeader>
         
         <div className="space-y-4">
-          {/* Current Members */}
+          {/* Active Members */}
           <div>
-            <h3 className="font-semibold text-gray-800 mb-3">Current Members</h3>
+            <h3 className="font-semibold text-gray-800 mb-3">Active Members</h3>
             <div className="space-y-2">
-              {familyMembers.map((member) => (
+              {familyMembers.filter(member => member.status === 'active').map((member) => (
                 <div key={member.id} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
                   <div>
                     <p className="font-medium text-gray-800">{member.name}</p>
@@ -173,7 +198,7 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
                   </div>
                   {member.role !== 'Admin' && (
                     <button
-                      onClick={() => removeMember(member.id)}
+                      onClick={() => removeMember(member.id, member.status)}
                       className="text-red-500 hover:text-red-700"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -183,6 +208,34 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
               ))}
             </div>
           </div>
+
+          {/* Pending Invitations */}
+          {familyMembers.filter(member => member.status === 'pending' || member.status === 'expired').length > 0 && (
+            <div>
+              <h3 className="font-semibold text-gray-800 mb-3">Pending Invitations</h3>
+              <div className="space-y-2">
+                {familyMembers.filter(member => member.status === 'pending' || member.status === 'expired').map((member) => (
+                  <div key={member.id} className="flex items-center justify-between bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                    <div>
+                      <p className="font-medium text-gray-800">{member.email}</p>
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        member.status === 'pending' ? 'bg-yellow-200 text-yellow-800' : 'bg-red-200 text-red-800'
+                      }`}>
+                        {member.status === 'pending' ? 'Invitation Sent' : 'Expired'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => removeMember(member.id, member.status)}
+                      className="text-red-500 hover:text-red-700"
+                      title="Cancel invitation"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Invite Form */}
           {showInviteForm ? (
