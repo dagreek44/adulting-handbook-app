@@ -3,7 +3,7 @@ import { ReminderService } from "../services/ReminderService";
 import { UserTaskService } from "../services/UserTaskService";
 import { useAuth } from "./AuthContext";
 
-interface UserTask {
+export interface UserTask {
   id: string;
   user_id: string;
   reminder_id?: string | null;
@@ -18,8 +18,8 @@ interface UserTask {
   status: string;
   video_url?: string | null;
   instructions: string[];
-  tools: any[];
-  supplies: any[];
+  tools: string[];
+  supplies: string[];
   reminder_type: string;
   is_custom: boolean;
   created_at: string;
@@ -28,7 +28,7 @@ interface UserTask {
   isPastDue?: boolean;
 }
 
-interface GlobalReminder {
+export interface GlobalReminder {
   id: string;
   title: string;
   description: string;
@@ -38,8 +38,8 @@ interface GlobalReminder {
   frequency_days: number;
   video_url?: string | null;
   instructions: string[];
-  tools: any[];
-  supplies: any[];
+  tools: string[];
+  supplies: string[];
   category: string;
 }
 

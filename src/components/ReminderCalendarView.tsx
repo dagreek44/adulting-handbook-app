@@ -6,16 +6,18 @@ import { format, isSameDay, parse, isValid } from 'date-fns';
 import TaskCard from './TaskCard';
 import { UserTask, FamilyMember } from '@/hooks/useSupabaseData';
 
+interface TaskForCalendar {
+  title: string;
+  description: string;
+  estimatedTime: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+  dueDate: string;
+}
+
 interface ReminderCalendarViewProps {
-  tasks: Array<{
-    title: string;
-    description: string;
-    estimatedTime: string;
-    difficulty: 'Easy' | 'Medium' | 'Hard';
-    dueDate: string;
-  }>;
+  tasks: TaskForCalendar[];
   reminders: UserTask[];
-  onTaskClick: (task: any) => void;
+  onTaskClick: (task: UserTask | TaskForCalendar) => void;
   onTaskComplete: () => void;
   familyMembers: FamilyMember[];
   supabaseOperations: {
@@ -87,8 +89,8 @@ const ReminderCalendarView = ({
     return [...taskDates, ...actualReminderDates];
   }, [tasks, reminders]);
 
-  // Custom Day component with wrench icons
-  function CustomDay(props: any) {
+  // Custom Day component with wrench icons  
+  function CustomDay(props: React.ComponentProps<'button'> & { date: Date }) {
     const { date, ...rest } = props;
     const todayStr = format(date, 'yyyy-MM-dd');
     const hasReminder = reminderDates.includes(todayStr);

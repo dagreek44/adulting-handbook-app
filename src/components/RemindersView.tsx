@@ -9,17 +9,32 @@ import RemindersList from '@/components/RemindersList';
 import CompletedTasksButton from '@/components/CompletedTasksButton';
 import GlobalRemindersSelector from '@/components/GlobalRemindersSelector';
 import { FamilyMember, SupabaseReminder } from '@/hooks/useSupabaseData';
-import { useReminders } from '@/contexts/ReminderContext';
+import { useReminders, UserTask as ContextUserTask, GlobalReminder } from '@/contexts/ReminderContext';
 import { UserTaskService } from '@/services/UserTaskService';
+
+interface TaskDetails {
+  id: string;
+  title: string;
+  description: string;
+  estimatedTime: string;
+  difficulty: string;
+  estimatedBudget: string;
+  dueDate: string;
+  videoUrl?: string;
+  instructions: string[];
+  tools: string[];
+  supplies: string[];
+  isGlobalReminder: boolean;
+}
 
 interface RemindersViewProps {
   allReminders: SupabaseReminder[];
   familyMembers: FamilyMember[];
   setFamilyMembers: (members: FamilyMember[]) => void;
   completedTasks: number;
-  onTaskComplete: (task?: any) => void;
-  selectedTask: any;
-  setSelectedTask: (task: any) => void;
+  onTaskComplete: (task?: ContextUserTask) => void;
+  selectedTask: TaskDetails | null;
+  setSelectedTask: (task: TaskDetails | null) => void;
   setIsModalOpen: (b: boolean) => void;
   isEditMode: boolean;
   setIsEditMode: (b: boolean) => void;
@@ -62,7 +77,7 @@ const RemindersView = ({
   // Get only the next 3 upcoming tasks
   const upcomingTasks = pendingTasks.slice(0, 3);
 
-  const handleTaskClick = (task: any) => {
+  const handleTaskClick = (task: ContextUserTask) => {
     const taskDetails = {
       id: task.id,
       title: task.title,
@@ -75,13 +90,13 @@ const RemindersView = ({
       instructions: task.instructions || [],
       tools: task.tools || [],
       supplies: task.supplies || [],
-      isGlobalReminder: task.isGlobalReminder || !!task.reminder_id
+      isGlobalReminder: !!task.reminder_id
     };
     setSelectedTask(taskDetails);
     setIsModalOpen(true);
   };
 
-  const handleTaskComplete = async (task: any) => {
+  const handleTaskComplete = async (task: ContextUserTask) => {
     try {
       await markTaskCompleted(task.id);
       await onTaskComplete(task);
@@ -90,7 +105,7 @@ const RemindersView = ({
     }
   };
 
-  const handleEnableReminder = async (globalReminder: any) => {
+  const handleEnableReminder = async (globalReminder: GlobalReminder) => {
     try {
       console.log('Enabling reminder:', globalReminder);
       await enableReminder(globalReminder);
@@ -156,7 +171,33 @@ const RemindersView = ({
     dueDate: task.due_date || 'Not set',
   }));
 
-  // Create a wrapper function for calendar view that matches expected signature
+  // Create wrapper functions to handle type conversions
+  const handleReminderListTaskClick = (task: any) => {
+    // Find the original task to get complete data
+    const originalTask = upcomingTasks.find(t => t.id === task.id);
+    if (originalTask) {
+      handleTaskClick(originalTask);
+    }
+  };
+
+  const handleReminderListTaskComplete = async (task: any) => {
+    // Find the original task to get complete data
+    const originalTask = upcomingTasks.find(t => t.id === task.id);
+    if (originalTask) {
+      await handleTaskComplete(originalTask);
+    }
+  };
+
+  const handleCalendarTaskClick = (task: any) => {
+    // For calendar tasks, try to find matching task in upcomingTasks
+    if ('id' in task) {
+      const originalTask = upcomingTasks.find(t => t.id === task.id);
+      if (originalTask) {
+        handleTaskClick(originalTask);
+      }
+    }
+  };
+
   const handleCalendarTaskComplete = () => {
     // Calendar view doesn't pass task data, so we handle completion differently
     console.log('Task completed from calendar view');
@@ -168,7 +209,7 @@ const RemindersView = ({
     .map(task => task.reminder_id);
 
   // Wrapper function to match AddCustomReminder's expected signature
-  const handleAddUserTask = async (userId: string, task: any) => {
+  const handleAddUserTask = async (userId: string, task: Partial<ContextUserTask>) => {
     await addCustomTask(task);
   };
 
@@ -189,14 +230,14 @@ const RemindersView = ({
         {reminderViewMode === 'list' ? (
           <RemindersList
             upcomingTasks={convertedUpcomingTasks}
-            onTaskClick={handleTaskClick}
-            onTaskComplete={handleTaskComplete}
+            onTaskClick={handleReminderListTaskClick}
+            onTaskComplete={handleReminderListTaskComplete}
           />
         ) : (
           <ReminderCalendarView
             tasks={convertedCalendarTasks}
             reminders={convertedCalendarReminders}
-            onTaskClick={handleTaskClick}
+            onTaskClick={handleCalendarTaskClick}
             onTaskComplete={handleCalendarTaskComplete}
             familyMembers={familyMembers}
             supabaseOperations={supabaseOperations}
