@@ -40,13 +40,13 @@
 
     --radius: 0.75rem;
 
-    /* Custom Adulting color palette - changed earth to sage for consistency */
-    --sage: 134 168 122;
-    --sage-light: 184 206 177;
-    --coral: 255 127 103;
-    --cream: 252 251 248;
-    --blue-soft: 147 197 253;
-    --earth: 134 168 122; /* Changed from yellow-brown to sage for consistency */
+    /* Custom Adulting color palette - using HSL values for proper color function support */
+    --sage: 104 28 51;
+    --sage-light: 104 28 71;
+    --coral: 14 100 71;
+    --cream: 42 100 98;
+    --blue-soft: 213 94 68;
+    --earth: 32 27 56;
   }
 
   .dark {
@@ -114,27 +114,27 @@
 
 @layer utilities {
   .text-sage {
-    color: rgb(var(--sage));
+    color: hsl(var(--sage));
   }
   .bg-sage {
-    background-color: rgb(var(--sage));
+    background-color: hsl(var(--sage));
   }
   .text-coral {
-    color: rgb(var(--coral));
+    color: hsl(var(--coral));
   }
   .bg-coral {
-    background-color: rgb(var(--coral));
+    background-color: hsl(var(--coral));
   }
   .bg-cream {
-    background-color: rgb(var(--cream));
+    background-color: hsl(var(--cream));
   }
   .text-blue-soft {
-    color: rgb(var(--blue-soft));
+    color: hsl(var(--blue-soft));
   }
   .bg-blue-soft {
-    background-color: rgb(var(--blue-soft));
+    background-color: hsl(var(--blue-soft));
   }
   .bg-earth {
-    background-color: rgb(var(--earth));
+    background-color: hsl(var(--earth));
   }
 }

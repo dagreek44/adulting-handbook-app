@@ -31,12 +31,12 @@ const CompletedTasksView = () => {
           {completedTasks.map((task) => (
             <div
               key={task.id}
-              className="bg-green-50 p-4 rounded-xl border-l-4 border-l-green-500"
+              className="bg-primary/50 p-4 rounded-xl border-l-4 border-l-primary"
             >
               <div className="flex items-start justify-between mb-2">
                 <div className="flex-1">
                   <h4 className="font-semibold text-gray-800 mb-1 flex items-center">
-                    <CheckCircle2 className="w-5 h-5 text-green-500 mr-2" />
+                    <CheckCircle2 className="w-5 h-5 text-primary mr-2" />
                     {task.title}
                   </h4>
                   <p className="text-gray-600 text-sm mb-2">{task.description}</p>
@@ -45,7 +45,7 @@ const CompletedTasksView = () => {
               
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-primary/20 text-primary-foreground">
                     {task.difficulty}
                   </span>
                   <span className="text-xs text-gray-500">{task.estimated_time}</span>

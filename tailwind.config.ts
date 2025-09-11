@@ -57,13 +57,13 @@ export default {
 					foreground: 'hsl(var(--card-foreground))'
 				},
 				sage: {
-					DEFAULT: 'rgb(134 168 122)',
-					light: 'rgb(184 206 177)',
+					DEFAULT: 'hsl(var(--sage))',
+					light: 'hsl(var(--sage-light))',
 				},
-				coral: 'rgb(255 127 103)',
-				cream: 'rgb(252 251 248)',
-				'blue-soft': 'rgb(147 197 253)',
-				earth: 'rgb(180 142 104)',
+				coral: 'hsl(var(--coral))',
+				cream: 'hsl(var(--cream))',
+				'blue-soft': 'hsl(var(--blue-soft))',
+				earth: 'hsl(var(--earth))',
 			},
 			borderRadius: {
 				lg: 'var(--radius)',

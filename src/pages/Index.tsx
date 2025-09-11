@@ -5,7 +5,7 @@ import { Wrench, Calendar, Trophy, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { useReminders } from '@/contexts/ReminderContext';
+import { useReminders, type UserTask } from '@/contexts/ReminderContext';
 import Header from '@/components/Header';
 import DashboardCard from '@/components/DashboardCard';
 import Navigation from '@/components/Navigation';
@@ -201,13 +201,13 @@ const Index = () => {
               <h3 className="text-xl font-bold text-gray-800 mb-4">Quick Actions</h3>
               <div className="bg-white p-4 rounded-xl shadow-md">
                 <div className="space-y-3">
-                  <button className="w-full bg-sage text-white py-3 rounded-lg font-medium hover:bg-sage/90 transition-colors">
+                  <button className="w-full bg-sage text-primary-foreground py-3 rounded-lg font-medium hover:bg-sage/90 transition-colors">
                     🔧 Schedule Home Inspection
                   </button>
-                  <button className="w-full bg-blue-soft text-white py-3 rounded-lg font-medium hover:bg-blue-400 transition-colors">
+                  <button className="w-full bg-blue-soft text-primary-foreground py-3 rounded-lg font-medium hover:bg-blue-soft/90 transition-colors">
                     📅 Set Seasonal Reminders
                   </button>
-                  <button className="w-full bg-coral text-white py-3 rounded-lg font-medium hover:bg-orange-400 transition-colors">
+                  <button className="w-full bg-coral text-primary-foreground py-3 rounded-lg font-medium hover:bg-coral/90 transition-colors">
                     🛒 Shop for Supplies
                   </button>
                 </div>
@@ -302,7 +302,7 @@ const Index = () => {
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-blue-soft to-blue-400 p-4 rounded-xl text-white">
+            <div className="bg-gradient-to-br from-blue-soft to-blue-soft/80 p-4 rounded-xl text-primary-foreground">
               <h3 className="text-lg font-bold mb-2">Level Up! 🚀</h3>
               <p className="text-sm mb-4 opacity-90">
                 Complete more tasks and hire contractors to unlock new achievements and improve your adulting level.
