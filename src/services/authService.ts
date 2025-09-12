@@ -16,7 +16,8 @@ export const signUpUser = async (
           first_name: userData.firstName,
           last_name: userData.lastName,
           username: userData.username
-        }
+        },
+        emailRedirectTo: `${window.location.origin}/dashboard`
       }
     });
 

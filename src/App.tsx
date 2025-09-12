@@ -22,8 +22,8 @@ const App = () => (
         <AuthProvider>
           <ReminderProvider>
             <Routes>
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/" element={<Index />} />
+              <Route path="/" element={<Auth />} />
+              <Route path="/dashboard" element={<Index />} />
               <Route path="/post-job" element={<PostJob />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
