@@ -9,18 +9,22 @@ interface GlobalReminder {
   estimated_time: string;
   estimated_budget: string;
   frequency_days: number;
+  main_category?: string;
+  subcategory?: string;
 }
 
 interface GlobalRemindersSelectorProps {
   globalReminders: GlobalReminder[];
   enabledTaskIds: (string | null)[];
   onEnableReminder: (reminder: GlobalReminder) => void;
+  selectedCategories?: Set<string>;
 }
 
 const GlobalRemindersSelector = ({ 
   globalReminders, 
   enabledTaskIds, 
-  onEnableReminder 
+  onEnableReminder,
+  selectedCategories = new Set()
 }: GlobalRemindersSelectorProps) => {
   const isReminderEnabled = (reminderId: string) => {
     return enabledTaskIds.includes(reminderId);
@@ -43,6 +47,24 @@ const GlobalRemindersSelector = ({
     return 'Yearly';
   };
 
+  // Filter reminders based on selected categories
+  const filteredReminders = globalReminders.filter(reminder => {
+    if (selectedCategories.size === 0) return true;
+    
+    const categoryKey = `${reminder.main_category || 'Household'}:${reminder.subcategory || 'General'}`;
+    return selectedCategories.has(categoryKey);
+  });
+
+  // Group reminders by subcategory
+  const groupedReminders = filteredReminders.reduce((acc, reminder) => {
+    const subcategory = reminder.subcategory || 'General';
+    if (!acc[subcategory]) {
+      acc[subcategory] = [];
+    }
+    acc[subcategory].push(reminder);
+    return acc;
+  }, {} as Record<string, GlobalReminder[]>);
+
   return (
     <div className="bg-white p-4 rounded-xl shadow-md">
       <h3 className="text-xl font-bold text-gray-800 mb-4">Available Reminders</h3>
@@ -50,8 +72,20 @@ const GlobalRemindersSelector = ({
         Select from these built-in reminders to add to your task list:
       </p>
       
-      <div className="space-y-3">
-        {globalReminders.map((reminder) => {
+      {selectedCategories.size > 0 && filteredReminders.length === 0 && (
+        <div className="text-center py-8 text-gray-500">
+          <p>No reminders found for the selected categories.</p>
+        </div>
+      )}
+      
+      <div className="space-y-6">
+        {Object.entries(groupedReminders).map(([subcategory, reminders]) => (
+          <div key={subcategory}>
+            <h4 className="text-lg font-semibold text-gray-700 mb-3 border-b border-gray-200 pb-1">
+              {subcategory}
+            </h4>
+            <div className="space-y-3">
+              {reminders.map((reminder) => {
           const enabled = isReminderEnabled(reminder.id);
           
           return (
@@ -66,7 +100,7 @@ const GlobalRemindersSelector = ({
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <h4 className="font-semibold text-gray-800">{reminder.title}</h4>
+                    <h5 className="font-semibold text-gray-800">{reminder.title}</h5>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDifficultyColor(reminder.difficulty)}`}>
                       {reminder.difficulty}
                     </span>
@@ -108,8 +142,11 @@ const GlobalRemindersSelector = ({
                 </button>
               </div>
             </div>
-          );
-        })}
+              );
+            })}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

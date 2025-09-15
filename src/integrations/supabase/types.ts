@@ -144,6 +144,8 @@ export type Database = {
           id: string
           instructions: string[] | null
           is_custom: boolean | null
+          main_category: string | null
+          subcategory: string | null
           supplies: Json | null
           title: string
           tools: Json | null
@@ -164,6 +166,8 @@ export type Database = {
           id?: string
           instructions?: string[] | null
           is_custom?: boolean | null
+          main_category?: string | null
+          subcategory?: string | null
           supplies?: Json | null
           title: string
           tools?: Json | null
@@ -184,6 +188,8 @@ export type Database = {
           id?: string
           instructions?: string[] | null
           is_custom?: boolean | null
+          main_category?: string | null
+          subcategory?: string | null
           supplies?: Json | null
           title?: string
           tools?: Json | null

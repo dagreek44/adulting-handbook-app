@@ -41,6 +41,8 @@ export interface GlobalReminder {
   tools: string[];
   supplies: string[];
   category: string;
+  main_category?: string;
+  subcategory?: string;
 }
 
 interface CompletedTask {

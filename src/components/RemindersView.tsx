@@ -8,9 +8,11 @@ import ReminderViewToggle from '@/components/ReminderViewToggle';
 import RemindersList from '@/components/RemindersList';
 import CompletedTasksButton from '@/components/CompletedTasksButton';
 import GlobalRemindersSelector from '@/components/GlobalRemindersSelector';
+import CategoryFilter from '@/components/CategoryFilter';
 import { FamilyMember, SupabaseReminder } from '@/hooks/useSupabaseData';
 import { useReminders, UserTask as ContextUserTask, GlobalReminder } from '@/contexts/ReminderContext';
 import { UserTaskService } from '@/services/UserTaskService';
+import { useState } from 'react';
 
 interface TaskDetails {
   id: string;
@@ -70,6 +72,9 @@ const RemindersView = ({
 }: RemindersViewProps) => {
   // Use the new reminder context
   const { userTasks, globalReminders, loading, markTaskCompleted, enableReminder, addCustomTask } = useReminders();
+  
+  // Category filtering state
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
 
   // Filter to show only pending tasks (not completed ones)
   const pendingTasks = userTasks.filter(task => task.status !== 'completed');
@@ -213,6 +218,40 @@ const RemindersView = ({
     await addCustomTask(task);
   };
 
+  // Category management
+  const getCategories = () => {
+    const categories: Record<string, Set<string>> = {};
+    
+    globalReminders.forEach(reminder => {
+      const mainCategory = reminder.main_category || 'Household';
+      const subcategory = reminder.subcategory || 'General';
+      
+      if (!categories[mainCategory]) {
+        categories[mainCategory] = new Set();
+      }
+      categories[mainCategory].add(subcategory);
+    });
+    
+    // Convert Sets to arrays
+    return Object.fromEntries(
+      Object.entries(categories).map(([key, value]) => [key, Array.from(value)])
+    );
+  };
+
+  const handleCategoryToggle = (categoryKey: string) => {
+    const newSelected = new Set(selectedCategories);
+    if (newSelected.has(categoryKey)) {
+      newSelected.delete(categoryKey);
+    } else {
+      newSelected.add(categoryKey);
+    }
+    setSelectedCategories(newSelected);
+  };
+
+  const handleClearFilters = () => {
+    setSelectedCategories(new Set());
+  };
+
   return (
     <div className="space-y-6">
       <RemindersHeader
@@ -245,13 +284,22 @@ const RemindersView = ({
         )}
       </ReminderLoadingState>
 
-      {/* Only show GlobalRemindersSelector in edit mode */}
+      {/* Only show GlobalRemindersSelector and CategoryFilter in edit mode */}
       {isEditMode && (
-        <GlobalRemindersSelector
-          globalReminders={globalReminders}
-          enabledTaskIds={enabledReminderIds}
-          onEnableReminder={handleEnableReminder}
-        />
+        <>
+          <CategoryFilter
+            categories={getCategories()}
+            selectedCategories={selectedCategories}
+            onCategoryToggle={handleCategoryToggle}
+            onClearFilters={handleClearFilters}
+          />
+          <GlobalRemindersSelector
+            globalReminders={globalReminders}
+            enabledTaskIds={enabledReminderIds}
+            onEnableReminder={handleEnableReminder}
+            selectedCategories={selectedCategories}
+          />
+        </>
       )}
 
       <AddCustomReminder

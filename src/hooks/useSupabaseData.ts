@@ -31,6 +31,8 @@ export interface SupabaseReminder {
   isPastDue?: boolean;
   assignedToNames?: string[];
   family_id?: string | null;
+  main_category?: string;
+  subcategory?: string;
 }
 
 export interface UserTask {
@@ -108,7 +110,9 @@ const convertSupabaseRowToReminder = (row: SupabaseReminderRow): SupabaseReminde
   assignees: Array.isArray(row.assignees) ? row.assignees : [],
   created_at: row.created_at,
   updated_at: row.updated_at,
-  family_id: row.family_id
+  family_id: row.family_id,
+  main_category: row.main_category || 'Household',
+  subcategory: row.subcategory || 'General'
 });
 
 const convertFamilyMemberRow = (row: FamilyMemberRow): FamilyMember => ({
