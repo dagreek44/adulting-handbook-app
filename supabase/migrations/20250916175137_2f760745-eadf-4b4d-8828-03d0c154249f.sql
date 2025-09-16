@@ -1,0 +1,72 @@
+-- Add new reminder categories beyond household
+-- Finance & Legal reminders
+INSERT INTO public.reminders (title, description, frequency, difficulty, estimated_time, estimated_budget, frequency_days, main_category, subcategory, is_custom) VALUES
+('Review bank statements & credit card statements', 'Check for errors, fraud, and track spending patterns', 'Monthly', 'Easy', '30 min', '$0', 30, 'Finance & Legal', 'Banking', false),
+('Set up / review auto-payments for recurring bills', 'Ensure bills are paid on time and amounts are correct', 'Quarterly', 'Medium', '1 hour', '$0', 90, 'Finance & Legal', 'Banking', false),
+('File taxes & gather documents', 'Prepare and file annual tax returns', 'Yearly', 'Hard', '8 hours', '$200-500', 365, 'Finance & Legal', 'Tax & Legal', false),
+('Review/renew insurance policies', 'Review home, auto, health insurance coverage and rates', 'Yearly', 'Medium', '2 hours', '$0', 365, 'Finance & Legal', 'Insurance', false),
+('Check beneficiaries on retirement accounts', 'Verify and update beneficiaries on investment accounts', 'Yearly', 'Easy', '1 hour', '$0', 365, 'Finance & Legal', 'Tax & Legal', false),
+('Budget quarterly review', 'Re-assess income, expenses, and savings goals', 'Quarterly', 'Medium', '2 hours', '$0', 90, 'Finance & Legal', 'Budgeting & Goals', false),
+('Set / review financial goals', 'Establish and review annual financial objectives', 'Yearly', 'Medium', '2 hours', '$0', 365, 'Finance & Legal', 'Budgeting & Goals', false),
+('Organize important documents', 'Update and store will, power of attorney, ID documents', 'Yearly', 'Medium', '3 hours', '$0', 365, 'Finance & Legal', 'Tax & Legal', false),
+
+-- Health & Self-care reminders  
+('Annual doctor checkup', 'Schedule and attend yearly physical examination', 'Yearly', 'Easy', '2 hours', '$50-200', 365, 'Health & Self-care', 'Medical', false),
+('Annual dentist checkup', 'Schedule and attend dental cleaning and examination', 'Yearly', 'Easy', '1 hour', '$100-300', 365, 'Health & Self-care', 'Dental & Vision', false),
+('Eye exam & prescription update', 'Check vision and update prescription if needed', 'Bi-annually', 'Easy', '1 hour', '$100-200', 180, 'Health & Self-care', 'Dental & Vision', false),
+('Vaccinations & flu shots', 'Stay current on recommended vaccinations', 'Yearly', 'Easy', '30 min', '$50-100', 365, 'Health & Self-care', 'Medical', false),
+('Skin check for moles', 'Self-examination or dermatologist visit for skin health', 'Yearly', 'Easy', '30 min', '$150-300', 365, 'Health & Self-care', 'Medical', false),
+('Mental health check-in', 'Schedule therapy appointment or mental health assessment', 'Quarterly', 'Medium', '1 hour', '$100-200', 90, 'Health & Self-care', 'Mental Health', false),
+('Review prescription refills', 'Check medication supplies and refill as needed', 'Monthly', 'Easy', '15 min', '$20-100', 30, 'Health & Self-care', 'Medical', false),
+('Health insurance review', 'Check deductible status and claims annually', 'Yearly', 'Medium', '1 hour', '$0', 365, 'Health & Self-care', 'Insurance', false),
+
+-- Life Admin & Personal Development reminders
+('Renew driver license / passport', 'Check expiration dates and renew as needed', 'Yearly', 'Easy', '2 hours', '$50-200', 365, 'Life Admin & Personal Development', 'Licenses & Documents', false),
+('Voting registration check', 'Verify registration status before elections', 'Yearly', 'Easy', '15 min', '$0', 365, 'Life Admin & Personal Development', 'Civic Duties', false),
+('Review subscriptions & streaming services', 'Cancel unused subscriptions and optimize spending', 'Quarterly', 'Easy', '1 hour', '$0', 90, 'Life Admin & Personal Development', 'Financial Management', false),
+('Update resume / LinkedIn', 'Keep professional profiles current and relevant', 'Yearly', 'Medium', '3 hours', '$0', 365, 'Life Admin & Personal Development', 'Career Development', false),
+('Set personal goals', 'Establish and review yearly personal objectives', 'Yearly', 'Medium', '2 hours', '$0', 365, 'Life Admin & Personal Development', 'Personal Growth', false),
+('Car maintenance check', 'Oil change, tire rotation, and general maintenance', 'Quarterly', 'Medium', '2 hours', '$100-300', 90, 'Life Admin & Personal Development', 'Vehicle Care', false),
+('Emergency kit check', 'Check flashlights, batteries, food/water supplies', 'Bi-annually', 'Easy', '1 hour', '$50-100', 180, 'Life Admin & Personal Development', 'Emergency Preparedness', false),
+('Backup digital data', 'Review passwords and backup important files', 'Quarterly', 'Medium', '2 hours', '$0', 90, 'Life Admin & Personal Development', 'Technology', false),
+
+-- Vehicle / Transportation reminders
+('Vehicle oil change', 'Regular oil change based on mileage or time', 'Quarterly', 'Easy', '1 hour', '$50-100', 90, 'Vehicle / Transportation', 'Maintenance', false),
+('Tire pressure & rotation check', 'Check tire pressure and rotate tires', 'Quarterly', 'Easy', '30 min', '$50-100', 90, 'Vehicle / Transportation', 'Maintenance', false),
+('Car insurance & registration renewal', 'Renew car insurance and registration annually', 'Yearly', 'Easy', '1 hour', '$500-1500', 365, 'Vehicle / Transportation', 'Insurance & Registration', false),
+('Check brakes & lights', 'Inspect brake pads and all vehicle lights', 'Bi-annually', 'Medium', '1 hour', '$100-500', 180, 'Vehicle / Transportation', 'Safety', false),
+('Update emergency roadside contacts', 'Keep emergency contact list current in vehicle', 'Yearly', 'Easy', '15 min', '$0', 365, 'Vehicle / Transportation', 'Safety', false),
+('Service windshield wipers', 'Clean or replace windshield wipers seasonally', 'Bi-annually', 'Easy', '15 min', '$20-50', 180, 'Vehicle / Transportation', 'Maintenance', false),
+
+-- Family / Shared Responsibilities reminders
+('Check shared bills & group expenses', 'Review and reconcile shared household expenses', 'Monthly', 'Easy', '30 min', '$0', 30, 'Family / Shared Responsibilities', 'Financial Planning', false),
+('Schedule family health checkups', 'Coordinate health appointments for family members', 'Yearly', 'Medium', '2 hours', '$200-500', 365, 'Family / Shared Responsibilities', 'Health Management', false),
+('Review household inventory', 'Update insurance inventory of tools and valuables', 'Yearly', 'Medium', '3 hours', '$0', 365, 'Family / Shared Responsibilities', 'Household Management', false),
+('Plan holidays & travel', 'Book flights, hotels, and plan family trips', 'Yearly', 'Medium', '4 hours', '$1000-5000', 365, 'Family / Shared Responsibilities', 'Travel Planning', false),
+('Update family emergency plans', 'Review and update emergency contact and evacuation plans', 'Yearly', 'Medium', '2 hours', '$0', 365, 'Family / Shared Responsibilities', 'Emergency Planning', false),
+('Rotate household chores', 'Redistribute household tasks evenly among family', 'Quarterly', 'Easy', '30 min', '$0', 90, 'Family / Shared Responsibilities', 'Household Management', false);
+
+-- Update existing household reminders to have better subcategories
+UPDATE public.reminders SET 
+  subcategory = 'Kitchen'
+WHERE title ILIKE '%fridge%' OR title ILIKE '%freezer%';
+
+UPDATE public.reminders SET 
+  subcategory = 'Water Systems'  
+WHERE title ILIKE '%water heater%' OR title ILIKE '%flush%';
+
+UPDATE public.reminders SET 
+  subcategory = 'Fire Safety'
+WHERE title ILIKE '%dryer vent%' OR title ILIKE '%fire%';
+
+UPDATE public.reminders SET 
+  subcategory = 'Seasonal Maintenance'
+WHERE title ILIKE '%winterize%' OR title ILIKE '%summerize%';
+
+UPDATE public.reminders SET 
+  subcategory = 'Pest Control'
+WHERE title ILIKE '%pest%';
+
+UPDATE public.reminders SET 
+  subcategory = 'Structural'
+WHERE title ILIKE '%chimney%';
