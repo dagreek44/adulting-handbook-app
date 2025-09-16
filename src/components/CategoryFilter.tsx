@@ -38,11 +38,11 @@ const CategoryFilter = ({
   const getSelectedCount = () => selectedCategories.size;
 
   return (
-    <div className="bg-white p-4 rounded-xl shadow-md">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Filter className="w-5 h-5 text-muted-foreground" />
-          <h3 className="text-lg font-semibold">Filter by Category</h3>
+    <div className="bg-card p-6 rounded-xl shadow-sm border">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Filter className="w-5 h-5 text-primary" />
+          <h3 className="text-xl font-semibold">Filter by Category</h3>
           {getSelectedCount() > 0 && (
             <Badge variant="secondary" className="ml-2">
               {getSelectedCount()} selected
@@ -59,6 +59,10 @@ const CategoryFilter = ({
             Clear All
           </Button>
         )}
+      </div>
+      
+      <div className="mb-4 text-sm text-muted-foreground">
+        Choose categories to filter reminders. Expand each category to select specific subcategories.
       </div>
 
       <div className="space-y-2">
