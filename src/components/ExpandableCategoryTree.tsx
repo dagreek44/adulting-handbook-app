@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ChevronDown, ChevronRight, Check, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { SupabaseReminder } from '@/hooks/useSupabaseData';
+import { GlobalReminder } from '@/contexts/ReminderContext';
 import {
   Collapsible,
   CollapsibleContent,
@@ -10,12 +10,14 @@ import {
 } from '@/components/ui/collapsible';
 
 interface ExpandableCategoryTreeProps {
-  reminders: SupabaseReminder[];
+  reminders: GlobalReminder[];
+  enabledReminderIds: string[];
   onToggleReminder: (reminderId: string, enabled: boolean) => void;
 }
 
 const ExpandableCategoryTree = ({
   reminders,
+  enabledReminderIds,
   onToggleReminder
 }: ExpandableCategoryTreeProps) => {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
@@ -35,7 +37,7 @@ const ExpandableCategoryTree = ({
     
     acc[mainCategory][subcategory].push(reminder);
     return acc;
-  }, {} as Record<string, Record<string, SupabaseReminder[]>>);
+  }, {} as Record<string, Record<string, GlobalReminder[]>>);
 
   const toggleCategory = (category: string) => {
     const newExpanded = new Set(expandedCategories);
@@ -79,6 +81,10 @@ const ExpandableCategoryTree = ({
     return frequency.charAt(0).toUpperCase() + frequency.slice(1);
   };
 
+  const isReminderEnabled = (reminderId: string) => {
+    return enabledReminderIds.includes(reminderId);
+  };
+
   return (
     <div className="bg-card p-6 rounded-xl shadow-sm border">
       <h3 className="text-2xl font-bold mb-2">Available Reminders by Category</h3>
@@ -90,7 +96,7 @@ const ExpandableCategoryTree = ({
         {Object.entries(groupedReminders).map(([mainCategory, subcategories]) => {
           const categoryExpanded = expandedCategories.has(mainCategory);
           const totalReminders = Object.values(subcategories).flat().length;
-          const enabledReminders = Object.values(subcategories).flat().filter(r => r.enabled).length;
+          const enabledReminders = Object.values(subcategories).flat().filter(r => isReminderEnabled(r.id)).length;
 
           return (
             <div key={mainCategory} className="border rounded-lg">
@@ -127,7 +133,7 @@ const ExpandableCategoryTree = ({
                     {Object.entries(subcategories).map(([subcategory, remindersList]) => {
                       const subKey = `${mainCategory}:${subcategory}`;
                       const subExpanded = expandedSubcategories.has(subKey);
-                      const subEnabledCount = remindersList.filter(r => r.enabled).length;
+                      const subEnabledCount = remindersList.filter(r => isReminderEnabled(r.id)).length;
 
                       return (
                         <div key={subcategory} className="border rounded-md bg-muted/20">
@@ -161,58 +167,62 @@ const ExpandableCategoryTree = ({
 
                             <CollapsibleContent className="px-3 pb-3">
                               <div className="ml-6 space-y-3">
-                                {remindersList.map((reminder) => (
-                                  <div
-                                    key={reminder.id}
-                                    className={`p-4 rounded-lg border transition-all ${
-                                      reminder.enabled 
-                                        ? 'border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20' 
-                                        : 'border-border bg-card hover:border-primary/20 hover:shadow-sm'
-                                    }`}
-                                  >
-                                    <div className="flex items-start justify-between">
-                                      <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-2">
-                                          <h5 className="font-semibold text-foreground text-sm">{reminder.title}</h5>
-                                          <Badge className={`text-xs ${getDifficultyColor(reminder.difficulty)}`}>
-                                            {reminder.difficulty}
-                                          </Badge>
-                                          <Badge variant="secondary" className="text-xs">
-                                            {getFrequencyText(reminder.frequency)}
-                                          </Badge>
+                                {remindersList.map((reminder) => {
+                                  const enabled = isReminderEnabled(reminder.id);
+                                  
+                                  return (
+                                    <div
+                                      key={reminder.id}
+                                      className={`p-4 rounded-lg border transition-all ${
+                                        enabled
+                                          ? 'border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20' 
+                                          : 'border-border bg-card hover:border-primary/20 hover:shadow-sm'
+                                      }`}
+                                    >
+                                      <div className="flex items-start justify-between">
+                                        <div className="flex-1">
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <h5 className="font-semibold text-foreground text-sm">{reminder.title}</h5>
+                                            <Badge className={`text-xs ${getDifficultyColor(reminder.difficulty)}`}>
+                                              {reminder.difficulty}
+                                            </Badge>
+                                            <Badge variant="secondary" className="text-xs">
+                                              Every {reminder.frequency_days} days
+                                            </Badge>
+                                          </div>
+                                          
+                                          <p className="text-muted-foreground text-xs mb-2">{reminder.description}</p>
+                                          
+                                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                            <span>⏱️ {reminder.estimated_time}</span>
+                                            {reminder.estimated_budget && reminder.estimated_budget !== '$0' && (
+                                              <span>💰 {reminder.estimated_budget}</span>
+                                            )}
+                                          </div>
                                         </div>
                                         
-                                        <p className="text-muted-foreground text-xs mb-2">{reminder.description}</p>
-                                        
-                                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                          <span>⏱️ {reminder.estimated_time}</span>
-                                          {reminder.estimated_budget && reminder.estimated_budget !== '$0' && (
-                                            <span>💰 {reminder.estimated_budget}</span>
+                                        <Button
+                                          onClick={() => onToggleReminder(reminder.id, !enabled)}
+                                          variant={enabled ? "secondary" : "default"}
+                                          size="sm"
+                                          className="ml-4"
+                                        >
+                                          {enabled ? (
+                                            <>
+                                              <Check className="w-4 h-4 mr-1" />
+                                              Added
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Plus className="w-4 h-4 mr-1" />
+                                              Add
+                                            </>
                                           )}
-                                        </div>
+                                        </Button>
                                       </div>
-                                      
-                                      <Button
-                                        onClick={() => onToggleReminder(reminder.id, !reminder.enabled)}
-                                        variant={reminder.enabled ? "secondary" : "default"}
-                                        size="sm"
-                                        className="ml-4"
-                                      >
-                                        {reminder.enabled ? (
-                                          <>
-                                            <Check className="w-4 h-4 mr-1" />
-                                            Added
-                                          </>
-                                        ) : (
-                                          <>
-                                            <Plus className="w-4 h-4 mr-1" />
-                                            Add
-                                          </>
-                                        )}
-                                      </Button>
                                     </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </CollapsibleContent>
                           </Collapsible>

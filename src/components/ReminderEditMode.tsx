@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { SupabaseReminder, FamilyMember } from '@/hooks/useSupabaseData';
+import { GlobalReminder, useReminders } from '@/contexts/ReminderContext';
 import ExpandableCategoryTree from './ExpandableCategoryTree';
 
 interface ReminderEditModeProps {
   isEditMode: boolean;
   onExitEdit: () => void;
   allReminders: SupabaseReminder[];
+  globalReminders: GlobalReminder[];
   familyMembers: FamilyMember[];
   supabaseOperations: {
     addReminder: (reminder: Partial<SupabaseReminder>) => Promise<void>;
@@ -35,9 +37,12 @@ const ReminderEditMode = ({
   isEditMode,
   onExitEdit,
   allReminders,
+  globalReminders,
   familyMembers,
   supabaseOperations
 }: ReminderEditModeProps) => {
+  const { userTasks } = useReminders();
+  
   const [editId, setEditId] = useState<string | null>(null);
   const [editReminder, setEditReminder] = useState<Partial<SupabaseReminder>>({
     title: '',
@@ -52,8 +57,16 @@ const ReminderEditMode = ({
   useEffect(() => {
     console.log('ReminderEditMode: isEditMode =', isEditMode);
     console.log('ReminderEditMode: allReminders =', allReminders);
+    console.log('ReminderEditMode: globalReminders =', globalReminders);
     console.log('ReminderEditMode: allReminders length =', allReminders.length);
-  }, [isEditMode, allReminders]);
+    console.log('ReminderEditMode: globalReminders length =', globalReminders.length);
+  }, [isEditMode, allReminders, globalReminders]);
+
+  // Get reminder IDs that are already enabled for this user from userTasks
+  const enabledReminderIds = userTasks
+    .filter(task => task.reminder_id) // Only tasks that come from global reminders
+    .map(task => task.reminder_id!)
+    .filter(Boolean);
 
   const toggleReminder = async (id: string, currentEnabled: boolean) => {
     console.log('ReminderEditMode: Toggling reminder', id, 'from', currentEnabled, 'to', !currentEnabled);
@@ -110,16 +123,17 @@ const ReminderEditMode = ({
       </div>
 
       {/* Expandable Category Tree for Available Reminders */}
-      {allReminders.length === 0 ? (
+      {globalReminders.length === 0 ? (
         <div className="bg-card p-6 rounded-xl shadow-sm border text-center py-8">
-          <p className="text-muted-foreground">No reminders available to edit.</p>
+          <p className="text-muted-foreground">No global reminders available to add.</p>
           <p className="text-sm text-muted-foreground mt-2">
             Debug: Check console logs for data loading issues.
           </p>
         </div>
       ) : (
         <ExpandableCategoryTree 
-          reminders={allReminders}
+          reminders={globalReminders}
+          enabledReminderIds={enabledReminderIds}
           onToggleReminder={toggleReminder}
         />
       )}

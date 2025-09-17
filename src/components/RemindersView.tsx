@@ -252,6 +252,7 @@ const RemindersView = ({
           isEditMode={isEditMode}
           onExitEdit={() => setIsEditMode(false)}
           allReminders={allReminders}
+          globalReminders={globalReminders}
           familyMembers={familyMembers}
           supabaseOperations={supabaseOperations}
         />
