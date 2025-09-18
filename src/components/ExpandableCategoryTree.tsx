@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, Check, Plus } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { GlobalReminder } from '@/contexts/ReminderContext';
 import {
   Collapsible,
@@ -87,7 +88,7 @@ const ExpandableCategoryTree = ({
 
   return (
     <div className="bg-card p-6 rounded-xl shadow-sm border">
-      <h3 className="text-2xl font-bold mb-2">Available Reminders by Category</h3>
+      <h3 className="text-lg font-bold mb-2">Available Reminders by Category</h3>
       <p className="text-muted-foreground text-sm mb-6">
         Expand categories and subcategories to view and enable specific reminders. Checked items are already enabled.
       </p>
@@ -171,56 +172,41 @@ const ExpandableCategoryTree = ({
                                   const enabled = isReminderEnabled(reminder.id);
                                   
                                   return (
-                                    <div
-                                      key={reminder.id}
-                                      className={`p-4 rounded-lg border transition-all ${
-                                        enabled
-                                          ? 'border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20' 
-                                          : 'border-border bg-card hover:border-primary/20 hover:shadow-sm'
-                                      }`}
-                                    >
-                                      <div className="flex items-start justify-between">
-                                        <div className="flex-1">
-                                          <div className="flex items-center gap-2 mb-2">
-                                            <h5 className="font-semibold text-foreground text-sm">{reminder.title}</h5>
-                                            <Badge className={`text-xs ${getDifficultyColor(reminder.difficulty)}`}>
-                                              {reminder.difficulty}
-                                            </Badge>
-                                            <Badge variant="secondary" className="text-xs">
-                                              Every {reminder.frequency_days} days
-                                            </Badge>
-                                          </div>
-                                          
-                                          <p className="text-muted-foreground text-xs mb-2">{reminder.description}</p>
-                                          
-                                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                            <span>⏱️ {reminder.estimated_time}</span>
-                                            {reminder.estimated_budget && reminder.estimated_budget !== '$0' && (
-                                              <span>💰 {reminder.estimated_budget}</span>
-                                            )}
-                                          </div>
-                                        </div>
-                                        
-                                        <Button
-                                          onClick={() => onToggleReminder(reminder.id, !enabled)}
-                                          variant={enabled ? "secondary" : "default"}
-                                          size="sm"
-                                          className="ml-4"
-                                        >
-                                          {enabled ? (
-                                            <>
-                                              <Check className="w-4 h-4 mr-1" />
-                                              Added
-                                            </>
-                                          ) : (
-                                            <>
-                                              <Plus className="w-4 h-4 mr-1" />
-                                              Add
-                                            </>
-                                          )}
-                                        </Button>
-                                      </div>
-                                    </div>
+                                     <div
+                                       key={reminder.id}
+                                       className={`p-4 rounded-lg border flex items-start gap-3 transition-all ${
+                                         enabled
+                                           ? 'border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20' 
+                                           : 'border-border bg-card hover:border-primary/20 hover:shadow-sm'
+                                       }`}
+                                     >
+                                       <Checkbox
+                                         checked={enabled}
+                                         onCheckedChange={(checked) => onToggleReminder(reminder.id, !!checked)}
+                                         className="mt-1"
+                                       />
+                                       
+                                       <div className="flex-1">
+                                         <div className="flex items-center gap-2 mb-2">
+                                           <h5 className="font-semibold text-foreground text-sm">{reminder.title}</h5>
+                                           <Badge className={`text-xs ${getDifficultyColor(reminder.difficulty)}`}>
+                                             {reminder.difficulty}
+                                           </Badge>
+                                           <Badge variant="secondary" className="text-xs">
+                                             Every {reminder.frequency_days} days
+                                           </Badge>
+                                         </div>
+                                         
+                                         <p className="text-muted-foreground text-xs mb-2">{reminder.description}</p>
+                                         
+                                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                           <span>⏱️ {reminder.estimated_time}</span>
+                                           {reminder.estimated_budget && reminder.estimated_budget !== '$0' && (
+                                             <span>💰 {reminder.estimated_budget}</span>
+                                           )}
+                                         </div>
+                                       </div>
+                                     </div>
                                   );
                                 })}
                               </div>
