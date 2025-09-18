@@ -41,7 +41,7 @@ const ReminderEditMode = ({
   familyMembers,
   supabaseOperations
 }: ReminderEditModeProps) => {
-  const { userTasks } = useReminders();
+  const { userTasks, enableReminder, deleteTask } = useReminders();
   
   const [editId, setEditId] = useState<string | null>(null);
   const [editReminder, setEditReminder] = useState<Partial<SupabaseReminder>>({
@@ -67,6 +67,30 @@ const ReminderEditMode = ({
     .filter(task => task.reminder_id) // Only tasks that come from global reminders
     .map(task => task.reminder_id!)
     .filter(Boolean);
+
+  const toggleGlobalReminder = async (reminderId: string, shouldEnable: boolean) => {
+    console.log('ReminderEditMode: Toggling global reminder', reminderId, 'shouldEnable:', shouldEnable);
+    
+    if (shouldEnable) {
+      // Find the global reminder and enable it
+      const globalReminder = globalReminders.find(r => r.id === reminderId);
+      if (globalReminder) {
+        console.log('ReminderEditMode: Enabling global reminder:', globalReminder.title);
+        await enableReminder(globalReminder);
+      } else {
+        console.error('ReminderEditMode: Global reminder not found:', reminderId);
+      }
+    } else {
+      // Find the user task that corresponds to this reminder and delete it
+      const userTask = userTasks.find(task => task.reminder_id === reminderId);
+      if (userTask) {
+        console.log('ReminderEditMode: Disabling reminder by deleting user task:', userTask.id);
+        await deleteTask(userTask.id);
+      } else {
+        console.error('ReminderEditMode: User task not found for reminder:', reminderId);
+      }
+    }
+  };
 
   const toggleReminder = async (id: string, currentEnabled: boolean) => {
     console.log('ReminderEditMode: Toggling reminder', id, 'from', currentEnabled, 'to', !currentEnabled);
@@ -134,7 +158,7 @@ const ReminderEditMode = ({
         <ExpandableCategoryTree 
           reminders={globalReminders}
           enabledReminderIds={enabledReminderIds}
-          onToggleReminder={toggleReminder}
+          onToggleReminder={toggleGlobalReminder}
         />
       )}
 
