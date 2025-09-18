@@ -52,6 +52,8 @@ const ReminderEditMode = ({
     assignees: []
   });
   const [editSelectedDate, setEditSelectedDate] = useState<Date>();
+  const [pendingChanges, setPendingChanges] = useState<Set<string>>(new Set());
+  const [pendingRemovals, setPendingRemovals] = useState<Set<string>>(new Set());
 
   // Debug logging
   useEffect(() => {
@@ -68,28 +70,65 @@ const ReminderEditMode = ({
     .map(task => task.reminder_id!)
     .filter(Boolean);
 
+  // Calculate effective enabled state including pending changes
+  const getEffectiveEnabledIds = () => {
+    const currentEnabled = new Set(enabledReminderIds);
+    // Add pending additions
+    pendingChanges.forEach(id => currentEnabled.add(id));
+    // Remove pending removals
+    pendingRemovals.forEach(id => currentEnabled.delete(id));
+    return Array.from(currentEnabled);
+  };
+
   const toggleGlobalReminder = async (reminderId: string, shouldEnable: boolean) => {
-    console.log('ReminderEditMode: Toggling global reminder', reminderId, 'shouldEnable:', shouldEnable);
+    console.log('ReminderEditMode: Queuing global reminder change', reminderId, 'shouldEnable:', shouldEnable);
     
     if (shouldEnable) {
-      // Find the global reminder and enable it
+      // Add to pending changes, remove from pending removals
+      setPendingChanges(prev => new Set([...prev, reminderId]));
+      setPendingRemovals(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(reminderId);
+        return newSet;
+      });
+    } else {
+      // Add to pending removals, remove from pending changes
+      setPendingRemovals(prev => new Set([...prev, reminderId]));
+      setPendingChanges(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(reminderId);
+        return newSet;
+      });
+    }
+  };
+
+  const applyChanges = async () => {
+    console.log('ReminderEditMode: Applying all pending changes');
+    
+    // Apply additions
+    for (const reminderId of pendingChanges) {
       const globalReminder = globalReminders.find(r => r.id === reminderId);
       if (globalReminder) {
         console.log('ReminderEditMode: Enabling global reminder:', globalReminder.title);
         await enableReminder(globalReminder);
-      } else {
-        console.error('ReminderEditMode: Global reminder not found:', reminderId);
       }
-    } else {
-      // Find the user task that corresponds to this reminder and delete it
+    }
+    
+    // Apply removals
+    for (const reminderId of pendingRemovals) {
       const userTask = userTasks.find(task => task.reminder_id === reminderId);
       if (userTask) {
         console.log('ReminderEditMode: Disabling reminder by deleting user task:', userTask.id);
         await deleteTask(userTask.id);
-      } else {
-        console.error('ReminderEditMode: User task not found for reminder:', reminderId);
       }
     }
+    
+    // Clear pending changes
+    setPendingChanges(new Set());
+    setPendingRemovals(new Set());
+    
+    // Exit edit mode
+    onExitEdit();
   };
 
   const toggleReminder = async (id: string, currentEnabled: boolean) => {
@@ -136,13 +175,22 @@ const ReminderEditMode = ({
       <div className="bg-card p-4 rounded-xl shadow-sm border">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-bold">Edit Reminders</h3>
-          <Button
-            onClick={onExitEdit}
-            variant="ghost"
-            size="sm"
-          >
-            <X className="w-6 h-6" />
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={onExitEdit}
+              variant="ghost"
+              size="sm"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={applyChanges}
+              variant="default"
+              size="sm"
+            >
+              Done
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -157,7 +205,7 @@ const ReminderEditMode = ({
       ) : (
         <ExpandableCategoryTree 
           reminders={globalReminders}
-          enabledReminderIds={enabledReminderIds}
+          enabledReminderIds={getEffectiveEnabledIds()}
           onToggleReminder={toggleGlobalReminder}
         />
       )}
