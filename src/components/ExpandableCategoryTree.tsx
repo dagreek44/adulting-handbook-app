@@ -88,7 +88,7 @@ const ExpandableCategoryTree = ({
 
   return (
     <div className="bg-card p-6 rounded-xl shadow-sm border">
-      <h3 className="text-lg font-bold mb-2">Available Reminders by Category</h3>
+      <h3 className="text-base font-bold mb-2 break-words">Available Reminders by Category</h3>
       <p className="text-muted-foreground text-sm mb-6">
         Expand categories and subcategories to view and enable specific reminders. Checked items are already enabled.
       </p>
@@ -115,14 +115,14 @@ const ExpandableCategoryTree = ({
                     ) : (
                       <ChevronRight className="w-5 h-5 mr-3" />
                     )}
-                    <div className="flex items-center justify-between w-full">
-                      <span className="font-semibold text-lg">{mainCategory}</span>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary">
-                          {enabledReminders}/{totalReminders} enabled
+                    <div className="flex items-center justify-between w-full min-w-0">
+                      <span className="font-semibold text-base truncate pr-2">{mainCategory}</span>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <Badge variant="secondary" className="text-xs">
+                          {enabledReminders}/{totalReminders}
                         </Badge>
-                        <Badge variant="outline">
-                          {Object.keys(subcategories).length} subcategories
+                        <Badge variant="outline" className="text-xs">
+                          {Object.keys(subcategories).length} sub
                         </Badge>
                       </div>
                     </div>
@@ -152,14 +152,14 @@ const ExpandableCategoryTree = ({
                                 ) : (
                                   <ChevronRight className="w-4 h-4 mr-2" />
                                 )}
-                                <div className="flex items-center justify-between w-full">
-                                  <span className="font-medium">{subcategory}</span>
-                                  <div className="flex items-center gap-2">
+                                <div className="flex items-center justify-between w-full min-w-0">
+                                  <span className="font-medium text-sm truncate pr-2">{subcategory}</span>
+                                  <div className="flex items-center gap-1 flex-shrink-0">
                                     <Badge variant="secondary" className="text-xs">
-                                      {subEnabledCount}/{remindersList.length} enabled
+                                      {subEnabledCount}/{remindersList.length}
                                     </Badge>
                                     <Badge variant="outline" className="text-xs">
-                                      {remindersList.length} tasks
+                                      {remindersList.length}
                                     </Badge>
                                   </div>
                                 </div>
@@ -186,26 +186,26 @@ const ExpandableCategoryTree = ({
                                          className="mt-1"
                                        />
                                        
-                                       <div className="flex-1">
-                                         <div className="flex items-center gap-2 mb-2">
-                                           <h5 className="font-semibold text-foreground text-sm">{reminder.title}</h5>
-                                           <Badge className={`text-xs ${getDifficultyColor(reminder.difficulty)}`}>
-                                             {reminder.difficulty}
-                                           </Badge>
-                                           <Badge variant="secondary" className="text-xs">
-                                             Every {reminder.frequency_days} days
-                                           </Badge>
-                                         </div>
-                                         
-                                         <p className="text-muted-foreground text-xs mb-2">{reminder.description}</p>
-                                         
-                                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                           <span>⏱️ {reminder.estimated_time}</span>
-                                           {reminder.estimated_budget && reminder.estimated_budget !== '$0' && (
-                                             <span>💰 {reminder.estimated_budget}</span>
-                                           )}
-                                         </div>
-                                       </div>
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex flex-wrap items-center gap-1 mb-2">
+                                            <h5 className="font-semibold text-foreground text-sm break-words">{reminder.title}</h5>
+                                            <Badge className={`text-xs flex-shrink-0 ${getDifficultyColor(reminder.difficulty)}`}>
+                                              {reminder.difficulty}
+                                            </Badge>
+                                            <Badge variant="secondary" className="text-xs flex-shrink-0">
+                                              {reminder.frequency_days}d
+                                            </Badge>
+                                          </div>
+                                          
+                                          <p className="text-muted-foreground text-xs mb-2 break-words">{reminder.description}</p>
+                                          
+                                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                            <span className="flex-shrink-0">⏱️ {reminder.estimated_time}</span>
+                                            {reminder.estimated_budget && reminder.estimated_budget !== '$0' && (
+                                              <span className="flex-shrink-0">💰 {reminder.estimated_budget}</span>
+                                            )}
+                                          </div>
+                                        </div>
                                      </div>
                                   );
                                 })}
