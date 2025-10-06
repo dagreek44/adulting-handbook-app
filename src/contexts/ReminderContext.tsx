@@ -54,6 +54,8 @@ interface CompletedTask {
   estimated_budget: string;
   completed_date: string;
   created_at: string;
+  completed_by?: string | null;
+  completed_by_name?: string;
 }
 
 interface ReminderContextType {

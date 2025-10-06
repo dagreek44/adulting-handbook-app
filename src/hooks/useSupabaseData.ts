@@ -77,13 +77,15 @@ export interface CompletedTask {
   estimated_budget: string;
   completed_date: string;
   created_at: string;
+  completed_by?: string | null;
+  completed_by_name?: string;
 }
 
 export interface FamilyMember {
   id: string;
   name: string;
   email: string;
-  role: 'Admin' | 'Member';
+  role: 'Admin' | 'Parent' | 'Child';
   adulting_progress: number;
   invited_at: string;
   created_at: string;
@@ -119,7 +121,7 @@ const convertFamilyMemberRow = (row: FamilyMemberRow): FamilyMember => ({
   id: row.id,
   name: row.name,
   email: row.email,
-  role: row.role as 'Admin' | 'Member',
+  role: row.role as 'Admin' | 'Parent' | 'Child',
   adulting_progress: row.adulting_progress || 0,
   invited_at: row.invited_at,
   created_at: row.created_at,
@@ -165,6 +167,20 @@ export const useSupabaseData = () => {
 
       if (error) throw error;
       
+      // Fetch profiles for completed_by users
+      const completedByIds = (data || [])
+        .map(task => task.completed_by)
+        .filter(Boolean);
+      
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name')
+        .in('id', completedByIds);
+      
+      const profilesMap = new Map(
+        (profilesData || []).map(p => [p.id, `${p.first_name} ${p.last_name}`])
+      );
+      
       const formattedCompletedTasks = (data || []).map(task => {
         const reminderData = task.reminders as any;
         return {
@@ -176,7 +192,9 @@ export const useSupabaseData = () => {
           estimated_time: reminderData?.estimated_time || '30 min',
           estimated_budget: reminderData?.estimated_budget || '',
           completed_date: task.completed_date || '',
-          created_at: task.created_at
+          created_at: task.created_at,
+          completed_by: task.completed_by,
+          completed_by_name: task.completed_by ? profilesMap.get(task.completed_by) : undefined
         };
       });
       
@@ -232,7 +250,7 @@ export const useSupabaseData = () => {
         id: member.id,
         name: `${member.first_name || ''} ${member.last_name || ''}`.trim() || member.username || member.email || 'Unknown',
         email: member.email,
-        role: (index === 0 ? 'Admin' : 'Member') as 'Admin' | 'Member', // First member is admin
+        role: (index === 0 ? 'Admin' : 'Parent') as 'Admin' | 'Parent' | 'Child', // First member is admin, others are parents by default
         adulting_progress: 0,
         invited_at: member.created_at,
         created_at: member.created_at,
@@ -247,7 +265,7 @@ export const useSupabaseData = () => {
           id: invitation.id,
           name: invitation.invitee_email.split('@')[0], // Use email prefix as temporary name
           email: invitation.invitee_email,
-          role: 'Member' as 'Admin' | 'Member',
+          role: 'Parent' as 'Admin' | 'Parent' | 'Child',
           adulting_progress: 0,
           invited_at: invitation.created_at,
           created_at: invitation.created_at,
@@ -608,14 +626,15 @@ export const useSupabaseData = () => {
         newDueDate = nextDate.toISOString().split('T')[0];
       }
 
-      // Update user task
+      // Update user task with completed_by
       if (userTask.frequency === 'once') {
         // Disable the task if it's a one-time task
         const { error: updateError } = await supabase
           .from('user_tasks')
           .update({ 
             enabled: false,
-            completed_date: completedDate
+            completed_date: completedDate,
+            completed_by: user?.id || null
           })
           .eq('id', userTask.id);
 
@@ -626,7 +645,8 @@ export const useSupabaseData = () => {
           .from('user_tasks')
           .update({ 
             due_date: newDueDate!,
-            completed_date: completedDate
+            completed_date: completedDate,
+            completed_by: user?.id || null
           })
           .eq('id', userTask.id);
 

@@ -200,6 +200,7 @@ export type Database = {
       }
       user_tasks: {
         Row: {
+          completed_by: string | null
           completed_date: string | null
           created_at: string
           description: string | null
@@ -224,6 +225,7 @@ export type Database = {
           video_url: string | null
         }
         Insert: {
+          completed_by?: string | null
           completed_date?: string | null
           created_at?: string
           description?: string | null
@@ -248,6 +250,7 @@ export type Database = {
           video_url?: string | null
         }
         Update: {
+          completed_by?: string | null
           completed_date?: string | null
           created_at?: string
           description?: string | null
@@ -336,6 +339,10 @@ export type Database = {
       calculate_next_due_date: {
         Args: { completed_date: string; frequency: string }
         Returns: string
+      }
+      is_family_admin: {
+        Args: { check_user_id: string }
+        Returns: boolean
       }
     }
     Enums: {

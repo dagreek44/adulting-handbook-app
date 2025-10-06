@@ -1,8 +1,9 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Plus, Users, Mail, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,7 +12,7 @@ interface FamilyMember {
   id: string;
   name: string;
   email: string;
-  role: 'Admin' | 'Member';
+  role: 'Admin' | 'Parent' | 'Child';
   status: 'active' | 'pending' | 'expired';
 }
 
@@ -24,10 +25,27 @@ interface FamilyMembersModalProps {
 
 const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }: FamilyMembersModalProps) => {
   const [showInviteForm, setShowInviteForm] = useState(false);
-  const [inviteData, setInviteData] = useState({ name: '', email: '' });
+  const [inviteData, setInviteData] = useState({ name: '', email: '', role: 'Parent' as 'Admin' | 'Parent' | 'Child' });
   const [isInviting, setIsInviting] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { toast } = useToast();
   const { user, userProfile } = useAuth();
+
+  // Check if current user is admin
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      if (!user?.id) return;
+      
+      const { data, error } = await supabase
+        .rpc('is_family_admin', { check_user_id: user.id });
+      
+      if (!error && data) {
+        setIsAdmin(data);
+      }
+    };
+    
+    checkAdminStatus();
+  }, [user]);
 
   const handleInvite = async () => {
     if (!inviteData.name.trim() || !inviteData.email.trim()) {
@@ -99,7 +117,7 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
       }
 
       // Create family invitation
-      const { error } = await supabase
+      const { error: invitationError } = await supabase
         .from('family_invitations')
         .insert({
           inviter_id: user.id,
@@ -108,9 +126,21 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
           status: 'pending'
         });
 
-      if (error) throw error;
+      if (invitationError) throw invitationError;
 
-      setInviteData({ name: '', email: '' });
+      // Also create a pending family member entry with the role
+      const { error: memberError } = await supabase
+        .from('family_members')
+        .insert({
+          name: inviteData.name,
+          email: inviteData.email,
+          role: inviteData.role,
+          profile_id: null
+        });
+
+      if (memberError) throw memberError;
+
+      setInviteData({ name: '', email: '', role: 'Parent' });
       setShowInviteForm(false);
       
       toast({
@@ -134,15 +164,35 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
   };
 
   const removeMember = async (memberId: string, memberStatus: string) => {
+    if (!isAdmin) {
+      toast({
+        title: "Permission Denied",
+        description: "Only admins can remove family members.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       if (memberStatus === 'pending' || memberStatus === 'expired') {
-        // Cancel pending invitation
-        const { error } = await supabase
-          .from('family_invitations')
-          .delete()
-          .eq('id', memberId);
+        // Cancel pending invitation and remove family member entry
+        const memberToRemove = familyMembers.find(m => m.id === memberId);
+        
+        if (memberToRemove) {
+          // Delete from family_invitations
+          await supabase
+            .from('family_invitations')
+            .delete()
+            .eq('invitee_email', memberToRemove.email);
+          
+          // Delete from family_members
+          const { error } = await supabase
+            .from('family_members')
+            .delete()
+            .eq('id', memberId);
 
-        if (error) throw error;
+          if (error) throw error;
+        }
 
         toast({
           title: "Invitation Cancelled",
@@ -150,9 +200,13 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
           duration: 3000,
         });
       } else {
-        // Remove active family member
-        const updatedMembers = familyMembers.filter(member => member.id !== memberId);
-        onUpdateMembers(updatedMembers);
+        // Remove active family member from family_members table
+        const { error } = await supabase
+          .from('family_members')
+          .delete()
+          .eq('id', memberId);
+
+        if (error) throw error;
         
         toast({
           title: "Member Removed",
@@ -160,6 +214,9 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
           duration: 3000,
         });
       }
+      
+      // Refresh the family members list
+      onClose();
     } catch (error) {
       console.error('Error removing member:', error);
       toast({
@@ -196,10 +253,11 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
                       {member.role}
                     </span>
                   </div>
-                  {member.role !== 'Admin' && (
+                  {isAdmin && member.role !== 'Admin' && (
                     <button
                       onClick={() => removeMember(member.id, member.status)}
                       className="text-red-500 hover:text-red-700"
+                      title="Remove member"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -238,7 +296,7 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
           )}
 
           {/* Invite Form */}
-          {showInviteForm ? (
+          {isAdmin && showInviteForm ? (
             <div className="bg-sage/10 p-4 rounded-lg space-y-3">
               <h3 className="font-semibold text-gray-800">Invite Family Member</h3>
               <Input
@@ -252,6 +310,19 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
                 value={inviteData.email}
                 onChange={(e) => setInviteData({ ...inviteData, email: e.target.value })}
               />
+              <Select 
+                value={inviteData.role} 
+                onValueChange={(value: 'Admin' | 'Parent' | 'Child') => setInviteData({ ...inviteData, role: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Admin">Admin</SelectItem>
+                  <SelectItem value="Parent">Parent</SelectItem>
+                  <SelectItem value="Child">Child</SelectItem>
+                </SelectContent>
+              </Select>
               <div className="flex space-x-2">
                 <button
                   onClick={handleInvite}
@@ -269,7 +340,7 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
                 </button>
               </div>
             </div>
-          ) : (
+          ) : isAdmin ? (
             <button
               onClick={() => setShowInviteForm(true)}
               className="w-full bg-sage text-white py-3 rounded-lg font-medium hover:bg-sage/90 transition-colors flex items-center justify-center"
@@ -277,7 +348,7 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
               <Plus className="w-5 h-5 mr-2" />
               Invite Family Member
             </button>
-          )}
+          ) : null}
 
           <div className="bg-blue-soft/10 p-4 rounded-lg">
             <h3 className="font-medium text-gray-800 mb-2">Family Benefits</h3>

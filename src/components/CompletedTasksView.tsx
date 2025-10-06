@@ -1,5 +1,5 @@
 
-import { CheckCircle2, Trophy, Calendar } from 'lucide-react';
+import { CheckCircle2, Trophy, Calendar, User } from 'lucide-react';
 import { format } from 'date-fns';
 import { useReminders } from '@/contexts/ReminderContext';
 
@@ -43,7 +43,7 @@ const CompletedTasksView = () => {
                 </div>
               </div>
               
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col space-y-2">
                 <div className="flex items-center space-x-3">
                   <span className="px-2 py-1 rounded-full text-xs font-medium bg-primary/20 text-primary-foreground">
                     {task.difficulty}
@@ -53,11 +53,21 @@ const CompletedTasksView = () => {
                     <span className="text-xs text-gray-500">{task.estimated_budget}</span>
                   )}
                 </div>
-                <div className="flex items-center text-gray-500">
-                  <Calendar className="w-4 h-4 mr-1" />
-                  <span className="text-xs">
-                    Completed {format(new Date(task.completed_date), 'MMM d, yyyy')}
-                  </span>
+                <div className="flex items-center justify-between text-gray-500">
+                  <div className="flex items-center">
+                    <Calendar className="w-4 h-4 mr-1" />
+                    <span className="text-xs">
+                      Completed {format(new Date(task.completed_date), 'MMM d, yyyy')}
+                    </span>
+                  </div>
+                  {task.completed_by_name && (
+                    <div className="flex items-center">
+                      <User className="w-4 h-4 mr-1" />
+                      <span className="text-xs">
+                        by {task.completed_by_name}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
