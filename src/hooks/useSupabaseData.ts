@@ -224,59 +224,66 @@ export const useSupabaseData = () => {
     try {
       console.log('fetchFamilyMembers: Fetching for family:', familyId);
       
-      // Fetch existing family members
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('id, first_name, last_name, email, username, family_id, created_at, updated_at')
-        .eq('family_id', familyId)
+      // Fetch all family members (both active and pending)
+      const { data: membersData, error: membersError } = await supabase
+        .from('family_members')
+        .select(`
+          id,
+          name,
+          email,
+          role,
+          adulting_progress,
+          invited_at,
+          created_at,
+          updated_at,
+          profile_id
+        `)
         .order('created_at', { ascending: true });
 
-      if (usersError) throw usersError;
+      if (membersError) throw membersError;
       
-      // Fetch pending invitations
-      const { data: invitationsData, error: invitationsError } = await supabase
+      // Fetch invitations to check expiry status
+      const { data: invitationsData } = await supabase
         .from('family_invitations')
-        .select('id, invitee_email, status, created_at, expires_at')
-        .eq('family_id', familyId)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: true });
-
-      if (invitationsError) throw invitationsError;
+        .select('invitee_email, status, expires_at')
+        .eq('family_id', familyId);
+      
+      const invitationsMap = new Map(
+        (invitationsData || []).map(inv => [inv.invitee_email, inv])
+      );
       
       const now = new Date();
       
-      // Convert existing users
-      const existingMembers = (usersData || []).map((member, index) => ({
-        id: member.id,
-        name: `${member.first_name || ''} ${member.last_name || ''}`.trim() || member.username || member.email || 'Unknown',
-        email: member.email,
-        role: (index === 0 ? 'Admin' : 'Parent') as 'Admin' | 'Parent' | 'Child', // First member is admin, others are parents by default
-        adulting_progress: 0,
-        invited_at: member.created_at,
-        created_at: member.created_at,
-        updated_at: member.updated_at,
-        status: 'active' as const
-      }));
-      
-      // Convert pending invitations
-      const pendingInvitations = (invitationsData || []).map(invitation => {
-        const isExpired = new Date(invitation.expires_at) < now;
+      // Convert family members to our interface
+      const allMembers = (membersData || []).map(member => {
+        const invitation = invitationsMap.get(member.email);
+        
+        // Determine status
+        let status: 'active' | 'pending' | 'expired' = 'active';
+        if (!member.profile_id) {
+          // No profile_id means they haven't signed up yet
+          if (invitation) {
+            const isExpired = new Date(invitation.expires_at) < now;
+            status = isExpired ? 'expired' : 'pending';
+          } else {
+            status = 'pending';
+          }
+        }
+        
         return {
-          id: invitation.id,
-          name: invitation.invitee_email.split('@')[0], // Use email prefix as temporary name
-          email: invitation.invitee_email,
-          role: 'Parent' as 'Admin' | 'Parent' | 'Child',
-          adulting_progress: 0,
-          invited_at: invitation.created_at,
-          created_at: invitation.created_at,
-          updated_at: invitation.created_at,
-          status: isExpired ? 'expired' as const : 'pending' as const
+          id: member.id,
+          name: member.name,
+          email: member.email,
+          role: member.role as 'Admin' | 'Parent' | 'Child',
+          adulting_progress: member.adulting_progress || 0,
+          invited_at: member.invited_at,
+          created_at: member.created_at,
+          updated_at: member.updated_at,
+          status
         };
       });
       
-      const allMembers = [...existingMembers, ...pendingInvitations];
-      
-      console.log('fetchFamilyMembers: Found', existingMembers.length, 'active members and', pendingInvitations.length, 'pending invitations');
+      console.log('fetchFamilyMembers: Found', allMembers.filter(m => m.status === 'active').length, 'active members and', allMembers.filter(m => m.status === 'pending' || m.status === 'expired').length, 'pending invitations');
       setFamilyMembers(allMembers);
       return allMembers;
     } catch (error) {
