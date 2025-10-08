@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSupabaseData } from '@/hooks/useSupabaseData';
 
 interface FamilyMember {
   id: string;
@@ -30,6 +31,7 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
   const [isAdmin, setIsAdmin] = useState(false);
   const { toast } = useToast();
   const { user, userProfile } = useAuth();
+  const { fetchFamilyMembers } = useSupabaseData();
 
   // Check if current user is admin
   useEffect(() => {
@@ -150,8 +152,9 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
         duration: 5000,
       });
 
-      // Trigger a refresh of family members data instead of reloading the page
-      onClose(); // Close modal to trigger refresh in parent component
+      // Refresh family members data to show the new pending invitation
+      await fetchFamilyMembers();
+      onClose(); // Close modal after refresh
     } catch (error) {
       console.error('Error sending invitation:', error);
       toast({
@@ -217,6 +220,7 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
       }
       
       // Refresh the family members list
+      await fetchFamilyMembers();
       onClose();
     } catch (error) {
       console.error('Error removing member:', error);

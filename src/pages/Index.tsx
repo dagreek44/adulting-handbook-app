@@ -37,7 +37,8 @@ const Index = () => {
     addReminder,
     updateReminder,
     deleteReminder,
-    toggleReminderEnabled
+    toggleReminderEnabled,
+    fetchFamilyMembers
   } = useSupabaseData();
 
   // Handle loading states and redirects after all hooks
@@ -347,7 +348,10 @@ const Index = () => {
 
         <FamilyMembersModal
           isOpen={isFamilyModalOpen}
-          onClose={() => setIsFamilyModalOpen(false)}
+          onClose={() => {
+            setIsFamilyModalOpen(false);
+            fetchFamilyMembers(); // Refresh family members when modal closes
+          }}
           familyMembers={familyMembers}
           onUpdateMembers={(updatedMembers) => {
             // Handle the updated members - the hook will refresh automatically
