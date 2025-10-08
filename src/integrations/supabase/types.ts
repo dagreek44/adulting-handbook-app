@@ -57,6 +57,7 @@ export type Database = {
           adulting_progress: number | null
           created_at: string
           email: string
+          family_id: string | null
           id: string
           invited_at: string
           name: string
@@ -68,6 +69,7 @@ export type Database = {
           adulting_progress?: number | null
           created_at?: string
           email: string
+          family_id?: string | null
           id?: string
           invited_at?: string
           name: string
@@ -79,6 +81,7 @@ export type Database = {
           adulting_progress?: number | null
           created_at?: string
           email?: string
+          family_id?: string | null
           id?: string
           invited_at?: string
           name?: string

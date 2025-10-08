@@ -224,7 +224,7 @@ export const useSupabaseData = () => {
     try {
       console.log('fetchFamilyMembers: Fetching for family:', familyId);
       
-      // Fetch all family members (both active and pending)
+      // Fetch all family members (both active and pending) for this family
       const { data: membersData, error: membersError } = await supabase
         .from('family_members')
         .select(`
@@ -236,8 +236,10 @@ export const useSupabaseData = () => {
           invited_at,
           created_at,
           updated_at,
-          profile_id
+          profile_id,
+          family_id
         `)
+        .eq('family_id', familyId)
         .order('created_at', { ascending: true });
 
       if (membersError) throw membersError;

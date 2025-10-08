@@ -135,7 +135,8 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
           name: inviteData.name,
           email: inviteData.email,
           role: inviteData.role,
-          profile_id: null
+          profile_id: null,
+          family_id: userProfile.family_id
         });
 
       if (memberError) throw memberError;
