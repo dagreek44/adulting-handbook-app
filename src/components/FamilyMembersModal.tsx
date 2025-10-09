@@ -128,7 +128,10 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
           status: 'pending'
         });
 
-      if (invitationError) throw invitationError;
+      if (invitationError) {
+        console.error('Invitation error:', invitationError);
+        throw new Error(`Failed to create invitation: ${invitationError.message || 'Unknown error'}`);
+      }
 
       // Also create a pending family member entry with the role
       const { error: memberError } = await supabase
@@ -141,7 +144,30 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
           family_id: userProfile.family_id
         });
 
-      if (memberError) throw memberError;
+      if (memberError) {
+        console.error('Family member error:', memberError);
+        throw new Error(`Failed to add family member: ${memberError.message || 'Unknown error'}`);
+      }
+
+      // Send invitation email
+      try {
+        const { error: emailError } = await supabase.functions.invoke('send-family-invitation', {
+          body: {
+            to: inviteData.email,
+            name: inviteData.name,
+            inviterName: `${userProfile.first_name} ${userProfile.last_name}`,
+            role: inviteData.role
+          }
+        });
+        
+        if (emailError) {
+          console.error('Email sending error:', emailError);
+          // Don't throw - invitation was created successfully, email is optional
+        }
+      } catch (emailError) {
+        console.error('Email sending failed:', emailError);
+        // Continue - invitation was created successfully
+      }
 
       setInviteData({ name: '', email: '', role: 'Parent' });
       setShowInviteForm(false);
@@ -155,11 +181,11 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
       // Refresh family members data to show the new pending invitation
       await fetchFamilyMembers();
       onClose(); // Close modal after refresh
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending invitation:', error);
       toast({
         title: "Error",
-        description: "Failed to send invitation. Please try again.",
+        description: error.message || "Failed to send invitation. Please try again.",
         variant: "destructive",
       });
     } finally {
