@@ -180,7 +180,6 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
 
       // Refresh family members data to show the new pending invitation
       await fetchFamilyMembers();
-      onClose(); // Close modal after refresh
     } catch (error: any) {
       console.error('Error sending invitation:', error);
       toast({

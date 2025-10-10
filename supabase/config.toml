@@ -1,1 +1,4 @@
 project_id = "dgwzmfgcuxtsrvcvahat"
+
+[functions.send-family-invitation]
+verify_jwt = false
