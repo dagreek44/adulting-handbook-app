@@ -13,7 +13,7 @@ interface FamilyMember {
   id: string;
   name: string;
   email: string;
-  role: 'Admin' | 'Parent' | 'Child';
+  role: 'Parent' | 'Child';
   status: 'active' | 'pending' | 'expired';
 }
 
@@ -26,27 +26,27 @@ interface FamilyMembersModalProps {
 
 const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }: FamilyMembersModalProps) => {
   const [showInviteForm, setShowInviteForm] = useState(false);
-  const [inviteData, setInviteData] = useState({ name: '', email: '', role: 'Parent' as 'Admin' | 'Parent' | 'Child' });
+  const [inviteData, setInviteData] = useState({ name: '', email: '', role: 'Parent' as 'Parent' | 'Child' });
   const [isInviting, setIsInviting] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isParent, setIsParent] = useState(false);
   const { toast } = useToast();
   const { user, userProfile } = useAuth();
   const { fetchFamilyMembers } = useSupabaseData();
 
-  // Check if current user is admin
+  // Check if current user is parent
   useEffect(() => {
-    const checkAdminStatus = async () => {
+    const checkParentStatus = async () => {
       if (!user?.id) return;
       
       const { data, error } = await supabase
-        .rpc('is_family_admin', { check_user_id: user.id });
+        .rpc('has_role', { _user_id: user.id, _role: 'parent' });
       
       if (!error && data) {
-        setIsAdmin(data);
+        setIsParent(data);
       }
     };
     
-    checkAdminStatus();
+    checkParentStatus();
   }, [user]);
 
   const handleInvite = async () => {
@@ -193,10 +193,10 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
   };
 
   const removeMember = async (memberId: string, memberStatus: string) => {
-    if (!isAdmin) {
+    if (!isParent) {
       toast({
         title: "Permission Denied",
-        description: "Only admins can remove family members.",
+        description: "Only parents can remove family members.",
         variant: "destructive",
       });
       return;
@@ -277,13 +277,11 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
                   <div>
                     <p className="font-medium text-gray-800">{member.name}</p>
                     <p className="text-sm text-gray-600">{member.email}</p>
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      member.role === 'Admin' ? 'bg-sage/20 text-sage' : 'bg-gray-200 text-gray-600'
-                    }`}>
+                    <span className="text-xs px-2 py-1 rounded-full bg-gray-200 text-gray-600">
                       {member.role}
                     </span>
                   </div>
-                  {isAdmin && member.role !== 'Admin' && (
+                  {isParent && (
                     <button
                       onClick={() => removeMember(member.id, member.status)}
                       className="text-red-500 hover:text-red-700"
@@ -326,7 +324,7 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
           )}
 
           {/* Invite Form */}
-          {isAdmin && showInviteForm ? (
+          {isParent && showInviteForm ? (
             <div className="bg-sage/10 p-4 rounded-lg space-y-3">
               <h3 className="font-semibold text-gray-800">Invite Family Member</h3>
               <Input
@@ -342,13 +340,12 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
               />
               <Select 
                 value={inviteData.role} 
-                onValueChange={(value: 'Admin' | 'Parent' | 'Child') => setInviteData({ ...inviteData, role: value })}
+                onValueChange={(value: 'Parent' | 'Child') => setInviteData({ ...inviteData, role: value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Admin">Admin</SelectItem>
                   <SelectItem value="Parent">Parent</SelectItem>
                   <SelectItem value="Child">Child</SelectItem>
                 </SelectContent>
@@ -370,7 +367,7 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
                 </button>
               </div>
             </div>
-          ) : isAdmin ? (
+          ) : isParent ? (
             <button
               onClick={() => setShowInviteForm(true)}
               className="w-full bg-sage text-white py-3 rounded-lg font-medium hover:bg-sage/90 transition-colors flex items-center justify-center"

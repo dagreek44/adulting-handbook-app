@@ -29,7 +29,7 @@ const handler = async (req: Request): Promise<Response> => {
     const signUpUrl = `${req.headers.get('origin') || 'https://lovableproject.com'}/auth`;
 
     const emailResponse = await resend.emails.send({
-      from: "Adulting App <matthew_luckett@hotmail.com>",
+      from: "Adulting App <welcome@adulting101.co>",
       to: [to],
       subject: `${inviterName} invited you to join their family on Adulting App!`,
       html: `

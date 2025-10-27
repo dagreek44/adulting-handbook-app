@@ -1,11 +1,31 @@
 
-import { useState } from 'react';
-import { Home, LogOut, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Home, LogOut, AlertCircle, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 const Header = () => {
   const { userProfile, signOut, createMissingUserProfile, user } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [familyMembers, setFamilyMembers] = useState<Array<{ name: string; email: string; role: string }>>([]);
+
+  useEffect(() => {
+    const fetchFamilyMembers = async () => {
+      if (!userProfile?.family_id || !user?.email) return;
+      
+      const { data } = await supabase
+        .from('family_members')
+        .select('name, email, role')
+        .eq('family_id', userProfile.family_id)
+        .neq('email', user.email);
+      
+      if (data) {
+        setFamilyMembers(data);
+      }
+    };
+    
+    fetchFamilyMembers();
+  }, [userProfile, user]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -70,6 +90,24 @@ const Header = () => {
                       </p>
                       <p className="text-xs text-gray-500">@{userProfile.username}</p>
                     </div>
+                    
+                    {familyMembers.length > 0 && (
+                      <>
+                        <div className="px-4 py-2 border-b border-gray-100">
+                          <div className="flex items-center text-xs font-medium text-gray-500 mb-2">
+                            <Users className="w-3 h-3 mr-1" />
+                            Family Members
+                          </div>
+                          {familyMembers.map((member, index) => (
+                            <div key={index} className="py-1">
+                              <p className="text-sm text-gray-700">{member.name}</p>
+                              <p className="text-xs text-gray-500">{member.role}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                    
                     <button
                       onClick={handleSignOut}
                       className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50"

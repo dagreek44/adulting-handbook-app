@@ -85,7 +85,7 @@ export interface FamilyMember {
   id: string;
   name: string;
   email: string;
-  role: 'Admin' | 'Parent' | 'Child';
+  role: 'Parent' | 'Child';
   adulting_progress: number;
   invited_at: string;
   created_at: string;
@@ -121,7 +121,7 @@ const convertFamilyMemberRow = (row: FamilyMemberRow): FamilyMember => ({
   id: row.id,
   name: row.name,
   email: row.email,
-  role: row.role as 'Admin' | 'Parent' | 'Child',
+  role: row.role as 'Parent' | 'Child',
   adulting_progress: row.adulting_progress || 0,
   invited_at: row.invited_at,
   created_at: row.created_at,
@@ -276,7 +276,7 @@ export const useSupabaseData = () => {
           id: member.id,
           name: member.name,
           email: member.email,
-          role: member.role as 'Admin' | 'Parent' | 'Child',
+          role: member.role as 'Parent' | 'Child',
           adulting_progress: member.adulting_progress || 0,
           invited_at: member.invited_at,
           created_at: member.created_at,

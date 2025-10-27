@@ -371,13 +371,9 @@ export type Database = {
         }
         Returns: boolean
       }
-      is_family_admin: {
-        Args: { check_user_id: string }
-        Returns: boolean
-      }
     }
     Enums: {
-      app_role: "admin" | "parent" | "child"
+      app_role: "parent" | "child"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -505,7 +501,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "parent", "child"],
+      app_role: ["parent", "child"],
     },
   },
 } as const
