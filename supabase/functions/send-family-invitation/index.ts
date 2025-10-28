@@ -26,7 +26,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Sending family invitation to ${to} from ${inviterName}`);
 
-    const signUpUrl = `${req.headers.get('origin') || 'https://lovableproject.com'}/auth`;
+    const signUpUrl = `${req.headers.get('origin') || 'https://lovableproject.com'}/auth?email=${encodeURIComponent(to)}&signup=true`;
 
     const emailResponse = await resend.emails.send({
       from: "Adulting App <welcome@adulting101.co>",

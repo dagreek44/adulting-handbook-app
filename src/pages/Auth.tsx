@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, User, Mail, Lock, UserPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
@@ -8,10 +8,14 @@ import { Button } from '@/components/ui/button';
 
 const Auth = () => {
   const { user, signUp, signIn, loading } = useAuth();
-  const [isLogin, setIsLogin] = useState(true);
+  const [searchParams] = useSearchParams();
+  const emailFromUrl = searchParams.get('email');
+  const signupFromUrl = searchParams.get('signup') === 'true';
+  
+  const [isLogin, setIsLogin] = useState(!signupFromUrl);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
-    email: '',
+    email: emailFromUrl || '',
     password: '',
     firstName: '',
     lastName: '',
@@ -143,6 +147,7 @@ const Auth = () => {
               onChange={handleInputChange}
               className="pl-10"
               required
+              readOnly={!!emailFromUrl}
             />
           </div>
 
