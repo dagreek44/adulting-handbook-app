@@ -383,7 +383,7 @@ export const useSupabaseData = () => {
     }
     
     try {
-      console.log('fetchUserTasks: Fetching enabled tasks for user:', user.id);
+      console.log('fetchUserTasks: Fetching all family tasks');
       const { data, error } = await supabase
         .from('user_tasks')
         .select(`
@@ -402,9 +402,13 @@ export const useSupabaseData = () => {
             is_custom,
             updated_at,
             frequency
+          ),
+          assignee:users!user_tasks_user_id_fkey(
+            id,
+            first_name,
+            last_name
           )
         `)
-        .eq('user_id', user.id)
         .eq('enabled', true)
         .order('due_date', { ascending: true });
 
@@ -416,18 +420,15 @@ export const useSupabaseData = () => {
       
       const enrichedTasks = (data || []).map(task => {
         const reminderData = task.reminders as any;
+        const assigneeData = task.assignee as any;
         const isPastDue = new Date(task.due_date) < today;
         
-        let assignedToNames: string[] = [];
-        if (reminderData?.assignees && reminderData.assignees.length > 0) {
-          assignedToNames = reminderData.assignees
-            .map((assigneeId: string) => members.find(m => m.id === assigneeId)?.name)
-            .filter(Boolean) as string[];
-        }
+        // Get assignee name from the task's user_id (who it's assigned to)
+        const assigneeName = assigneeData 
+          ? `${assigneeData.first_name} ${assigneeData.last_name}`.trim() 
+          : 'Unassigned';
         
-        if (assignedToNames.length === 0) {
-          assignedToNames = ['Family'];
-        }
+        const assignedToNames = [assigneeName];
 
         // Calculate frequency_days from frequency string
         const getFrequencyDays = (frequency: string) => {

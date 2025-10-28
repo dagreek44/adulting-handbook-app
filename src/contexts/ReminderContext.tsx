@@ -56,6 +56,7 @@ interface CompletedTask {
   created_at: string;
   completed_by?: string | null;
   completed_by_name?: string;
+  assignee_name?: string;
 }
 
 interface ReminderContextType {

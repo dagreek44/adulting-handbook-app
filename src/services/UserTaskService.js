@@ -2,9 +2,10 @@ import { supabase } from '../integrations/supabase/client';
 import { ReminderService } from './ReminderService';
 
 export class UserTaskService {
-  // Get all tasks for a specific user
+  // Get all family tasks (not just for specific user)
   static async getUserTasks(userId) {
     try {
+      // Fetch all family tasks with assignee information
       const { data, error } = await supabase
         .from('user_tasks')
         .select(`
@@ -19,9 +20,13 @@ export class UserTaskService {
             instructions,
             tools,
             supplies
+          ),
+          assignee:users!user_tasks_user_id_fkey(
+            id,
+            first_name,
+            last_name
           )
         `)
-        .eq('user_id', userId)
         .eq('enabled', true)
         .order('due_date', { ascending: true });
 
@@ -35,6 +40,10 @@ export class UserTaskService {
         
         // Use data from global reminder if it exists, otherwise use task data
         const reminderData = row.reminder?.[0];
+        const assigneeData = row.assignee;
+        const assigneeName = assigneeData 
+          ? `${assigneeData.first_name} ${assigneeData.last_name}`.trim() 
+          : 'Unassigned';
         
         return {
           ...row,
@@ -49,8 +58,8 @@ export class UserTaskService {
           tools: reminderData?.tools || row.tools || [],
           supplies: reminderData?.supplies || row.supplies || [],
           isPastDue,
-          assignees: ['Family'],
-          assignedToNames: ['Family'],
+          assignees: [assigneeName],
+          assignedToNames: [assigneeName],
           isGlobalReminder: !!row.reminder_id // Mark as global reminder if it has a reminder_id
         };
       });
@@ -62,29 +71,43 @@ export class UserTaskService {
     }
   }
 
-  // Get completed tasks for a specific user
+  // Get completed tasks for the family
   static async getCompletedTasks(userId) {
     try {
       const { data, error } = await supabase
         .from('user_tasks')
-        .select('*')
-        .eq('user_id', userId)
+        .select(`
+          *,
+          assignee:users!user_tasks_user_id_fkey(
+            id,
+            first_name,
+            last_name
+          )
+        `)
         .not('last_completed', 'is', null)
         .order('last_completed', { ascending: false })
         .limit(20);
 
       if (error) throw error;
       
-      const results = (data || []).map(row => ({
-        id: row.id,
-        title: row.title,
-        description: row.description || '',
-        difficulty: row.difficulty || 'Easy',
-        estimated_time: row.estimated_time || '30 min',
-        estimated_budget: row.estimated_budget || '',
-        completed_date: row.last_completed,
-        created_at: row.created_at
-      }));
+      const results = (data || []).map(row => {
+        const assigneeData = row.assignee;
+        const assigneeName = assigneeData 
+          ? `${assigneeData.first_name} ${assigneeData.last_name}`.trim() 
+          : 'Unassigned';
+        
+        return {
+          id: row.id,
+          title: row.title,
+          description: row.description || '',
+          difficulty: row.difficulty || 'Easy',
+          estimated_time: row.estimated_time || '30 min',
+          estimated_budget: row.estimated_budget || '',
+          completed_date: row.last_completed,
+          created_at: row.created_at,
+          assignee_name: assigneeName
+        };
+      });
       
       return results;
     } catch (error) {
