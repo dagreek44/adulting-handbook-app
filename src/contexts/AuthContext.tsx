@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { AuthContextType, UserProfile, SignUpData } from '@/types/auth';
 import { createUserProfile, fetchUserProfile } from '@/services/userProfileService';
 import { signUpUser, signInUser, signOutUser } from '@/services/authService';
+import { acceptPendingInvitations } from '@/services/familyInvitationService';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -51,6 +52,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await createMissingUserProfile(authUser);
         // Don't retry to avoid infinite loops
       }
+    }
+
+    // Check for and accept pending family invitations
+    if (authUser?.email) {
+      setTimeout(async () => {
+        const accepted = await acceptPendingInvitations(userId, authUser.email!);
+        if (accepted) {
+          // Re-fetch profile to get updated family_id
+          const updatedProfile = await fetchUserProfile(userId, 0);
+          if (updatedProfile) {
+            setUserProfile(updatedProfile);
+          }
+        }
+      }, 0);
     }
   };
 
