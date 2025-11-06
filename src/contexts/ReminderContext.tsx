@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext } from "react";
 import { ReminderService } from "../services/ReminderService";
 import { UserTaskService } from "../services/UserTaskService";
+import { NotificationService } from "../services/NotificationService";
 import { useAuth } from "./AuthContext";
 
 export interface UserTask {
@@ -70,6 +71,7 @@ interface ReminderContextType {
   deleteTask: (taskId: string) => Promise<void>;
   refreshTasks: () => Promise<void>;
   markTaskCompleted: (taskId: string) => Promise<void>;
+  postponeTask: (taskId: string, newDate: Date) => Promise<void>;
 }
 
 export const ReminderContext = createContext<ReminderContextType | undefined>(undefined);
@@ -175,7 +177,22 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (!user?.id) return;
     
     try {
-      await UserTaskService.addUserTask(user.id, taskData);
+      const newTaskId = await UserTaskService.addUserTask(user.id, taskData);
+      
+      // Schedule notification if task is for another user and has a due date
+      if (taskData.user_id && taskData.user_id !== user.id && taskData.due_date) {
+        // Get assignee info to send notification
+        const assigneeName = taskData.assignedToNames?.[0] || 'You';
+        const creatorName = user.email?.split('@')[0] || 'A family member';
+        
+        NotificationService.notifyReminderCreated(
+          creatorName,
+          assigneeName,
+          taskData.title || 'New reminder',
+          newTaskId
+        );
+      }
+      
       await refreshTasks();
     } catch (error) {
       console.error("Failed to add custom task:", error);
@@ -206,12 +223,59 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const markTaskCompleted = async (taskId: string) => {
     try {
       await UserTaskService.completeTask(taskId);
+      // Cancel the notification for this task
+      await NotificationService.cancelNotification(taskId);
       await refreshTasks();
     } catch (error) {
       console.error("Failed to mark task as completed:", error);
       throw error;
     }
   };
+
+  const postponeTask = async (taskId: string, newDate: Date) => {
+    try {
+      const newDateString = newDate.toISOString().split('T')[0];
+      await UserTaskService.updateUserTask(taskId, { due_date: newDateString });
+      
+      // Reschedule notification if task is due today
+      const task = userTasks.find(t => t.id === taskId);
+      if (task) {
+        await NotificationService.scheduleReminderNotification(
+          taskId,
+          task.title,
+          task.description,
+          newDate
+        );
+      }
+      
+      await refreshTasks();
+    } catch (error) {
+      console.error("Failed to postpone task:", error);
+      throw error;
+    }
+  };
+
+  // Schedule notifications for tasks due today
+  useEffect(() => {
+    const scheduleTodayNotifications = async () => {
+      const today = new Date().toISOString().split('T')[0];
+      
+      for (const task of userTasks) {
+        if (task.due_date === today && task.status !== 'completed') {
+          await NotificationService.scheduleReminderNotification(
+            task.id,
+            task.title,
+            task.description,
+            new Date(task.due_date)
+          );
+        }
+      }
+    };
+
+    if (userTasks.length > 0) {
+      scheduleTodayNotifications();
+    }
+  }, [userTasks]);
 
   return (
     <ReminderContext.Provider
@@ -226,6 +290,7 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         deleteTask,
         refreshTasks,
         markTaskCompleted,
+        postponeTask,
       }}
     >
       {children}

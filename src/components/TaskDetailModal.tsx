@@ -1,7 +1,7 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Clock, DollarSign, Calendar, Play, CheckCircle2, X, ExternalLink } from 'lucide-react';
+import { Clock, DollarSign, Calendar, Play, CheckCircle2, ExternalLink } from 'lucide-react';
 
 interface Task {
   id: string;
@@ -47,15 +47,9 @@ const TaskDetailModal = ({ isOpen, onClose, task, onComplete }: TaskDetailModalP
       <DialogContent className="max-w-md mx-auto max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center justify-between">
-            <DialogTitle className="text-xl font-bold text-gray-800 pr-8">
+            <DialogTitle className="text-xl font-bold text-gray-800">
               {task.title}
             </DialogTitle>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
           </div>
         </DialogHeader>
 

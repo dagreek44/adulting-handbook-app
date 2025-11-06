@@ -390,15 +390,18 @@ export const useSupabaseData = () => {
     try {
       console.log('fetchUserTasks: Fetching tasks for family:', userProfile.family_id);
       
-      // Step 1: Get all user IDs in the family
-      const { data: familyUsers, error: familyError } = await supabase
-        .from('users')
-        .select('id')
+      // Step 1: Get all user IDs in the family using family_members table
+      // (users table RLS only allows viewing own data, but family_members allows viewing all family)
+      const { data: familyMembers, error: familyError } = await supabase
+        .from('family_members')
+        .select('profile_id')
         .eq('family_id', userProfile.family_id);
       
       if (familyError) throw familyError;
       
-      const familyUserIds = (familyUsers || []).map(u => u.id);
+      const familyUserIds = (familyMembers || [])
+        .map(m => m.profile_id)
+        .filter(Boolean); // Remove any null profile_ids
       
       if (familyUserIds.length === 0) {
         console.log('fetchUserTasks: No family members found');

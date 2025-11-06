@@ -1,7 +1,9 @@
 
 import { useState } from 'react';
-import { Wrench, Clock, CheckCircle2, ChevronRight, DollarSign, AlertTriangle, Users } from 'lucide-react';
+import { Clock, CheckCircle2, ChevronRight, DollarSign, AlertTriangle, Users, CalendarClock } from 'lucide-react';
 import { format } from 'date-fns';
+import PostponeReminderDialog from './PostponeReminderDialog';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface TaskCardProps {
   title: string;
@@ -15,7 +17,9 @@ interface TaskCardProps {
   isCompleted?: boolean;
   lastCompleted?: string | null;
   nextDue?: string;
+  taskId?: string;
   onComplete: () => void;
+  onPostpone?: (newDate: Date) => Promise<void>;
   onClick?: () => void;
 }
 
@@ -31,10 +35,17 @@ const TaskCard = ({
   isCompleted = false,
   lastCompleted,
   nextDue,
+  taskId,
   onComplete,
+  onPostpone,
   onClick 
 }: TaskCardProps) => {
   const [completed, setCompleted] = useState(isCompleted);
+  const [showPostponeDialog, setShowPostponeDialog] = useState(false);
+  const { userProfile } = useAuth();
+  
+  // Check if user is a parent (can postpone)
+  const isParent = userProfile?.family_id; // Simplified check, you may need to check role
 
   const handleComplete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -45,6 +56,18 @@ const TaskCard = ({
   const handleCardClick = () => {
     if (onClick && !completed) {
       onClick();
+    }
+  };
+
+  const handlePostpone = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowPostponeDialog(true);
+  };
+
+  const handlePostponeSubmit = async (newDate: Date) => {
+    if (onPostpone) {
+      await onPostpone(newDate);
+      setShowPostponeDialog(false);
     }
   };
 
@@ -71,14 +94,15 @@ const TaskCard = ({
   const displayDueDate = nextDue || dueDate;
 
   return (
-    <div 
-      className={`bg-white p-4 rounded-xl shadow-md border-l-4 transition-all duration-300 ${getBorderColor()} ${
-        completed 
-          ? 'opacity-80' 
-          : 'hover:shadow-lg cursor-pointer'
-      }`}
-      onClick={handleCardClick}
-    >
+    <>
+      <div 
+        className={`bg-white p-4 rounded-xl shadow-md border-l-4 transition-all duration-300 ${getBorderColor()} ${
+          completed 
+            ? 'opacity-80' 
+            : 'hover:shadow-lg cursor-pointer'
+        }`}
+        onClick={handleCardClick}
+      >
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
@@ -110,6 +134,15 @@ const TaskCard = ({
         <div className="flex items-center ml-3 space-x-2">
           {!completed && onClick && (
             <ChevronRight className="w-5 h-5 text-gray-400" />
+          )}
+          {!completed && isParent && onPostpone && (
+            <button
+              onClick={handlePostpone}
+              className="text-gray-400 hover:text-blue-500 hover:scale-110 transition-all duration-200"
+              title="Postpone reminder"
+            >
+              <CalendarClock className="w-5 h-5" />
+            </button>
           )}
           <button
             onClick={handleComplete}
@@ -147,7 +180,18 @@ const TaskCard = ({
           </span>
         </div>
       </div>
-    </div>
+      </div>
+      
+      {showPostponeDialog && onPostpone && (
+        <PostponeReminderDialog
+          isOpen={showPostponeDialog}
+          onClose={() => setShowPostponeDialog(false)}
+          onPostpone={handlePostponeSubmit}
+          reminderTitle={title}
+          currentDueDate={displayDueDate}
+        />
+      )}
+    </>
   );
 };
 

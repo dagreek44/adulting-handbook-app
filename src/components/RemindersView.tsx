@@ -70,7 +70,7 @@ const RemindersView = ({
   supabaseOperations
 }: RemindersViewProps) => {
   // Use the new reminder context
-  const { userTasks, globalReminders, loading, markTaskCompleted, enableReminder, addCustomTask } = useReminders();
+  const { userTasks, globalReminders, loading, markTaskCompleted, enableReminder, addCustomTask, postponeTask } = useReminders();
 
   // Filter to show only pending tasks (not completed ones)
   const pendingTasks = userTasks.filter(task => task.status !== 'completed');
@@ -189,6 +189,10 @@ const RemindersView = ({
     }
   };
 
+  const handlePostponeTask = async (taskId: string, newDate: Date) => {
+    await postponeTask(taskId, newDate);
+  };
+
   const handleCalendarTaskClick = (task: any) => {
     // For calendar tasks, try to find matching task in upcomingTasks
     if ('id' in task) {
@@ -233,6 +237,7 @@ const RemindersView = ({
             upcomingTasks={convertedUpcomingTasks}
             onTaskClick={handleReminderListTaskClick}
             onTaskComplete={handleReminderListTaskComplete}
+            onPostpone={handlePostponeTask}
           />
         ) : (
           <ReminderCalendarView

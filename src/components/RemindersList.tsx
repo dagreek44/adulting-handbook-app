@@ -20,12 +20,14 @@ interface RemindersListProps {
   upcomingTasks: UserTaskForList[];
   onTaskClick: (reminder: UserTaskForList) => void;
   onTaskComplete: (reminder: UserTaskForList) => Promise<void>;
+  onPostpone?: (taskId: string, newDate: Date) => Promise<void>;
 }
 
 const RemindersList = ({ 
   upcomingTasks, 
   onTaskClick, 
-  onTaskComplete 
+  onTaskComplete,
+  onPostpone 
 }: RemindersListProps) => {
   return (
     <div className="bg-white p-4 rounded-xl shadow-md">
@@ -34,6 +36,7 @@ const RemindersList = ({
         {upcomingTasks.map((reminder) => (
           <TaskCard
             key={reminder.id}
+            taskId={reminder.id}
             title={reminder.title}
             description={reminder.description}
             estimatedTime={reminder.estimated_time}
@@ -46,6 +49,7 @@ const RemindersList = ({
             lastCompleted={reminder.last_completed}
             nextDue={reminder.next_due}
             onComplete={() => onTaskComplete(reminder)}
+            onPostpone={onPostpone ? (newDate) => onPostpone(reminder.id, newDate) : undefined}
             onClick={() => onTaskClick(reminder)}
           />
         ))}
