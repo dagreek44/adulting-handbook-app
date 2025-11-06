@@ -5,7 +5,37 @@ export class UserTaskService {
   // Get all family tasks (not just for specific user)
   static async getUserTasks(userId) {
     try {
-      // Fetch all family tasks with assignee information
+      // Step 1: Get the user's family_id
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('family_id')
+        .eq('id', userId)
+        .single();
+      
+      if (userError) throw userError;
+      if (!userData?.family_id) {
+        console.log('getUserTasks: No family_id found for user');
+        return [];
+      }
+      
+      // Step 2: Get all user IDs in the same family
+      const { data: familyUsers, error: familyError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('family_id', userData.family_id);
+      
+      if (familyError) throw familyError;
+      
+      const familyUserIds = (familyUsers || []).map(u => u.id);
+      
+      if (familyUserIds.length === 0) {
+        console.log('getUserTasks: No family members found');
+        return [];
+      }
+      
+      console.log('getUserTasks: Fetching tasks for', familyUserIds.length, 'family members');
+      
+      // Step 3: Fetch tasks for ALL family members
       const { data, error } = await supabase
         .from('user_tasks')
         .select(`
@@ -27,6 +57,7 @@ export class UserTaskService {
             last_name
           )
         `)
+        .in('user_id', familyUserIds)
         .eq('enabled', true)
         .order('due_date', { ascending: true });
 

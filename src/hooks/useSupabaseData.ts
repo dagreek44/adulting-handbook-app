@@ -382,8 +382,33 @@ export const useSupabaseData = () => {
       return [];
     }
     
+    if (!userProfile?.family_id) {
+      console.log('fetchUserTasks: No family_id available');
+      return [];
+    }
+    
     try {
-      console.log('fetchUserTasks: Fetching all family tasks');
+      console.log('fetchUserTasks: Fetching tasks for family:', userProfile.family_id);
+      
+      // Step 1: Get all user IDs in the family
+      const { data: familyUsers, error: familyError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('family_id', userProfile.family_id);
+      
+      if (familyError) throw familyError;
+      
+      const familyUserIds = (familyUsers || []).map(u => u.id);
+      
+      if (familyUserIds.length === 0) {
+        console.log('fetchUserTasks: No family members found');
+        setEnabledUserTasks([]);
+        return [];
+      }
+      
+      console.log('fetchUserTasks: Fetching tasks for', familyUserIds.length, 'family members');
+      
+      // Step 2: Fetch tasks for ALL family members
       const { data, error } = await supabase
         .from('user_tasks')
         .select(`
@@ -409,6 +434,7 @@ export const useSupabaseData = () => {
             last_name
           )
         `)
+        .in('user_id', familyUserIds)
         .eq('enabled', true)
         .order('due_date', { ascending: true });
 
