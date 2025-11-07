@@ -61,6 +61,7 @@ export interface UserTask {
   updated_at: string;
   isPastDue?: boolean;
   assignedToNames?: string[];
+  assigneeUsername?: string;
   // Add missing properties for completion tracking
   last_completed: string | null;
   next_due: string;
@@ -390,28 +391,6 @@ export const useSupabaseData = () => {
     try {
       console.log('fetchUserTasks: Fetching tasks for family:', userProfile.family_id);
       
-      // Step 1: Get all user IDs in the family using family_members table
-      // (users table RLS only allows viewing own data, but family_members allows viewing all family)
-      const { data: familyMembers, error: familyError } = await supabase
-        .from('family_members')
-        .select('profile_id')
-        .eq('family_id', userProfile.family_id);
-      
-      if (familyError) throw familyError;
-      
-      const familyUserIds = (familyMembers || [])
-        .map(m => m.profile_id)
-        .filter(Boolean); // Remove any null profile_ids
-      
-      if (familyUserIds.length === 0) {
-        console.log('fetchUserTasks: No family members found');
-        setEnabledUserTasks([]);
-        return [];
-      }
-      
-      console.log('fetchUserTasks: Fetching tasks for', familyUserIds.length, 'family members');
-      
-      // Step 2: Fetch tasks for ALL family members
       const { data, error } = await supabase
         .from('user_tasks')
         .select(`
@@ -434,10 +413,11 @@ export const useSupabaseData = () => {
           assignee:users!user_tasks_user_id_fkey(
             id,
             first_name,
-            last_name
+            last_name,
+            username
           )
         `)
-        .in('user_id', familyUserIds)
+        .eq('family_id', userProfile.family_id)
         .eq('enabled', true)
         .order('due_date', { ascending: true });
 
@@ -456,6 +436,7 @@ export const useSupabaseData = () => {
         const assigneeName = assigneeData 
           ? `${assigneeData.first_name} ${assigneeData.last_name}`.trim() 
           : 'Unassigned';
+        const assigneeUsername = assigneeData?.username || 'Unassigned';
         
         const assignedToNames = [assigneeName];
 
@@ -493,8 +474,8 @@ export const useSupabaseData = () => {
           frequency_days: getFrequencyDays(task.frequency),
           reminder_type: task.reminder_type,
           created_at: task.created_at,
-          title: reminderData?.title || 'Unknown Task',
-          description: reminderData?.description || '',
+          title: reminderData?.title || task.title || 'Unknown Task',
+          description: reminderData?.description || task.description || '',
           difficulty: reminderData?.difficulty || 'Easy',
           estimated_time: reminderData?.estimated_time || '30 min',
           estimated_budget: reminderData?.estimated_budget || '',
@@ -507,6 +488,7 @@ export const useSupabaseData = () => {
           updated_at: reminderData?.updated_at || task.created_at,
           isPastDue,
           assignedToNames,
+          assigneeUsername,
           last_completed: task.completed_date,
           next_due: calculateNextDue(),
           status: task.completed_date ? 'completed' : 'pending'
@@ -589,8 +571,10 @@ export const useSupabaseData = () => {
               due_date: dueDate,
               frequency: reminderData.frequency,
               reminder_type: reminderData.is_custom ? 'custom' : 'global',
-              enabled: true
-            });
+              enabled: true,
+              title: reminderData.title,
+              description: reminderData.description || ''
+            } as any);
 
           if (insertError) {
             console.error('toggleReminderEnabled: Error creating new task:', insertError);
@@ -779,8 +763,10 @@ export const useSupabaseData = () => {
             user_id: user?.id,
             due_date: newReminder.due_date || new Date().toISOString().split('T')[0],
             frequency: newReminder.frequency,
-            reminder_type: newReminder.is_custom ? 'custom' : 'global'
-          });
+            reminder_type: newReminder.is_custom ? 'custom' : 'global',
+            title: newReminder.title,
+            description: newReminder.description || ''
+          } as any);
 
         if (taskError) throw taskError;
       }

@@ -18,27 +18,9 @@ export class UserTaskService {
         return [];
       }
       
-      // Step 2: Get all user IDs in the same family using family_members table
-      // (users table RLS only allows viewing own data, but family_members allows viewing all family)
-      const { data: familyMembers, error: familyError } = await supabase
-        .from('family_members')
-        .select('profile_id')
-        .eq('family_id', userData.family_id);
+      console.log('getUserTasks: Fetching tasks for family:', userData.family_id);
       
-      if (familyError) throw familyError;
-      
-      const familyUserIds = (familyMembers || [])
-        .map(m => m.profile_id)
-        .filter(Boolean); // Remove any null profile_ids
-      
-      if (familyUserIds.length === 0) {
-        console.log('getUserTasks: No family members found');
-        return [];
-      }
-      
-      console.log('getUserTasks: Fetching tasks for', familyUserIds.length, 'family members');
-      
-      // Step 3: Fetch tasks for ALL family members
+      // Fetch tasks for the entire family using family_id
       const { data, error } = await supabase
         .from('user_tasks')
         .select(`
@@ -57,10 +39,11 @@ export class UserTaskService {
           assignee:users!user_tasks_user_id_fkey(
             id,
             first_name,
-            last_name
+            last_name,
+            username
           )
         `)
-        .in('user_id', familyUserIds)
+        .eq('family_id', userData.family_id)
         .eq('enabled', true)
         .order('due_date', { ascending: true });
 
@@ -78,6 +61,7 @@ export class UserTaskService {
         const assigneeName = assigneeData 
           ? `${assigneeData.first_name} ${assigneeData.last_name}`.trim() 
           : 'Unassigned';
+        const assigneeUsername = assigneeData?.username || 'Unassigned';
         
         return {
           ...row,
@@ -94,6 +78,7 @@ export class UserTaskService {
           isPastDue,
           assignees: [assigneeName],
           assignedToNames: [assigneeName],
+          assigneeUsername,
           isGlobalReminder: !!row.reminder_id // Mark as global reminder if it has a reminder_id
         };
       });
@@ -334,7 +319,7 @@ export class UserTaskService {
   // Mark a task as completed
   static async completeTask(taskId) {
     try {
-      // Get current task details
+      // Get current task details and current user info
       const { data: task, error: getError } = await supabase
         .from('user_tasks')
         .select('*')
@@ -344,11 +329,21 @@ export class UserTaskService {
       if (getError) throw getError;
       if (!task) throw new Error('Task not found');
       
+      // Get current user's username
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: userData } = await supabase
+        .from('users')
+        .select('username')
+        .eq('id', user?.id)
+        .single();
+      
       const today = new Date().toISOString().split('T')[0];
       
       // Handle completion based on frequency
       const updateData = {
         last_completed: today,
+        completed_date: today,
+        completed_by: userData?.username || user?.id,
         status: 'completed'
       };
       

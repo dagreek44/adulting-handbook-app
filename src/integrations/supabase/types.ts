@@ -233,6 +233,7 @@ export type Database = {
           enabled: boolean
           estimated_budget: string | null
           estimated_time: string | null
+          family_id: string
           frequency: string
           frequency_days: number | null
           id: string
@@ -258,6 +259,7 @@ export type Database = {
           enabled?: boolean
           estimated_budget?: string | null
           estimated_time?: string | null
+          family_id: string
           frequency: string
           frequency_days?: number | null
           id?: string
@@ -283,6 +285,7 @@ export type Database = {
           enabled?: boolean
           estimated_budget?: string | null
           estimated_time?: string | null
+          family_id?: string
           frequency?: string
           frequency_days?: number | null
           id?: string
