@@ -111,6 +111,47 @@ export class NotificationService {
   }
 
   /**
+   * Send notification when a task is completed
+   */
+  static async notifyTaskCompleted(
+    completedByName: string,
+    taskTitle: string,
+    taskId: string
+  ): Promise<void> {
+    if (!this.isNative) {
+      console.log('NotificationService: Not on native platform, skipping notification');
+      return;
+    }
+
+    try {
+      const hasPermission = await this.requestPermissions();
+      if (!hasPermission) {
+        console.log('NotificationService: No notification permission');
+        return;
+      }
+
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            id: Math.floor(Math.random() * 100000),
+            title: 'Task Completed',
+            body: `${completedByName} completed: ${taskTitle}`,
+            schedule: { at: new Date(Date.now() + 1000) }, // Show in 1 second
+            extra: {
+              taskId,
+              action: 'openReminder'
+            }
+          }
+        ]
+      });
+
+      console.log('NotificationService: Sent task completion notification for', taskTitle);
+    } catch (error) {
+      console.error('NotificationService: Failed to send completion notification:', error);
+    }
+  }
+
+  /**
    * Cancel a scheduled notification
    */
   static async cancelNotification(taskId: string): Promise<void> {

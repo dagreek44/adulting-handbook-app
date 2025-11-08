@@ -1,7 +1,13 @@
-
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Clock, DollarSign, Calendar, Play, CheckCircle2, ExternalLink } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Clock, DollarSign, Calendar, Play, CheckCircle2, ExternalLink, Users, CalendarDays } from 'lucide-react';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 interface Task {
   id: string;
@@ -16,6 +22,15 @@ interface Task {
   tools?: any[];
   supplies?: any[];
   isGlobalReminder?: boolean;
+  user_id?: string;
+}
+
+interface FamilyMember {
+  id: string;
+  profile_id?: string;
+  name: string;
+  email: string;
+  role: string;
 }
 
 interface TaskDetailModalProps {
@@ -23,10 +38,48 @@ interface TaskDetailModalProps {
   onClose: () => void;
   task: Task | null;
   onComplete: () => void;
+  familyMembers?: FamilyMember[];
+  onReassign?: (taskId: string, newUserId: string) => Promise<void>;
+  onUpdateDueDate?: (taskId: string, newDate: Date) => Promise<void>;
 }
 
-const TaskDetailModal = ({ isOpen, onClose, task, onComplete }: TaskDetailModalProps) => {
+const TaskDetailModal = ({ isOpen, onClose, task, onComplete, familyMembers = [], onReassign, onUpdateDueDate }: TaskDetailModalProps) => {
+  const [selectedAssignee, setSelectedAssignee] = useState(task?.user_id || '');
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+    task?.dueDate ? new Date(task.dueDate) : undefined
+  );
+  const [isReassigning, setIsReassigning] = useState(false);
+  const [isUpdatingDate, setIsUpdatingDate] = useState(false);
+
   if (!task) return null;
+
+  const handleReassign = async () => {
+    if (!onReassign || !selectedAssignee || selectedAssignee === task.user_id) return;
+    
+    setIsReassigning(true);
+    try {
+      await onReassign(task.id, selectedAssignee);
+      onClose();
+    } catch (error) {
+      console.error('Failed to reassign task:', error);
+    } finally {
+      setIsReassigning(false);
+    }
+  };
+
+  const handleUpdateDueDate = async () => {
+    if (!onUpdateDueDate || !selectedDate) return;
+    
+    setIsUpdatingDate(true);
+    try {
+      await onUpdateDueDate(task.id, selectedDate);
+      onClose();
+    } catch (error) {
+      console.error('Failed to update due date:', error);
+    } finally {
+      setIsUpdatingDate(false);
+    }
+  };
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
@@ -157,6 +210,78 @@ const TaskDetailModal = ({ isOpen, onClose, task, onComplete }: TaskDetailModalP
                   );
                 })}
               </ul>
+            </div>
+          )}
+
+          {/* Assign/Reassign Task Section */}
+          {familyMembers.length > 0 && onReassign && (
+            <div className="border-t pt-4">
+              <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+                <Users className="w-4 h-4 mr-2" />
+                Assigned To
+              </h4>
+              <RadioGroup value={selectedAssignee} onValueChange={setSelectedAssignee}>
+                {familyMembers.map((member) => (
+                  <div key={member.profile_id || member.id} className="flex items-center space-x-2">
+                    <RadioGroupItem value={member.profile_id || member.id} id={member.profile_id || member.id} />
+                    <Label htmlFor={member.profile_id || member.id} className="cursor-pointer">
+                      {member.name} ({member.role})
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+              {selectedAssignee !== task.user_id && (
+                <Button
+                  onClick={handleReassign}
+                  disabled={isReassigning}
+                  className="mt-3 w-full"
+                  variant="outline"
+                >
+                  {isReassigning ? 'Reassigning...' : 'Reassign Task'}
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Update Due Date Section */}
+          {onUpdateDueDate && (
+            <div className="border-t pt-4">
+              <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+                <CalendarDays className="w-4 h-4 mr-2" />
+                Update Due Date
+              </h4>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !selectedDate && "text-muted-foreground"
+                    )}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={setSelectedDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+              {selectedDate && selectedDate.toDateString() !== new Date(task.dueDate).toDateString() && (
+                <Button
+                  onClick={handleUpdateDueDate}
+                  disabled={isUpdatingDate}
+                  className="mt-3 w-full"
+                  variant="outline"
+                >
+                  {isUpdatingDate ? 'Updating...' : 'Update Due Date'}
+                </Button>
+              )}
             </div>
           )}
 

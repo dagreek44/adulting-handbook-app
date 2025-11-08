@@ -146,8 +146,8 @@ export class UserTaskService {
           user_id: userId,
           title: task.title,
           description: task.description || '',
-          frequency_days: task.frequency_days || 30,
-          frequency: this.getFrequencyString(task.frequency_days || 30),
+          frequency_days: task.frequency_days === 0 ? 0 : (task.frequency_days || 30),
+          frequency: task.frequency_days === 0 ? 'once' : this.getFrequencyString(task.frequency_days || 30),
           due_date: dueDate,
           difficulty: task.difficulty || 'Easy',
           estimated_time: task.estimated_time || '30 min',
@@ -329,15 +329,16 @@ export class UserTaskService {
       if (getError) throw getError;
       if (!task) throw new Error('Task not found');
       
-      // Get current user's username
+      // Get current user's data
       const { data: { user } } = await supabase.auth.getUser();
       const { data: userData } = await supabase
         .from('users')
-        .select('username')
+        .select('username, first_name, last_name, family_id')
         .eq('id', user?.id)
         .single();
       
       const today = new Date().toISOString().split('T')[0];
+      const completedByName = userData ? `${userData.first_name} ${userData.last_name}`.trim() : 'Someone';
       
       // Handle completion based on frequency
       const updateData = {
@@ -371,6 +372,35 @@ export class UserTaskService {
         .eq('id', taskId);
       
       if (updateError) throw updateError;
+      
+      // Notify family members about task completion
+      if (userData?.family_id && user?.id) {
+        try {
+          // Get all family members except the one who completed the task
+          const { data: familyMembers } = await supabase
+            .from('users')
+            .select('id, first_name, last_name')
+            .eq('family_id', userData.family_id)
+            .neq('id', user.id);
+          
+          if (familyMembers && familyMembers.length > 0) {
+            // Dynamically import NotificationService to avoid circular dependencies
+            const { NotificationService } = await import('./NotificationService');
+            
+            // Send notification to each family member
+            for (const member of familyMembers) {
+              await NotificationService.notifyTaskCompleted(
+                completedByName,
+                task.title,
+                taskId
+              );
+            }
+          }
+        } catch (notificationError) {
+          console.error('Error sending completion notifications:', notificationError);
+          // Don't fail the completion if notifications fail
+        }
+      }
       
       return true;
     } catch (error) {
@@ -429,6 +459,7 @@ export class UserTaskService {
 
   // Helper method to convert frequency days to string
   static getFrequencyString(days) {
+    if (days === 0) return 'once'; // Handle "once" frequency
     if (days <= 7) return 'weekly';
     if (days <= 30) return 'monthly';
     if (days <= 90) return 'quarterly';

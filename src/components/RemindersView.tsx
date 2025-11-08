@@ -11,13 +11,15 @@ import { FamilyMember, SupabaseReminder } from '@/hooks/useSupabaseData';
 import { useReminders, UserTask as ContextUserTask, GlobalReminder } from '@/contexts/ReminderContext';
 import { UserTaskService } from '@/services/UserTaskService';
 import { useState } from 'react';
+import { toast } from 'sonner';
+import TaskDetailModal from './TaskDetailModal';
 
 interface TaskDetails {
   id: string;
   title: string;
   description: string;
   estimatedTime: string;
-  difficulty: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
   estimatedBudget: string;
   dueDate: string;
   videoUrl?: string;
@@ -25,6 +27,7 @@ interface TaskDetails {
   tools: string[];
   supplies: string[];
   isGlobalReminder: boolean;
+  user_id?: string;
 }
 
 interface RemindersViewProps {
@@ -70,7 +73,8 @@ const RemindersView = ({
   supabaseOperations
 }: RemindersViewProps) => {
   // Use the new reminder context
-  const { userTasks, globalReminders, loading, markTaskCompleted, enableReminder, addCustomTask, postponeTask } = useReminders();
+  const { userTasks, globalReminders, loading, markTaskCompleted, enableReminder, addCustomTask, postponeTask, updateTask, refreshTasks } = useReminders();
+  const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
 
   // Filter to show only pending tasks (not completed ones)
   const pendingTasks = userTasks.filter(task => task.status !== 'completed');
@@ -84,17 +88,53 @@ const RemindersView = ({
       title: task.title,
       description: task.description,
       estimatedTime: task.estimated_time,
-      difficulty: task.difficulty,
+      difficulty: (task.difficulty || 'Easy') as 'Easy' | 'Medium' | 'Hard',
       estimatedBudget: task.estimated_budget,
       dueDate: task.due_date || 'Not set',
       videoUrl: task.video_url,
       instructions: task.instructions || [],
       tools: task.tools || [],
       supplies: task.supplies || [],
-      isGlobalReminder: !!task.reminder_id
+      isGlobalReminder: !!task.reminder_id,
+      user_id: task.user_id
     };
     setSelectedTask(taskDetails);
-    setIsModalOpen(true);
+    setIsTaskDetailOpen(true);
+  };
+
+  const handleReassignTask = async (taskId: string, newUserId: string) => {
+    try {
+      await updateTask(taskId, { user_id: newUserId });
+      await refreshTasks();
+      toast.success('Task reassigned successfully');
+    } catch (error) {
+      console.error('Failed to reassign task:', error);
+      toast.error('Failed to reassign task');
+      throw error;
+    }
+  };
+
+  const handleUpdateDueDate = async (taskId: string, newDate: Date) => {
+    try {
+      const formattedDate = newDate.toISOString().split('T')[0];
+      await updateTask(taskId, { due_date: formattedDate });
+      await refreshTasks();
+      toast.success('Due date updated successfully');
+    } catch (error) {
+      console.error('Failed to update due date:', error);
+      toast.error('Failed to update due date');
+      throw error;
+    }
+  };
+
+  const handleTaskDetailComplete = async () => {
+    if (selectedTask) {
+      const task = upcomingTasks.find(t => t.id === selectedTask.id);
+      if (task) {
+        await handleTaskComplete(task);
+        setIsTaskDetailOpen(false);
+      }
+    }
   };
 
   const handleTaskComplete = async (task: ContextUserTask) => {
@@ -272,6 +312,17 @@ const RemindersView = ({
       />
 
       <CompletedTasksButton onNavigateToCompleted={onNavigateToCompleted} />
+
+      {/* Task Detail Modal with assignment and due date features */}
+      <TaskDetailModal
+        isOpen={isTaskDetailOpen}
+        onClose={() => setIsTaskDetailOpen(false)}
+        task={selectedTask}
+        onComplete={handleTaskDetailComplete}
+        familyMembers={familyMembers}
+        onReassign={handleReassignTask}
+        onUpdateDueDate={handleUpdateDueDate}
+      />
     </div>
   );
 };
