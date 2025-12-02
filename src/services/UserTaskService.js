@@ -90,9 +90,23 @@ export class UserTaskService {
     }
   }
 
-  // Get completed tasks for the family
+  // Get completed tasks for the family (all family members)
   static async getCompletedTasks(userId) {
     try {
+      // First get the user's family_id
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('family_id')
+        .eq('id', userId)
+        .single();
+      
+      if (userError) throw userError;
+      if (!userData?.family_id) {
+        console.log('getCompletedTasks: No family_id found for user');
+        return [];
+      }
+
+      // Get all completed tasks for the family
       const { data, error } = await supabase
         .from('user_tasks')
         .select(`
@@ -103,17 +117,37 @@ export class UserTaskService {
             last_name
           )
         `)
+        .eq('family_id', userData.family_id)
         .not('last_completed', 'is', null)
         .order('last_completed', { ascending: false })
-        .limit(20);
+        .limit(50);
 
       if (error) throw error;
+      
+      // Get completed_by user info for each task
+      const completedByIds = [...new Set((data || []).map(row => row.completed_by).filter(Boolean))];
+      let completedByUsers = {};
+      
+      if (completedByIds.length > 0) {
+        const { data: usersData } = await supabase
+          .from('users')
+          .select('id, first_name, last_name')
+          .in('id', completedByIds);
+        
+        if (usersData) {
+          completedByUsers = usersData.reduce((acc, user) => {
+            acc[user.id] = `${user.first_name} ${user.last_name}`.trim();
+            return acc;
+          }, {});
+        }
+      }
       
       const results = (data || []).map(row => {
         const assigneeData = row.assignee;
         const assigneeName = assigneeData 
           ? `${assigneeData.first_name} ${assigneeData.last_name}`.trim() 
           : 'Unassigned';
+        const completedByName = row.completed_by ? completedByUsers[row.completed_by] : null;
         
         return {
           id: row.id,
@@ -124,7 +158,9 @@ export class UserTaskService {
           estimated_budget: row.estimated_budget || '',
           completed_date: row.last_completed,
           created_at: row.created_at,
-          assignee_name: assigneeName
+          assignee_name: assigneeName,
+          completed_by: row.completed_by,
+          completed_by_name: completedByName || assigneeName
         };
       });
       
@@ -333,7 +369,7 @@ export class UserTaskService {
       const { data: { user } } = await supabase.auth.getUser();
       const { data: userData } = await supabase
         .from('users')
-        .select('username, first_name, last_name, family_id')
+        .select('id, username, first_name, last_name, family_id')
         .eq('id', user?.id)
         .single();
       
@@ -344,22 +380,19 @@ export class UserTaskService {
       const updateData = {
         last_completed: today,
         completed_date: today,
-        completed_by: userData?.username || user?.id,
+        completed_by: user?.id, // Store the user_id, not username
         status: 'completed'
       };
       
       // Check if this is a "once" frequency task
-      if (task.frequency === 'once') {
-        // For "once" tasks, disable them so they don't appear in the list
+      if (task.frequency === 'once' || task.frequency_days === 0) {
+        // For "once" tasks, disable them and clear due_date
         updateData.enabled = false;
+        updateData.due_date = null;
       } else {
-        // For recurring tasks, calculate next due date
-        let nextDueDate = null;
-        if (task.frequency_days > 0) {
-          nextDueDate = this.calculateNextDueDate(today, task.frequency_days);
-        }
+        // For recurring tasks, calculate next due date based on frequency
+        let nextDueDate = this.calculateNextDueDateFromFrequency(today, task.frequency, task.frequency_days);
         
-        // Only set next due date if it's a recurring task
         if (nextDueDate) {
           updateData.due_date = nextDueDate;
           updateData.status = 'pending'; // Reset to pending for recurring tasks
@@ -407,6 +440,39 @@ export class UserTaskService {
       console.error('Error completing task:', error);
       throw error;
     }
+  }
+
+  // Calculate next due date based on frequency string
+  static calculateNextDueDateFromFrequency(completedDate, frequency, frequencyDays) {
+    const completed = new Date(completedDate);
+    let daysToAdd = frequencyDays || 30;
+    
+    // Use frequency string to determine days if frequency_days not reliable
+    switch (frequency?.toLowerCase()) {
+      case 'weekly':
+        daysToAdd = 7;
+        break;
+      case 'monthly':
+        daysToAdd = 30;
+        break;
+      case 'quarterly':
+        daysToAdd = 90;
+        break;
+      case 'seasonally':
+        daysToAdd = 90;
+        break;
+      case 'yearly':
+        daysToAdd = 365;
+        break;
+      case 'once':
+        return null; // No next due date for once tasks
+      default:
+        // Fall back to frequency_days if provided
+        daysToAdd = frequencyDays > 0 ? frequencyDays : 30;
+    }
+    
+    const nextDue = new Date(completed.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+    return nextDue.toISOString().split('T')[0];
   }
 
   // Delete a user task

@@ -367,6 +367,7 @@ export type Database = {
         Args: { completed_date: string; frequency: string }
         Returns: string
       }
+      get_user_family_id: { Args: { user_id: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
