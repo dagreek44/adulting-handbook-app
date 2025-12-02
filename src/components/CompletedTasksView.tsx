@@ -60,11 +60,11 @@ const CompletedTasksView = () => {
                       Completed {format(new Date(task.completed_date), 'MMM d, yyyy')}
                     </span>
                   </div>
-                  {(task.assignee_name || task.completed_by_name) && (
+                  {task.completed_by_name && (
                     <div className="flex items-center">
                       <User className="w-4 h-4 mr-1" />
                       <span className="text-xs">
-                        {task.assignee_name || task.completed_by_name}
+                        by {task.completed_by_name}
                       </span>
                     </div>
                   )}

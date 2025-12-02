@@ -76,11 +76,14 @@ const RemindersView = ({
   const { userTasks, globalReminders, loading, markTaskCompleted, enableReminder, addCustomTask, postponeTask, updateTask, refreshTasks } = useReminders();
   const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
 
-  // Filter to show only pending tasks (not completed ones)
-  const pendingTasks = userTasks.filter(task => task.status !== 'completed');
+  // Filter to show only pending/enabled tasks (not completed ones or disabled "once" tasks)
+  const pendingTasks = userTasks.filter(task => 
+    task.status !== 'completed' && 
+    task.due_date // Exclude tasks with no due date (completed "once" tasks)
+  );
   
-  // Get only the next 3 upcoming tasks
-  const upcomingTasks = pendingTasks.slice(0, 3);
+  // Show all upcoming tasks (sorted by due date already from service)
+  const upcomingTasks = pendingTasks;
 
   const handleTaskClick = (task: ContextUserTask) => {
     const taskDetails = {
