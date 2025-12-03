@@ -1,4 +1,3 @@
-
 import ReminderEditMode from '@/components/ReminderEditMode';
 import ReminderCalendarView from '@/components/ReminderCalendarView';
 import AddCustomReminder from '@/components/AddCustomReminder';
@@ -6,13 +5,15 @@ import ReminderLoadingState from '@/components/ReminderLoadingState';
 import RemindersHeader from '@/components/RemindersHeader';
 import ReminderViewToggle from '@/components/ReminderViewToggle';
 import RemindersList from '@/components/RemindersList';
+import RemindersFilter from '@/components/RemindersFilter';
 import CompletedTasksButton from '@/components/CompletedTasksButton';
 import { FamilyMember, SupabaseReminder } from '@/hooks/useSupabaseData';
 import { useReminders, UserTask as ContextUserTask, GlobalReminder } from '@/contexts/ReminderContext';
 import { UserTaskService } from '@/services/UserTaskService';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import TaskDetailModal from './TaskDetailModal';
+import { PlusCircle, MinusCircle } from 'lucide-react';
 
 interface TaskDetails {
   id: string;
@@ -75,6 +76,10 @@ const RemindersView = ({
   // Use the new reminder context
   const { userTasks, globalReminders, loading, markTaskCompleted, enableReminder, addCustomTask, postponeTask, updateTask, refreshTasks } = useReminders();
   const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
+  
+  // Filter state
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
 
   // Filter to show only pending/enabled tasks (not completed ones or disabled "once" tasks)
   const pendingTasks = userTasks.filter(task => 
@@ -82,8 +87,44 @@ const RemindersView = ({
     task.due_date // Exclude tasks with no due date (completed "once" tasks)
   );
   
+  // Extract unique categories from tasks
+  const categories = useMemo(() => {
+    const cats = new Set<string>();
+    userTasks.forEach(task => {
+      if (task.reminder_type === 'global') cats.add('Global');
+      if (task.reminder_type === 'custom' || task.is_custom) cats.add('Custom');
+    });
+    return Array.from(cats);
+  }, [userTasks]);
+  
+  // Apply filters to tasks
+  const filteredTasks = useMemo(() => {
+    let tasks = pendingTasks;
+    
+    // Filter by category
+    if (selectedCategories.length > 0) {
+      tasks = tasks.filter(task => {
+        if (selectedCategories.includes('Global') && task.reminder_type === 'global') return true;
+        if (selectedCategories.includes('Custom') && (task.reminder_type === 'custom' || task.is_custom)) return true;
+        return false;
+      });
+    }
+    
+    // Filter by family member
+    if (selectedMembers.length > 0) {
+      tasks = tasks.filter(task => selectedMembers.includes(task.user_id));
+    }
+    
+    return tasks;
+  }, [pendingTasks, selectedCategories, selectedMembers]);
+  
   // Show all upcoming tasks (sorted by due date already from service)
-  const upcomingTasks = pendingTasks;
+  const upcomingTasks = filteredTasks;
+  
+  const clearFilters = () => {
+    setSelectedCategories([]);
+    setSelectedMembers([]);
+  };
 
   const handleTaskClick = (task: ContextUserTask) => {
     const taskDetails = {
@@ -264,8 +305,6 @@ const RemindersView = ({
   return (
     <div className="space-y-6">
       <RemindersHeader
-        isEditMode={isEditMode}
-        setIsEditMode={setIsEditMode}
         setIsFamilyModalOpen={setIsFamilyModalOpen}
       />
 
@@ -273,6 +312,19 @@ const RemindersView = ({
         reminderViewMode={reminderViewMode}
         setReminderViewMode={setReminderViewMode}
       />
+
+      {/* Filters - only show in list view */}
+      {reminderViewMode === 'list' && (
+        <RemindersFilter
+          categories={categories}
+          familyMembers={familyMembers}
+          selectedCategories={selectedCategories}
+          selectedMembers={selectedMembers}
+          onCategoryChange={setSelectedCategories}
+          onMemberChange={setSelectedMembers}
+          onClearFilters={clearFilters}
+        />
+      )}
 
       <ReminderLoadingState loading={loading} reminders={pendingTasks}>
         {reminderViewMode === 'list' ? (
@@ -293,6 +345,30 @@ const RemindersView = ({
           />
         )}
       </ReminderLoadingState>
+
+      {/* +/- Adult Reminders button */}
+      <div className="bg-white p-4 rounded-xl shadow-md">
+        <button
+          onClick={() => setIsEditMode(!isEditMode)}
+          className={`w-full py-3 rounded-lg font-medium transition-colors flex items-center justify-center ${
+            isEditMode
+              ? 'bg-sage text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          {isEditMode ? (
+            <>
+              <MinusCircle className="w-5 h-5 mr-2" />
+              Done Managing Reminders
+            </>
+          ) : (
+            <>
+              <PlusCircle className="w-5 h-5 mr-2" />
+              +/- Adult Reminders
+            </>
+          )}
+        </button>
+      </div>
 
       {/* Show ReminderEditMode when in edit mode */}
       {isEditMode && (
