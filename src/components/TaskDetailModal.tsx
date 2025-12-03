@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -44,12 +44,18 @@ interface TaskDetailModalProps {
 }
 
 const TaskDetailModal = ({ isOpen, onClose, task, onComplete, familyMembers = [], onReassign, onUpdateDueDate }: TaskDetailModalProps) => {
-  const [selectedAssignee, setSelectedAssignee] = useState(task?.user_id || '');
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
-    task?.dueDate ? new Date(task.dueDate) : undefined
-  );
+  const [selectedAssignee, setSelectedAssignee] = useState('');
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [isReassigning, setIsReassigning] = useState(false);
   const [isUpdatingDate, setIsUpdatingDate] = useState(false);
+
+  // Sync state when task changes or modal opens
+  useEffect(() => {
+    if (task && isOpen) {
+      setSelectedAssignee(task.user_id || '');
+      setSelectedDate(task.dueDate && task.dueDate !== 'Not set' ? new Date(task.dueDate) : undefined);
+    }
+  }, [task, isOpen]);
 
   if (!task) return null;
 

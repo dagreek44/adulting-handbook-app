@@ -33,7 +33,9 @@ const RemindersFilter = ({
     }
   };
 
-  const toggleMember = (memberId: string) => {
+  const toggleMember = (member: FamilyMember) => {
+    // Use profile_id if available, otherwise fall back to id
+    const memberId = member.profile_id || member.id;
     if (selectedMembers.includes(memberId)) {
       onMemberChange(selectedMembers.filter(m => m !== memberId));
     } else {
@@ -103,19 +105,22 @@ const RemindersFilter = ({
             <div>
               <h4 className="text-sm font-semibold text-gray-600 mb-2">By Family Member</h4>
               <div className="flex flex-wrap gap-2">
-                {familyMembers.map(member => (
-                  <button
-                    key={member.id}
-                    onClick={() => toggleMember(member.id)}
-                    className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
-                      selectedMembers.includes(member.id)
-                        ? 'bg-sage text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {member.name}
-                  </button>
-                ))}
+                {familyMembers.map(member => {
+                  const memberId = member.profile_id || member.id;
+                  return (
+                    <button
+                      key={memberId}
+                      onClick={() => toggleMember(member)}
+                      className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
+                        selectedMembers.includes(memberId)
+                          ? 'bg-sage text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {member.name}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
