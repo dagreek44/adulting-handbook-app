@@ -106,7 +106,7 @@ export class UserTaskService {
         return [];
       }
 
-      // Get all completed tasks for the family
+      // Get all completed tasks for the family (including disabled "once" tasks)
       const { data, error } = await supabase
         .from('user_tasks')
         .select(`
