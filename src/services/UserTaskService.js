@@ -106,7 +106,7 @@ export class UserTaskService {
         return [];
       }
 
-      // Get all completed tasks for the family (including disabled "once" tasks)
+      // Get all completed tasks for the family - tasks with completed_date set
       const { data, error } = await supabase
         .from('user_tasks')
         .select(`
@@ -118,8 +118,8 @@ export class UserTaskService {
           )
         `)
         .eq('family_id', userData.family_id)
-        .not('last_completed', 'is', null)
-        .order('last_completed', { ascending: false })
+        .not('completed_date', 'is', null)
+        .order('completed_date', { ascending: false })
         .limit(50);
 
       if (error) throw error;

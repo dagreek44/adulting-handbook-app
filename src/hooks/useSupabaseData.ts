@@ -84,6 +84,7 @@ export interface CompletedTask {
 
 export interface FamilyMember {
   id: string;
+  profile_id: string | null;
   name: string;
   email: string;
   role: 'Parent' | 'Child';
@@ -120,6 +121,7 @@ const convertSupabaseRowToReminder = (row: SupabaseReminderRow): SupabaseReminde
 
 const convertFamilyMemberRow = (row: FamilyMemberRow): FamilyMember => ({
   id: row.id,
+  profile_id: row.profile_id,
   name: row.name,
   email: row.email,
   role: row.role as 'Parent' | 'Child',
@@ -275,6 +277,7 @@ export const useSupabaseData = () => {
         
         return {
           id: member.id,
+          profile_id: member.profile_id,
           name: member.name,
           email: member.email,
           role: member.role as 'Parent' | 'Child',
