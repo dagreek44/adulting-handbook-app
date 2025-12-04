@@ -201,6 +201,45 @@ export type Database = {
         }
         Relationships: []
       }
+      user_badges: {
+        Row: {
+          badge_key: string
+          created_at: string
+          family_id: string
+          id: string
+          is_unlocked: boolean
+          max_progress: number
+          progress: number
+          unlocked_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          badge_key: string
+          created_at?: string
+          family_id: string
+          id?: string
+          is_unlocked?: boolean
+          max_progress?: number
+          progress?: number
+          unlocked_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          badge_key?: string
+          created_at?: string
+          family_id?: string
+          id?: string
+          is_unlocked?: boolean
+          max_progress?: number
+          progress?: number
+          unlocked_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -374,6 +413,16 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      update_badge_progress: {
+        Args: {
+          p_badge_key: string
+          p_family_id: string
+          p_max_progress: number
+          p_progress: number
+          p_user_id: string
+        }
+        Returns: undefined
       }
     }
     Enums: {

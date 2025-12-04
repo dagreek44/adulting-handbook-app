@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useReminders, type UserTask } from '@/contexts/ReminderContext';
+import { useBadges } from '@/hooks/useBadges';
 import Header from '@/components/Header';
 import DashboardCard from '@/components/DashboardCard';
 import Navigation from '@/components/Navigation';
@@ -29,6 +30,9 @@ const Index = () => {
 
   // Use the new reminder context
   const { userTasks, completedTasks, loading: tasksLoading, markTaskCompleted } = useReminders();
+
+  // Use badges hook
+  const { badges, loading: badgesLoading, updateBadgesAfterTaskComplete } = useBadges();
 
   // Call useSupabaseData for family members 
   const {
@@ -62,6 +66,8 @@ const Index = () => {
     if (task && task.id) {
       try {
         await markTaskCompleted(task.id);
+        // Update badges after task completion
+        await updateBadgesAfterTaskComplete();
         toast({
           title: "Great job! 🎉",
           description: "Task completed successfully!",
@@ -107,34 +113,16 @@ const Index = () => {
     setIsModalOpen(true);
   };
 
-  const achievements = [
-    {
-      title: "First Timer",
-      description: "Completed your first home maintenance task",
-      level: 1,
-      isUnlocked: completedTasks.length >= 1,
-      category: "maintenance" as const,
-      progress: Math.min(completedTasks.length * 100, 100)
-    },
-    {
-      title: "DIY Rookie",
-      description: "Completed 5 maintenance tasks on your own",
-      level: 2,
-      isUnlocked: completedTasks.length >= 5,
-      category: "diy" as const,
-      progress: Math.min((completedTasks.length / 5) * 100, 100)
-    },
-    {
-      title: "Pro Helper",
-      description: "Hired your first professional contractor",
-      level: 1,
-      isUnlocked: false,
-      category: "contractor" as const,
-      progress: 0
-    }
-  ];
+  const loading = tasksLoading || supabaseLoading || badgesLoading;
 
-  const loading = tasksLoading || supabaseLoading;
+  // Get recent achievements (unlocked badges first, then by progress)
+  const recentAchievements = [...badges]
+    .sort((a, b) => {
+      if (a.isUnlocked && !b.isUnlocked) return -1;
+      if (!a.isUnlocked && b.isUnlocked) return 1;
+      return (b.progress / b.maxProgress) - (a.progress / a.maxProgress);
+    })
+    .slice(0, 2);
 
   if (loading) {
     return (
@@ -192,26 +180,9 @@ const Index = () => {
             <div>
               <h3 className="text-xl font-bold text-gray-800 mb-4">Recent Achievements</h3>
               <div className="grid grid-cols-1 gap-3">
-                {achievements.slice(0, 2).map((achievement, index) => (
-                  <AchievementBadge key={index} {...achievement} />
+                {recentAchievements.map((badge) => (
+                  <AchievementBadge key={badge.key} {...badge} />
                 ))}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-xl font-bold text-gray-800 mb-4">Quick Actions</h3>
-              <div className="bg-white p-4 rounded-xl shadow-md">
-                <div className="space-y-3">
-                  <button className="w-full bg-sage text-primary-foreground py-3 rounded-lg font-medium hover:bg-sage/90 transition-colors">
-                    🔧 Schedule Home Inspection
-                  </button>
-                  <button className="w-full bg-blue-soft text-primary-foreground py-3 rounded-lg font-medium hover:bg-blue-soft/90 transition-colors">
-                    📅 Set Seasonal Reminders
-                  </button>
-                  <button className="w-full bg-coral text-primary-foreground py-3 rounded-lg font-medium hover:bg-coral/90 transition-colors">
-                    🛒 Shop for Supplies
-                  </button>
-                </div>
               </div>
             </div>
           </div>
@@ -288,35 +259,63 @@ const Index = () => {
         );
 
       case 'achievements':
+        const starterBadges = badges.filter(b => b.category === 'starter');
+        const completionBadges = badges.filter(b => b.category === 'completion');
+        const streakBadges = badges.filter(b => b.category === 'streak');
+        const unlockedCount = badges.filter(b => b.isUnlocked).length;
+        
         return (
           <div className="space-y-6">
             <SharedHeader
               title="Achievements"
               setIsFamilyModalOpen={setIsFamilyModalOpen}
             />
-            <div className="bg-white p-4 rounded-xl shadow-md">
-              <h3 className="text-xl font-bold text-gray-800 mb-4">Your Badges</h3>
-              <div className="grid grid-cols-1 gap-4">
-                {achievements.map((achievement, index) => (
-                  <AchievementBadge key={index} {...achievement} />
-                ))}
-              </div>
-            </div>
-
+            
+            {/* Progress Overview */}
             <div className="bg-gradient-to-br from-blue-soft to-blue-soft/80 p-4 rounded-xl text-primary-foreground">
               <h3 className="text-lg font-bold mb-2">Level Up! 🚀</h3>
               <p className="text-sm mb-4 opacity-90">
-                Complete more tasks and hire contractors to unlock new achievements and improve your adulting level.
+                Complete tasks to unlock badges and become a household hero!
               </p>
               <div className="bg-white/20 rounded-full h-2 overflow-hidden">
                 <div 
                   className="bg-white h-full rounded-full transition-all duration-300"
-                  style={{ width: `${(completedTasks.length / 10) * 100}%` }}
+                  style={{ width: `${(unlockedCount / badges.length) * 100}%` }}
                 />
               </div>
               <p className="text-xs mt-2 opacity-90">
-                {completedTasks.length}/10 tasks to next level
+                {unlockedCount}/{badges.length} badges unlocked
               </p>
+            </div>
+
+            {/* Starter Badges */}
+            <div className="bg-card p-4 rounded-xl shadow-md">
+              <h3 className="text-lg font-bold text-card-foreground mb-4">🚀 Starter Badges</h3>
+              <div className="grid grid-cols-1 gap-3">
+                {starterBadges.map((badge) => (
+                  <AchievementBadge key={badge.key} {...badge} />
+                ))}
+              </div>
+            </div>
+
+            {/* Task Completion Badges */}
+            <div className="bg-card p-4 rounded-xl shadow-md">
+              <h3 className="text-lg font-bold text-card-foreground mb-4">✅ Task Completion Badges</h3>
+              <div className="grid grid-cols-1 gap-3">
+                {completionBadges.map((badge) => (
+                  <AchievementBadge key={badge.key} {...badge} />
+                ))}
+              </div>
+            </div>
+
+            {/* Streak Badges */}
+            <div className="bg-card p-4 rounded-xl shadow-md">
+              <h3 className="text-lg font-bold text-card-foreground mb-4">🔥 Streak Badges</h3>
+              <div className="grid grid-cols-1 gap-3">
+                {streakBadges.map((badge) => (
+                  <AchievementBadge key={badge.key} {...badge} />
+                ))}
+              </div>
             </div>
           </div>
         );
