@@ -84,7 +84,8 @@ const RemindersView = ({
   // Filter to show only pending/enabled tasks (not completed ones or disabled "once" tasks)
   const pendingTasks = userTasks.filter(task => 
     task.status !== 'completed' && 
-    task.due_date // Exclude tasks with no due date (completed "once" tasks)
+    task.enabled !== false && // Exclude disabled tasks (completed "once" tasks)
+    !task.completed_date // Exclude tasks that have been completed
   );
   
   // Extract unique categories from tasks

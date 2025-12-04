@@ -386,9 +386,8 @@ export class UserTaskService {
       
       // Check if this is a "once" frequency task
       if (task.frequency === 'once' || task.frequency_days === 0) {
-        // For "once" tasks, disable them and clear due_date
+        // For "once" tasks, disable them (due_date stays to track when it was due)
         updateData.enabled = false;
-        updateData.due_date = null;
       } else {
         // For recurring tasks, calculate next due date based on frequency
         let nextDueDate = this.calculateNextDueDateFromFrequency(today, task.frequency, task.frequency_days);
