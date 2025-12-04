@@ -16,7 +16,9 @@ export interface UserTask {
   frequency_days: number;
   due_date: string;
   last_completed: string | null;
+  completed_date?: string | null;
   status: string;
+  enabled?: boolean;
   video_url?: string | null;
   instructions: string[];
   tools: string[];
