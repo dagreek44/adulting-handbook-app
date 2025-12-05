@@ -1,7 +1,6 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Wrench, Calendar, Trophy, CheckCircle2 } from 'lucide-react';
+import { Wrench, Calendar, Trophy, CheckCircle2, CalendarPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
@@ -17,15 +16,18 @@ import ContractorsView from "@/components/ContractorsView";
 import CompletedTasksView from "@/components/CompletedTasksView";
 import AchievementBadge from '@/components/AchievementBadge';
 import SharedHeader from '@/components/SharedHeader';
+import OnboardingTour from '@/components/OnboardingTour';
+import { CalendarSyncService } from '@/services/CalendarSyncService';
+import { completeOnboarding } from '@/services/userProfileService';
 
 const Index = () => {
-  const { user, loading: authLoading } = useAuth();
+  const { user, userProfile, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('home');
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFamilyModalOpen, setIsFamilyModalOpen] = useState(false);
-  const [reminderViewMode, setReminderViewMode] = useState<'list' | 'calendar'>('list');
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const { toast } = useToast();
 
   // Use the new reminder context
@@ -44,6 +46,20 @@ const Index = () => {
     toggleReminderEnabled,
     fetchFamilyMembers
   } = useSupabaseData();
+
+  // Check if user should see onboarding
+  useEffect(() => {
+    if (userProfile?.first_login === true) {
+      setShowOnboarding(true);
+    }
+  }, [userProfile]);
+
+  const handleOnboardingComplete = async () => {
+    setShowOnboarding(false);
+    if (user?.id) {
+      await completeOnboarding(user.id);
+    }
+  };
 
   // Handle loading states and redirects after all hooks
   if (authLoading) {
@@ -146,14 +162,16 @@ const Index = () => {
         return (
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
-              <DashboardCard
-                title="Upcoming Tasks"
-                subtitle={`${upcomingTasks.length} items due soon`}
-                icon={Calendar}
-                color="bg-gradient-to-br from-blue-soft to-blue-400"
-                onClick={() => setActiveTab('reminders')}
-                badge={upcomingTasks.length}
-              />
+              <div data-tour="upcoming-tasks">
+                <DashboardCard
+                  title="Upcoming Tasks"
+                  subtitle={`${upcomingTasks.length} items due soon`}
+                  icon={Calendar}
+                  color="bg-gradient-to-br from-blue-soft to-blue-400"
+                  onClick={() => setActiveTab('reminders')}
+                  badge={upcomingTasks.length}
+                />
+              </div>
               <DashboardCard
                 title="Find Help"
                 subtitle="Browse contractors"
@@ -201,8 +219,6 @@ const Index = () => {
             setIsModalOpen={setIsModalOpen}
             isEditMode={isEditMode}
             setIsEditMode={setIsEditMode}
-            reminderViewMode={reminderViewMode}
-            setReminderViewMode={setReminderViewMode}
             isFamilyModalOpen={isFamilyModalOpen}
             setIsFamilyModalOpen={setIsFamilyModalOpen}
             onNavigateToCompleted={() => setActiveTab('completed')}
@@ -349,13 +365,19 @@ const Index = () => {
           isOpen={isFamilyModalOpen}
           onClose={() => {
             setIsFamilyModalOpen(false);
-            fetchFamilyMembers(); // Refresh family members when modal closes
+            fetchFamilyMembers();
           }}
           familyMembers={familyMembers}
           onUpdateMembers={(updatedMembers) => {
-            // Handle the updated members - the hook will refresh automatically
             console.log('Family members updated:', updatedMembers);
           }}
+        />
+
+        <OnboardingTour
+          isActive={showOnboarding}
+          onComplete={handleOnboardingComplete}
+          currentTab={activeTab}
+          onNavigate={setActiveTab}
         />
       </div>
     </div>

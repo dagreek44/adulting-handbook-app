@@ -57,19 +57,37 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
         }
       };
 
-      const customTask = {
-        title: newReminder.title || "",
-        description: newReminder.description || "",
-        frequency_days: getFrequencyDays(newReminder.frequency || "once"),
-        difficulty: 'Easy',
-        estimated_time: '30 min',
-        estimated_budget: '$10-20',
-        instructions: [],
-        tools: [],
-        supplies: []
-      };
+      // Determine who to assign the task to
+      const assignees = newReminder.assignees || [];
+      
+      // If assignees are selected, find their profile_ids from family members
+      // Otherwise default to the current user
+      const assigneeProfileIds = assignees.length > 0 
+        ? familyMembers
+            .filter(m => assignees.includes(m.id))
+            .map(m => m.profile_id)
+            .filter(Boolean) as string[]
+        : [user.id];
 
-      await supabaseOperations.addUserTask(user.id, customTask);
+      // Create a task for each assignee
+      for (const assigneeId of assigneeProfileIds) {
+        const customTask = {
+          title: newReminder.title || "",
+          description: newReminder.description || "",
+          frequency_days: getFrequencyDays(newReminder.frequency || "once"),
+          frequency: newReminder.frequency || "once",
+          difficulty: 'Easy',
+          estimated_time: '30 min',
+          estimated_budget: '$10-20',
+          instructions: [],
+          tools: [],
+          supplies: [],
+          due_date: selectedDate.toISOString().split('T')[0],
+        };
+
+        await supabaseOperations.addUserTask(assigneeId, customTask);
+      }
+      
       setNewReminder({ title: '', description: '', frequency: 'once', due_date: null, assignees: [] });
       setSelectedDate(undefined);
       setShowAddForm(false);
