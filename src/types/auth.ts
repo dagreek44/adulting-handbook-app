@@ -19,6 +19,7 @@ export interface UserProfile {
   last_name: string;
   username: string;
   family_id: string;
+  first_login?: boolean;
 }
 
 export interface SignUpData {

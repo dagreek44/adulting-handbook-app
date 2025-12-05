@@ -77,6 +77,7 @@ export const fetchUserProfile = async (
   try {
     console.log('fetchUserProfile: Fetching profile for user:', userId, 'retry:', retryCount);
     
+    // Fetch from users table for main profile data
     const { data, error } = await supabase
       .from('users')
       .select('*')
@@ -89,8 +90,18 @@ export const fetchUserProfile = async (
     }
 
     if (data) {
-      console.log('fetchUserProfile: Found user profile:', data);
-      return data;
+      // Also fetch first_login from profiles table
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('first_login')
+        .eq('id', userId)
+        .maybeSingle();
+      
+      console.log('fetchUserProfile: Found user profile:', data, 'first_login:', profileData?.first_login);
+      return {
+        ...data,
+        first_login: profileData?.first_login ?? false
+      };
     } else {
       console.log('fetchUserProfile: No user profile found, user needs profile creation');
       return null;
@@ -98,5 +109,23 @@ export const fetchUserProfile = async (
   } catch (error) {
     console.error('fetchUserProfile: Error fetching user profile:', error);
     return null;
+  }
+};
+
+export const completeOnboarding = async (userId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ first_login: false })
+      .eq('id', userId);
+    
+    if (error) {
+      console.error('completeOnboarding: Error:', error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('completeOnboarding: Failed:', error);
+    return false;
   }
 };

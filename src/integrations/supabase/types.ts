@@ -104,6 +104,7 @@ export type Database = {
           created_at: string
           "Email Address": string | null
           family_id: string
+          first_login: boolean | null
           first_name: string
           id: string
           last_name: string
@@ -114,6 +115,7 @@ export type Database = {
           created_at?: string
           "Email Address"?: string | null
           family_id?: string
+          first_login?: boolean | null
           first_name: string
           id: string
           last_name: string
@@ -124,6 +126,7 @@ export type Database = {
           created_at?: string
           "Email Address"?: string | null
           family_id?: string
+          first_login?: boolean | null
           first_name?: string
           id?: string
           last_name?: string

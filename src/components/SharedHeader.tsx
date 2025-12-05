@@ -18,6 +18,7 @@ const SharedHeader = ({
         <button
           onClick={() => setIsFamilyModalOpen(true)}
           className="flex items-center px-3 py-2 bg-blue-soft text-white rounded-lg hover:bg-blue-400 transition-colors"
+          data-tour="family-button"
         >
           <Users className="w-4 h-4 mr-2" />
           Family

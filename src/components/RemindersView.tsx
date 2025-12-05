@@ -1,15 +1,12 @@
 import ReminderEditMode from '@/components/ReminderEditMode';
-import ReminderCalendarView from '@/components/ReminderCalendarView';
 import AddCustomReminder from '@/components/AddCustomReminder';
 import ReminderLoadingState from '@/components/ReminderLoadingState';
 import RemindersHeader from '@/components/RemindersHeader';
-import ReminderViewToggle from '@/components/ReminderViewToggle';
 import RemindersList from '@/components/RemindersList';
 import RemindersFilter from '@/components/RemindersFilter';
 import CompletedTasksButton from '@/components/CompletedTasksButton';
 import { FamilyMember, SupabaseReminder } from '@/hooks/useSupabaseData';
 import { useReminders, UserTask as ContextUserTask, GlobalReminder } from '@/contexts/ReminderContext';
-import { UserTaskService } from '@/services/UserTaskService';
 import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import TaskDetailModal from './TaskDetailModal';
@@ -42,8 +39,6 @@ interface RemindersViewProps {
   setIsModalOpen: (b: boolean) => void;
   isEditMode: boolean;
   setIsEditMode: (b: boolean) => void;
-  reminderViewMode: 'list' | 'calendar';
-  setReminderViewMode: (m: 'list' | 'calendar') => void;
   isFamilyModalOpen: boolean;
   setIsFamilyModalOpen: (b: boolean) => void;
   onNavigateToCompleted: () => void;
@@ -66,8 +61,6 @@ const RemindersView = ({
   setIsModalOpen,
   isEditMode,
   setIsEditMode,
-  reminderViewMode,
-  setReminderViewMode,
   isFamilyModalOpen,
   setIsFamilyModalOpen,
   onNavigateToCompleted,
@@ -216,47 +209,6 @@ const RemindersView = ({
     next_due: task.due_date
   }));
 
-  // Convert for calendar view - create mock reminders that match the expected interface
-  const convertedCalendarReminders = upcomingTasks.map(task => ({
-    id: task.id,
-    user_id: task.user_id,
-    reminder_id: task.reminder_id,
-    title: task.title,
-    description: task.description,
-    difficulty: task.difficulty,
-    estimated_time: task.estimated_time,
-    estimated_budget: task.estimated_budget,
-    frequency_days: task.frequency_days,
-    due_date: task.due_date,
-    last_completed: task.last_completed,
-    status: task.status,
-    video_url: task.video_url,
-    instructions: task.instructions,
-    tools: task.tools,
-    supplies: task.supplies,
-    reminder_type: task.reminder_type,
-    is_custom: task.is_custom,
-    created_at: task.created_at,
-    assignees: task.assignees,
-    assignedToNames: task.assignedToNames,
-    isPastDue: task.isPastDue,
-    next_due: task.due_date,
-    // Add missing properties for SupabaseReminder compatibility
-    frequency: 'monthly',
-    enabled: true,
-    updated_at: task.created_at,
-    family_id: null,
-    completed_date: task.last_completed
-  }));
-
-  const convertedCalendarTasks = upcomingTasks.map(task => ({
-    title: task.title,
-    description: task.description,
-    estimatedTime: task.estimated_time,
-    difficulty: task.difficulty as 'Easy' | 'Medium' | 'Hard',
-    dueDate: task.due_date || 'Not set',
-  }));
-
   // Create wrapper functions to handle type conversions
   const handleReminderListTaskClick = (task: any) => {
     // Find the original task to get complete data
@@ -278,21 +230,6 @@ const RemindersView = ({
     await postponeTask(taskId, newDate);
   };
 
-  const handleCalendarTaskClick = (task: any) => {
-    // For calendar tasks, try to find matching task in upcomingTasks
-    if ('id' in task) {
-      const originalTask = upcomingTasks.find(t => t.id === task.id);
-      if (originalTask) {
-        handleTaskClick(originalTask);
-      }
-    }
-  };
-
-  const handleCalendarTaskComplete = () => {
-    // Calendar view doesn't pass task data, so we handle completion differently
-    console.log('Task completed from calendar view');
-  };
-
   // Get reminder IDs that are already enabled for this user
   const enabledReminderIds = userTasks
     .filter(task => task.reminder_id) // Only tasks that come from global reminders
@@ -309,46 +246,28 @@ const RemindersView = ({
         setIsFamilyModalOpen={setIsFamilyModalOpen}
       />
 
-      <ReminderViewToggle
-        reminderViewMode={reminderViewMode}
-        setReminderViewMode={setReminderViewMode}
+      {/* Filters */}
+      <RemindersFilter
+        categories={categories}
+        familyMembers={familyMembers}
+        selectedCategories={selectedCategories}
+        selectedMembers={selectedMembers}
+        onCategoryChange={setSelectedCategories}
+        onMemberChange={setSelectedMembers}
+        onClearFilters={clearFilters}
       />
 
-      {/* Filters - only show in list view */}
-      {reminderViewMode === 'list' && (
-        <RemindersFilter
-          categories={categories}
-          familyMembers={familyMembers}
-          selectedCategories={selectedCategories}
-          selectedMembers={selectedMembers}
-          onCategoryChange={setSelectedCategories}
-          onMemberChange={setSelectedMembers}
-          onClearFilters={clearFilters}
-        />
-      )}
-
       <ReminderLoadingState loading={loading} reminders={pendingTasks}>
-        {reminderViewMode === 'list' ? (
-          <RemindersList
-            upcomingTasks={convertedUpcomingTasks}
-            onTaskClick={handleReminderListTaskClick}
-            onTaskComplete={handleReminderListTaskComplete}
-            onPostpone={handlePostponeTask}
-          />
-        ) : (
-          <ReminderCalendarView
-            tasks={convertedCalendarTasks}
-            reminders={convertedCalendarReminders}
-            onTaskClick={handleCalendarTaskClick}
-            onTaskComplete={handleCalendarTaskComplete}
-            familyMembers={familyMembers}
-            supabaseOperations={supabaseOperations}
-          />
-        )}
+        <RemindersList
+          upcomingTasks={convertedUpcomingTasks}
+          onTaskClick={handleReminderListTaskClick}
+          onTaskComplete={handleReminderListTaskComplete}
+          onPostpone={handlePostponeTask}
+        />
       </ReminderLoadingState>
 
       {/* +/- Adult Reminders button */}
-      <div className="bg-white p-4 rounded-xl shadow-md">
+      <div className="bg-white p-4 rounded-xl shadow-md" data-tour="edit-reminders">
         <button
           onClick={() => setIsEditMode(!isEditMode)}
           className={`w-full py-3 rounded-lg font-medium transition-colors flex items-center justify-center ${
