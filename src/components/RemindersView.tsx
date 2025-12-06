@@ -284,7 +284,7 @@ const RemindersView = ({
           ) : (
             <>
               <PlusCircle className="w-5 h-5 mr-2" />
-              +/- Adult Reminders
+              +/- Adulting Reminders
             </>
           )}
         </button>

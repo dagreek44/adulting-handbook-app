@@ -192,6 +192,67 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
     }
   };
 
+  const resendInvite = async (member: FamilyMember) => {
+    if (!user?.id || !userProfile?.family_id) {
+      toast({
+        title: "Error",
+        description: "Unable to resend invitation. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Delete old invitation
+      await supabase
+        .from('family_invitations')
+        .delete()
+        .eq('invitee_email', member.email)
+        .eq('family_id', userProfile.family_id);
+
+      // Create new invitation
+      const { error: invitationError } = await supabase
+        .from('family_invitations')
+        .insert({
+          inviter_id: user.id,
+          invitee_email: member.email,
+          family_id: userProfile.family_id,
+          status: 'pending'
+        });
+
+      if (invitationError) throw invitationError;
+
+      // Send invitation email
+      try {
+        await supabase.functions.invoke('send-family-invitation', {
+          body: {
+            to: member.email,
+            name: member.name,
+            inviterName: `${userProfile.first_name} ${userProfile.last_name}`,
+            role: member.role
+          }
+        });
+      } catch (emailError) {
+        console.error('Email sending failed:', emailError);
+      }
+
+      toast({
+        title: "Invitation Resent! 📧",
+        description: `A new invitation has been sent to ${member.email}.`,
+        duration: 5000,
+      });
+
+      await fetchFamilyMembers();
+    } catch (error: any) {
+      console.error('Error resending invitation:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to resend invitation. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const removeMember = async (memberId: string, memberStatus: string) => {
     if (!isParent) {
       toast({
@@ -303,20 +364,32 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
                 {familyMembers.filter(member => member.status === 'pending' || member.status === 'expired').map((member) => (
                   <div key={member.id} className="flex items-center justify-between bg-yellow-50 p-3 rounded-lg border border-yellow-200">
                     <div>
-                      <p className="font-medium text-gray-800">{member.email}</p>
+                      <p className="font-medium text-gray-800">{member.name || member.email}</p>
+                      <p className="text-sm text-gray-600">{member.email}</p>
                       <span className={`text-xs px-2 py-1 rounded-full ${
                         member.status === 'pending' ? 'bg-yellow-200 text-yellow-800' : 'bg-red-200 text-red-800'
                       }`}>
                         {member.status === 'pending' ? 'Invitation Sent' : 'Expired'}
                       </span>
                     </div>
-                    <button
-                      onClick={() => removeMember(member.id, member.status)}
-                      className="text-red-500 hover:text-red-700"
-                      title="Cancel invitation"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {member.status === 'expired' && (
+                        <button
+                          onClick={() => resendInvite(member)}
+                          className="text-blue-500 hover:text-blue-700 text-xs font-medium"
+                          title="Resend invitation"
+                        >
+                          Resend
+                        </button>
+                      )}
+                      <button
+                        onClick={() => removeMember(member.id, member.status)}
+                        className="text-red-500 hover:text-red-700"
+                        title="Cancel invitation"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -325,7 +398,7 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
 
           {/* Invite Form */}
           {isParent && showInviteForm ? (
-            <div className="bg-sage/10 p-4 rounded-lg space-y-3">
+            <div className="bg-sage/10 p-4 rounded-lg space-y-3" data-tour="invite-form">
               <h3 className="font-semibold text-gray-800">Invite Family Member</h3>
               <Input
                 placeholder="Full Name"
@@ -370,6 +443,7 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
           ) : isParent ? (
             <button
               onClick={() => setShowInviteForm(true)}
+              data-tour="invite-family"
               className="w-full bg-sage text-white py-3 rounded-lg font-medium hover:bg-sage/90 transition-colors flex items-center justify-center"
             >
               <Plus className="w-5 h-5 mr-2" />

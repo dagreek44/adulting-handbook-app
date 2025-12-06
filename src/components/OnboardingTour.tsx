@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 
 interface TourStep {
-  target: string; // CSS selector
+  target: string;
   title: string;
   description: string;
-  action?: () => void;
-  waitForClick?: boolean;
+  requiresClick?: boolean;
+  action?: string; // 'navigate' | 'click' | 'expand'
 }
 
 interface OnboardingTourProps {
@@ -15,9 +15,20 @@ interface OnboardingTourProps {
   onComplete: () => void;
   currentTab: string;
   onNavigate: (tab: string) => void;
+  onOpenFamily?: () => void;
+  isEditMode?: boolean;
+  setIsEditMode?: (mode: boolean) => void;
 }
 
-const OnboardingTour = ({ isActive, onComplete, currentTab, onNavigate }: OnboardingTourProps) => {
+const OnboardingTour = ({ 
+  isActive, 
+  onComplete, 
+  currentTab, 
+  onNavigate,
+  onOpenFamily,
+  isEditMode,
+  setIsEditMode
+}: OnboardingTourProps) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -27,44 +38,61 @@ const OnboardingTour = ({ isActive, onComplete, currentTab, onNavigate }: Onboar
       target: '[data-tour="upcoming-tasks"]',
       title: 'Upcoming Tasks',
       description: 'Click here to view and manage all your upcoming reminders and tasks.',
-      waitForClick: true,
+      requiresClick: true,
+      action: 'navigate-reminders',
     },
     {
       target: '[data-tour="edit-reminders"]',
-      title: '+/- Adult Reminders',
+      title: '+/- Adulting Reminders',
       description: 'Add a series of common adulting reminders for your home and life.',
-      waitForClick: true,
+      requiresClick: true,
+      action: 'open-edit-mode',
+    },
+    {
+      target: '[data-tour="category-Household"]',
+      title: 'Household Category',
+      description: 'Expand this category to see household maintenance reminders.',
+      requiresClick: true,
+      action: 'expand-household',
+    },
+    {
+      target: '[data-tour="subcategory-Safety"]',
+      title: 'Safety Subcategory',
+      description: 'Expand the Safety section to see important safety reminders.',
+      requiresClick: true,
+      action: 'expand-safety',
+    },
+    {
+      target: '[data-tour="reminder-smoke-detectors"]',
+      title: 'Test Smoke Detectors',
+      description: 'Enable this reminder to stay safe! Click the checkbox to add it.',
+      requiresClick: true,
+      action: 'enable-reminder',
+    },
+    {
+      target: '[data-tour="done-button"]',
+      title: 'Save Your Reminders',
+      description: 'Click Done to save your enabled reminders.',
+      requiresClick: true,
+      action: 'click-done',
     },
     {
       target: '[data-tour="family-button"]',
       title: 'Family',
       description: 'Add your family members to track and assign reminders to each other.',
-      waitForClick: false,
+      requiresClick: true,
+      action: 'open-family',
+    },
+    {
+      target: '[data-tour="invite-family"]',
+      title: 'Invite Family Member',
+      description: 'Click here to invite a family member to your household.',
+      requiresClick: true,
+      action: 'complete',
     },
   ];
 
-  useEffect(() => {
-    if (!isActive) {
-      setIsVisible(false);
-      return;
-    }
-
-    // Delay to let the DOM render
-    const timer = setTimeout(() => {
-      updateTargetPosition();
-      setIsVisible(true);
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [isActive, currentStep, currentTab]);
-
-  useEffect(() => {
-    const handleResize = () => updateTargetPosition();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [currentStep]);
-
-  const updateTargetPosition = () => {
+  const updateTargetPosition = useCallback(() => {
     const step = steps[currentStep];
     if (!step) return;
 
@@ -75,16 +103,81 @@ const OnboardingTour = ({ isActive, onComplete, currentTab, onNavigate }: Onboar
     } else {
       setTargetRect(null);
     }
-  };
+  }, [currentStep]);
+
+  useEffect(() => {
+    if (!isActive) {
+      setIsVisible(false);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      updateTargetPosition();
+      setIsVisible(true);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [isActive, currentStep, currentTab, isEditMode, updateTargetPosition]);
+
+  // Update position on scroll and resize
+  useEffect(() => {
+    if (!isActive || !isVisible) return;
+
+    const handleUpdate = () => updateTargetPosition();
+    
+    window.addEventListener('resize', handleUpdate);
+    window.addEventListener('scroll', handleUpdate, true);
+    
+    // Poll for position changes (handles animations and dynamic content)
+    const interval = setInterval(handleUpdate, 100);
+
+    return () => {
+      window.removeEventListener('resize', handleUpdate);
+      window.removeEventListener('scroll', handleUpdate, true);
+      clearInterval(interval);
+    };
+  }, [isActive, isVisible, updateTargetPosition]);
 
   const handleNext = () => {
+    const step = steps[currentStep];
+    
+    // Perform action based on step
+    switch (step?.action) {
+      case 'navigate-reminders':
+        onNavigate('reminders');
+        break;
+      case 'open-edit-mode':
+        if (setIsEditMode) setIsEditMode(true);
+        break;
+      case 'expand-household':
+        // Click the Household category button
+        const householdBtn = document.querySelector('[data-tour="category-Household"]');
+        if (householdBtn) (householdBtn as HTMLElement).click();
+        break;
+      case 'expand-safety':
+        // Click the Safety subcategory button
+        const safetyBtn = document.querySelector('[data-tour="subcategory-Safety"]');
+        if (safetyBtn) (safetyBtn as HTMLElement).click();
+        break;
+      case 'enable-reminder':
+        // Click the smoke detector checkbox
+        const checkbox = document.querySelector('[data-tour="reminder-smoke-detectors"] input[type="checkbox"]');
+        if (checkbox) (checkbox as HTMLElement).click();
+        break;
+      case 'click-done':
+        const doneBtn = document.querySelector('[data-tour="done-button"]');
+        if (doneBtn) (doneBtn as HTMLElement).click();
+        break;
+      case 'open-family':
+        if (onOpenFamily) onOpenFamily();
+        break;
+      case 'complete':
+        onComplete();
+        return;
+    }
+    
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
-      
-      // Navigate if needed for next step
-      if (currentStep === 0) {
-        onNavigate('reminders');
-      }
     } else {
       onComplete();
     }
@@ -95,17 +188,18 @@ const OnboardingTour = ({ isActive, onComplete, currentTab, onNavigate }: Onboar
   };
 
   const handleOverlayClick = (e: React.MouseEvent) => {
-    // Only handle clicks on the highlighted area if waitForClick is true
-    if (steps[currentStep]?.waitForClick && targetRect) {
+    // Check if click is within the highlighted area
+    if (targetRect) {
       const clickX = e.clientX;
       const clickY = e.clientY;
       
       if (
-        clickX >= targetRect.left &&
-        clickX <= targetRect.right &&
-        clickY >= targetRect.top &&
-        clickY <= targetRect.bottom
+        clickX >= targetRect.left - 8 &&
+        clickX <= targetRect.right + 8 &&
+        clickY >= targetRect.top - 8 &&
+        clickY <= targetRect.bottom + 8
       ) {
+        // User clicked on the highlighted element, advance tour
         handleNext();
       }
     }
@@ -114,6 +208,35 @@ const OnboardingTour = ({ isActive, onComplete, currentTab, onNavigate }: Onboar
   if (!isActive || !isVisible) return null;
 
   const step = steps[currentStep];
+
+  // Calculate tooltip position
+  const getTooltipPosition = () => {
+    if (!targetRect) return { left: 20, top: 100 };
+    
+    const tooltipWidth = 280;
+    const tooltipHeight = 150;
+    const padding = 16;
+    
+    let left = targetRect.left;
+    let top = targetRect.bottom + padding;
+    
+    // Keep tooltip within viewport horizontally
+    if (left + tooltipWidth > window.innerWidth - padding) {
+      left = window.innerWidth - tooltipWidth - padding;
+    }
+    if (left < padding) {
+      left = padding;
+    }
+    
+    // If tooltip would go off bottom, show above target
+    if (top + tooltipHeight > window.innerHeight - padding) {
+      top = targetRect.top - tooltipHeight - padding;
+    }
+    
+    return { left, top };
+  };
+
+  const tooltipPos = getTooltipPosition();
 
   return (
     <div className="fixed inset-0 z-[100]" onClick={handleOverlayClick}>
@@ -147,7 +270,7 @@ const OnboardingTour = ({ isActive, onComplete, currentTab, onNavigate }: Onboar
       {/* Highlight border around target */}
       {targetRect && (
         <div
-          className="absolute border-2 border-primary rounded-xl pointer-events-none animate-pulse"
+          className="fixed border-2 border-primary rounded-xl pointer-events-none animate-pulse"
           style={{
             left: targetRect.left - 8,
             top: targetRect.top - 8,
@@ -160,10 +283,10 @@ const OnboardingTour = ({ isActive, onComplete, currentTab, onNavigate }: Onboar
       {/* Tooltip */}
       {targetRect && (
         <div
-          className="absolute bg-white rounded-xl shadow-2xl p-4 max-w-xs z-[101]"
+          className="fixed bg-white rounded-xl shadow-2xl p-4 max-w-xs z-[101]"
           style={{
-            left: Math.min(targetRect.left, window.innerWidth - 280),
-            top: targetRect.bottom + 16,
+            left: tooltipPos.left,
+            top: tooltipPos.top,
           }}
         >
           <div className="flex justify-between items-start mb-2">
@@ -181,16 +304,9 @@ const OnboardingTour = ({ isActive, onComplete, currentTab, onNavigate }: Onboar
               <Button variant="ghost" size="sm" onClick={handleSkip}>
                 Skip Tour
               </Button>
-              {!step.waitForClick && (
-                <Button size="sm" onClick={handleNext}>
-                  {currentStep === steps.length - 1 ? 'Finish' : 'Next'}
-                </Button>
-              )}
-              {step.waitForClick && (
-                <span className="text-xs text-primary font-medium self-center">
-                  Click to continue →
-                </span>
-              )}
+              <Button size="sm" onClick={handleNext}>
+                {currentStep === steps.length - 1 ? 'Finish' : 'Next'}
+              </Button>
             </div>
           </div>
         </div>

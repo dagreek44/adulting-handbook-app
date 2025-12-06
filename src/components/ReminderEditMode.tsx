@@ -187,6 +187,7 @@ const ReminderEditMode = ({
               onClick={applyChanges}
               variant="default"
               size="sm"
+              data-tour="done-button"
             >
               Done
             </Button>
@@ -207,6 +208,7 @@ const ReminderEditMode = ({
           reminders={globalReminders}
           enabledReminderIds={getEffectiveEnabledIds()}
           onToggleReminder={toggleGlobalReminder}
+          customReminders={userTasks.filter(t => t.reminder_type === 'custom' || t.is_custom)}
         />
       )}
 
