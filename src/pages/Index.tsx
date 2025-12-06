@@ -378,6 +378,9 @@ const Index = () => {
           onComplete={handleOnboardingComplete}
           currentTab={activeTab}
           onNavigate={setActiveTab}
+          onOpenFamily={() => setIsFamilyModalOpen(true)}
+          isEditMode={isEditMode}
+          setIsEditMode={setIsEditMode}
         />
       </div>
     </div>

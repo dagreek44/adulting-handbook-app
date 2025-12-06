@@ -14,12 +14,14 @@ interface ExpandableCategoryTreeProps {
   reminders: GlobalReminder[];
   enabledReminderIds: string[];
   onToggleReminder: (reminderId: string, enabled: boolean) => void;
+  customReminders?: any[];
 }
 
 const ExpandableCategoryTree = ({
   reminders,
   enabledReminderIds,
-  onToggleReminder
+  onToggleReminder,
+  customReminders = []
 }: ExpandableCategoryTreeProps) => {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [expandedSubcategories, setExpandedSubcategories] = useState<Set<string>>(new Set());
@@ -86,6 +88,11 @@ const ExpandableCategoryTree = ({
     return enabledReminderIds.includes(reminderId);
   };
 
+  // Helper to check if this is the smoke detector reminder
+  const isSmokeDetectorReminder = (title: string) => {
+    return title.toLowerCase().includes('smoke detector');
+  };
+
   return (
     <div className="bg-card p-6 rounded-xl shadow-sm border">
       <h3 className="text-base font-bold mb-2 break-words">Available Reminders by Category</h3>
@@ -100,7 +107,7 @@ const ExpandableCategoryTree = ({
           const enabledReminders = Object.values(subcategories).flat().filter(r => isReminderEnabled(r.id)).length;
 
           return (
-            <div key={mainCategory} className="border rounded-lg">
+            <div key={mainCategory} className="border rounded-lg" data-tour={`category-${mainCategory}`}>
               <Collapsible
                 open={categoryExpanded}
                 onOpenChange={() => toggleCategory(mainCategory)}
@@ -109,6 +116,7 @@ const ExpandableCategoryTree = ({
                   <Button
                     variant="ghost"
                     className="w-full justify-start p-4 h-auto hover:bg-muted/50"
+                    data-tour={`category-${mainCategory}`}
                   >
                     {categoryExpanded ? (
                       <ChevronDown className="w-5 h-5 mr-3" />
@@ -137,7 +145,7 @@ const ExpandableCategoryTree = ({
                       const subEnabledCount = remindersList.filter(r => isReminderEnabled(r.id)).length;
 
                       return (
-                        <div key={subcategory} className="border rounded-md bg-muted/20">
+                        <div key={subcategory} className="border rounded-md bg-muted/20" data-tour={`subcategory-${subcategory}`}>
                           <Collapsible
                             open={subExpanded}
                             onOpenChange={() => toggleSubcategory(mainCategory, subcategory)}
@@ -146,6 +154,7 @@ const ExpandableCategoryTree = ({
                               <Button
                                 variant="ghost"
                                 className="w-full justify-start p-3 h-auto hover:bg-muted/50"
+                                data-tour={`subcategory-${subcategory}`}
                               >
                                 {subExpanded ? (
                                   <ChevronDown className="w-4 h-4 mr-2" />
@@ -174,6 +183,7 @@ const ExpandableCategoryTree = ({
                                   return (
                                      <div
                                        key={reminder.id}
+                                       data-tour={isSmokeDetectorReminder(reminder.title) ? 'reminder-smoke-detectors' : undefined}
                                        className={`p-4 rounded-lg border flex items-start gap-3 transition-all ${
                                          enabled
                                            ? 'border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20' 
@@ -221,6 +231,69 @@ const ExpandableCategoryTree = ({
             </div>
           );
         })}
+
+        {/* Custom Reminders Section */}
+        {customReminders.length > 0 && (
+          <div className="border rounded-lg">
+            <Collapsible
+              open={expandedCategories.has('Custom Reminders')}
+              onOpenChange={() => toggleCategory('Custom Reminders')}
+            >
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start p-4 h-auto hover:bg-muted/50"
+                >
+                  {expandedCategories.has('Custom Reminders') ? (
+                    <ChevronDown className="w-5 h-5 mr-3" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5 mr-3" />
+                  )}
+                  <div className="flex items-center justify-between w-full min-w-0">
+                    <span className="font-semibold text-base truncate pr-2">Custom Reminders</span>
+                    <Badge variant="secondary" className="text-xs">
+                      {customReminders.length}
+                    </Badge>
+                  </div>
+                </Button>
+              </CollapsibleTrigger>
+
+              <CollapsibleContent className="px-4 pb-4">
+                <div className="ml-8 space-y-3">
+                  {customReminders.map((reminder) => (
+                    <div
+                      key={reminder.id}
+                      className="p-4 rounded-lg border border-primary/20 bg-primary/5 flex items-start gap-3"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-1 mb-2">
+                          <h5 className="font-semibold text-foreground text-sm break-words">{reminder.title}</h5>
+                          <Badge className={`text-xs flex-shrink-0 ${getDifficultyColor(reminder.difficulty || 'Easy')}`}>
+                            {reminder.difficulty || 'Easy'}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs flex-shrink-0 bg-primary/10">
+                            Custom
+                          </Badge>
+                        </div>
+                        
+                        {reminder.description && (
+                          <p className="text-muted-foreground text-xs mb-2 break-words">{reminder.description}</p>
+                        )}
+                        
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          <span className="flex-shrink-0">⏱️ {reminder.estimated_time || '30 min'}</span>
+                          {reminder.due_date && (
+                            <span className="flex-shrink-0">📅 Due: {reminder.due_date}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+        )}
       </div>
     </div>
   );

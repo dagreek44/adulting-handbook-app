@@ -8,6 +8,8 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { SupabaseReminder, FamilyMember } from '@/hooks/useSupabaseData';
 import { supabase } from '@/integrations/supabase/client';
+import { useReminders } from '@/contexts/ReminderContext';
+import { toast } from 'sonner';
 
 interface AddCustomReminderProps {
   familyMembers: FamilyMember[];
@@ -36,6 +38,7 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
     assignees: []
   });
   const [selectedDate, setSelectedDate] = useState<Date>();
+  const { refreshTasks } = useReminders();
 
   const addCustomReminder = async () => {
     if (!newReminder.title?.trim() || !selectedDate) return;
@@ -45,54 +48,77 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      // Convert frequency to days for user_tasks table
-      const getFrequencyDays = (freq: string) => {
-        switch (freq) {
-          case 'weekly': return 7;
-          case 'monthly': return 30;
-          case 'quarterly': return 90;
-          case 'seasonally': return 90;
-          case 'yearly': return 365;
-          default: return 0; // 'once'
-        }
-      };
+      // Get user's family_id
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('family_id')
+        .eq('id', user.id)
+        .single();
+
+      if (userError) throw userError;
+      if (!userData?.family_id) throw new Error('No family found');
 
       // Determine who to assign the task to
       const assignees = newReminder.assignees || [];
       
       // If assignees are selected, find their profile_ids from family members
       // Otherwise default to the current user
-      const assigneeProfileIds = assignees.length > 0 
-        ? familyMembers
-            .filter(m => assignees.includes(m.id))
-            .map(m => m.profile_id)
-            .filter(Boolean) as string[]
-        : [user.id];
-
-      // Create a task for each assignee
-      for (const assigneeId of assigneeProfileIds) {
-        const customTask = {
-          title: newReminder.title || "",
-          description: newReminder.description || "",
-          frequency_days: getFrequencyDays(newReminder.frequency || "once"),
-          frequency: newReminder.frequency || "once",
-          difficulty: 'Easy',
-          estimated_time: '30 min',
-          estimated_budget: '$10-20',
-          instructions: [],
-          tools: [],
-          supplies: [],
-          due_date: selectedDate.toISOString().split('T')[0],
-        };
-
-        await supabaseOperations.addUserTask(assigneeId, customTask);
+      let assigneeProfileIds: string[] = [];
+      
+      if (assignees.length > 0) {
+        // Get profile_ids for selected family members
+        assigneeProfileIds = familyMembers
+          .filter(m => assignees.includes(m.id))
+          .map(m => m.profile_id)
+          .filter(Boolean) as string[];
       }
       
+      // Default to current user if no valid assignees
+      if (assigneeProfileIds.length === 0) {
+        assigneeProfileIds = [user.id];
+      }
+
+      const dueDate = selectedDate.toISOString().split('T')[0];
+
+      // Create a task for each assignee directly in user_tasks table
+      for (const assigneeId of assigneeProfileIds) {
+        const { error: insertError } = await supabase
+          .from('user_tasks')
+          .insert({
+            user_id: assigneeId,
+            family_id: userData.family_id,
+            title: newReminder.title || "",
+            description: newReminder.description || "",
+            frequency: newReminder.frequency || "once",
+            due_date: dueDate,
+            difficulty: 'Easy',
+            estimated_time: '30 min',
+            estimated_budget: '$10-20',
+            instructions: [],
+            tools: [],
+            supplies: [],
+            is_custom: true,
+            reminder_type: 'custom',
+            enabled: true,
+            status: 'pending'
+          });
+
+        if (insertError) {
+          console.error('Error inserting task:', insertError);
+          throw insertError;
+        }
+      }
+      
+      // Refresh tasks to show the new ones
+      await refreshTasks();
+      
+      toast.success('Custom reminder added successfully!');
       setNewReminder({ title: '', description: '', frequency: 'once', due_date: null, assignees: [] });
       setSelectedDate(undefined);
       setShowAddForm(false);
     } catch (error) {
       console.error('Error adding custom reminder:', error);
+      toast.error('Failed to add custom reminder');
     }
   };
 
