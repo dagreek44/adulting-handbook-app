@@ -73,7 +73,6 @@ export class NotificationService {
    */
   static async notifyReminderCreated(
     creatorName: string,
-    assigneeName: string,
     reminderTitle: string,
     taskId: string
   ): Promise<void> {
@@ -93,9 +92,9 @@ export class NotificationService {
         notifications: [
           {
             id: Math.floor(Math.random() * 100000),
-            title: `New Reminder from ${creatorName}`,
-            body: `${creatorName} created a reminder for you: ${reminderTitle}`,
-            schedule: { at: new Date(Date.now() + 1000) }, // Show in 1 second
+            title: 'New Reminder',
+            body: `${creatorName} created a reminder: ${reminderTitle}`,
+            schedule: { at: new Date(Date.now() + 1000) },
             extra: {
               taskId,
               action: 'openReminder'
@@ -111,7 +110,48 @@ export class NotificationService {
   }
 
   /**
-   * Send notification when a task is completed
+   * Send notification when a reminder is reassigned to a user
+   */
+  static async notifyReminderReassigned(
+    reassignerName: string,
+    reminderTitle: string,
+    taskId: string
+  ): Promise<void> {
+    if (!this.isNative) {
+      console.log('NotificationService: Not on native platform, skipping notification');
+      return;
+    }
+
+    try {
+      const hasPermission = await this.requestPermissions();
+      if (!hasPermission) {
+        console.log('NotificationService: No notification permission');
+        return;
+      }
+
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            id: Math.floor(Math.random() * 100000),
+            title: 'Reminder Re-assigned',
+            body: `${reassignerName} re-assigned a reminder: ${reminderTitle}`,
+            schedule: { at: new Date(Date.now() + 1000) },
+            extra: {
+              taskId,
+              action: 'openReminder'
+            }
+          }
+        ]
+      });
+
+      console.log('NotificationService: Sent reassignment notification for', reminderTitle);
+    } catch (error) {
+      console.error('NotificationService: Failed to send reassignment notification:', error);
+    }
+  }
+
+  /**
+   * Send notification when a task is completed to the creator
    */
   static async notifyTaskCompleted(
     completedByName: string,
@@ -136,7 +176,7 @@ export class NotificationService {
             id: Math.floor(Math.random() * 100000),
             title: 'Task Completed',
             body: `${completedByName} completed: ${taskTitle}`,
-            schedule: { at: new Date(Date.now() + 1000) }, // Show in 1 second
+            schedule: { at: new Date(Date.now() + 1000) },
             extra: {
               taskId,
               action: 'openReminder'

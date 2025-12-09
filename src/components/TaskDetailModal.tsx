@@ -5,9 +5,11 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { Clock, DollarSign, Calendar, Play, CheckCircle2, ExternalLink, Users, CalendarDays } from 'lucide-react';
+import { Clock, DollarSign, Calendar, Play, CheckCircle2, ExternalLink, Users, CalendarDays, CalendarPlus } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { CalendarSyncService } from '@/services/CalendarSyncService';
+import { toast } from 'sonner';
 
 interface Task {
   id: string;
@@ -290,6 +292,58 @@ const TaskDetailModal = ({ isOpen, onClose, task, onComplete, familyMembers = []
               )}
             </div>
           )}
+
+          {/* Calendar Sync Section */}
+          <div className="border-t pt-4">
+            <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+              <CalendarPlus className="w-4 h-4 mr-2" />
+              Sync to Calendar
+            </h4>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={async () => {
+                  const dueDate = task.dueDate && task.dueDate !== 'Not set' 
+                    ? new Date(task.dueDate) 
+                    : new Date();
+                  const success = await CalendarSyncService.addToCalendar(
+                    task.id,
+                    task.title,
+                    task.description,
+                    dueDate,
+                    true // Use Google Calendar
+                  );
+                  if (success) {
+                    toast.success('Opening Google Calendar...');
+                  }
+                }}
+              >
+                Google Calendar
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={async () => {
+                  const dueDate = task.dueDate && task.dueDate !== 'Not set' 
+                    ? new Date(task.dueDate) 
+                    : new Date();
+                  const success = await CalendarSyncService.addToCalendar(
+                    task.id,
+                    task.title,
+                    task.description,
+                    dueDate,
+                    false // Download ICS file
+                  );
+                  if (success) {
+                    toast.success('Calendar file downloaded!');
+                  }
+                }}
+              >
+                Download .ics
+              </Button>
+            </div>
+          </div>
 
           <div className="flex space-x-3 pt-4">
             <Button
