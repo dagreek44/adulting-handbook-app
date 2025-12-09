@@ -92,8 +92,6 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
             frequency: newReminder.frequency || "once",
             due_date: dueDate,
             difficulty: 'Easy',
-            estimated_time: '30 min',
-            estimated_budget: '$10-20',
             instructions: [],
             tools: [],
             supplies: [],

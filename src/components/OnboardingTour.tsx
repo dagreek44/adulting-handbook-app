@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 
@@ -7,7 +7,7 @@ interface TourStep {
   title: string;
   description: string;
   requiresClick?: boolean;
-  action?: string; // 'navigate' | 'click' | 'expand'
+  action?: string;
 }
 
 interface OnboardingTourProps {
@@ -32,12 +32,13 @@ const OnboardingTour = ({
   const [currentStep, setCurrentStep] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [isVisible, setIsVisible] = useState(false);
+  const observerRef = useRef<MutationObserver | null>(null);
 
   const steps: TourStep[] = [
     {
       target: '[data-tour="upcoming-tasks"]',
       title: 'Upcoming Tasks',
-      description: 'Click here to view and manage all your upcoming reminders and tasks.',
+      description: 'View and manage all your upcoming reminders and tasks.',
       requiresClick: true,
       action: 'navigate-reminders',
     },
@@ -92,18 +93,36 @@ const OnboardingTour = ({
     },
   ];
 
+  const scrollToElement = useCallback((element: Element) => {
+    const rect = element.getBoundingClientRect();
+    const isInViewport = (
+      rect.top >= 0 &&
+      rect.left >= 0 &&
+      rect.bottom <= window.innerHeight &&
+      rect.right <= window.innerWidth
+    );
+    
+    if (!isInViewport) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, []);
+
   const updateTargetPosition = useCallback(() => {
     const step = steps[currentStep];
     if (!step) return;
 
     const element = document.querySelector(step.target);
     if (element) {
-      const rect = element.getBoundingClientRect();
-      setTargetRect(rect);
+      scrollToElement(element);
+      // Small delay to allow scroll to complete
+      setTimeout(() => {
+        const rect = element.getBoundingClientRect();
+        setTargetRect(rect);
+      }, 100);
     } else {
       setTargetRect(null);
     }
-  }, [currentStep]);
+  }, [currentStep, scrollToElement]);
 
   useEffect(() => {
     if (!isActive) {
@@ -119,22 +138,37 @@ const OnboardingTour = ({
     return () => clearTimeout(timer);
   }, [isActive, currentStep, currentTab, isEditMode, updateTargetPosition]);
 
-  // Update position on scroll and resize
+  // Update position on scroll and resize, and observe DOM changes
   useEffect(() => {
     if (!isActive || !isVisible) return;
 
-    const handleUpdate = () => updateTargetPosition();
+    const handleUpdate = () => {
+      requestAnimationFrame(() => {
+        updateTargetPosition();
+      });
+    };
     
     window.addEventListener('resize', handleUpdate);
     window.addEventListener('scroll', handleUpdate, true);
     
-    // Poll for position changes (handles animations and dynamic content)
-    const interval = setInterval(handleUpdate, 100);
+    // Observe DOM changes for dynamic content
+    observerRef.current = new MutationObserver(handleUpdate);
+    observerRef.current.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+    });
+    
+    // Poll for position changes
+    const interval = setInterval(handleUpdate, 200);
 
     return () => {
       window.removeEventListener('resize', handleUpdate);
       window.removeEventListener('scroll', handleUpdate, true);
       clearInterval(interval);
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
     };
   }, [isActive, isVisible, updateTargetPosition]);
 
@@ -151,18 +185,24 @@ const OnboardingTour = ({
         break;
       case 'expand-household':
         // Click the Household category button
-        const householdBtn = document.querySelector('[data-tour="category-Household"]');
-        if (householdBtn) (householdBtn as HTMLElement).click();
+        setTimeout(() => {
+          const householdBtn = document.querySelector('[data-tour="category-Household"]');
+          if (householdBtn) (householdBtn as HTMLElement).click();
+        }, 100);
         break;
       case 'expand-safety':
         // Click the Safety subcategory button
-        const safetyBtn = document.querySelector('[data-tour="subcategory-Safety"]');
-        if (safetyBtn) (safetyBtn as HTMLElement).click();
+        setTimeout(() => {
+          const safetyBtn = document.querySelector('[data-tour="subcategory-Safety"]');
+          if (safetyBtn) (safetyBtn as HTMLElement).click();
+        }, 100);
         break;
       case 'enable-reminder':
         // Click the smoke detector checkbox
-        const checkbox = document.querySelector('[data-tour="reminder-smoke-detectors"] input[type="checkbox"]');
-        if (checkbox) (checkbox as HTMLElement).click();
+        setTimeout(() => {
+          const checkbox = document.querySelector('[data-tour="reminder-smoke-detectors"] input[type="checkbox"]');
+          if (checkbox) (checkbox as HTMLElement).click();
+        }, 100);
         break;
       case 'click-done':
         const doneBtn = document.querySelector('[data-tour="done-button"]');
@@ -178,6 +218,8 @@ const OnboardingTour = ({
     
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);
+      // Trigger position update after state change
+      setTimeout(updateTargetPosition, 300);
     } else {
       onComplete();
     }

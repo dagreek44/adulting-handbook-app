@@ -116,8 +116,6 @@ const TaskCard = ({
               </div>
             )}
           </div>
-          <p className="text-gray-600 text-sm mb-2">{description}</p>
-          
           {/* Assignment Display */}
           <div className="flex items-center text-xs text-gray-500 mb-2">
             <Users className="w-3 h-3 mr-1" />

@@ -189,7 +189,6 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         
         NotificationService.notifyReminderCreated(
           creatorName,
-          assigneeName,
           taskData.title || 'New reminder',
           newTaskId
         );

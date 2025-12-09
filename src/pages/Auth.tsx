@@ -1,10 +1,12 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, User, Mail, Lock, UserPlus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const Auth = () => {
   const { user, signUp, signIn, loading } = useAuth();
@@ -13,6 +15,7 @@ const Auth = () => {
   const signupFromUrl = searchParams.get('signup') === 'true';
   
   const [isLogin, setIsLogin] = useState(!signupFromUrl);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: emailFromUrl || '',
@@ -193,11 +196,23 @@ const Auth = () => {
           </Button>
         </form>
 
-        <div className="mt-6 text-center">
+        {isLogin && (
+          <div className="mt-4 text-center">
+            <button
+              onClick={() => setShowForgotPassword(true)}
+              className="text-gray-500 hover:text-sage text-sm"
+            >
+              Forgot your password?
+            </button>
+          </div>
+        )}
+
+        <div className="mt-4 text-center">
           <button
             onClick={() => {
               setIsLogin(!isLogin);
               setError('');
+              setShowForgotPassword(false);
               setFormData({
                 email: '',
                 password: '',
@@ -214,6 +229,94 @@ const Auth = () => {
             }
           </button>
         </div>
+
+        {/* Forgot Password Modal */}
+        {showForgotPassword && (
+          <ForgotPasswordModal 
+            onClose={() => setShowForgotPassword(false)} 
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
+const ForgotPasswordModal = ({ onClose }: { onClose: () => void }) => {
+  const [email, setEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth?reset=true`,
+      });
+
+      if (error) {
+        toast.error(error.message);
+      } else {
+        setSent(true);
+        toast.success('Password reset email sent! Check your inbox.');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send reset email');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+        <h2 className="text-xl font-bold mb-4">Reset Password</h2>
+        
+        {sent ? (
+          <div className="text-center">
+            <p className="text-gray-600 mb-4">
+              We've sent a password reset link to your email address. Please check your inbox and follow the instructions.
+            </p>
+            <Button onClick={onClose} className="bg-sage hover:bg-sage/90">
+              Close
+            </Button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <p className="text-gray-600 text-sm mb-4">
+              Enter your email address and we'll send you a link to reset your password.
+            </p>
+            <div className="relative mb-4">
+              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Input
+                type="email"
+                placeholder="Email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="pl-10"
+                required
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting || !email}
+                className="flex-1 bg-sage hover:bg-sage/90"
+              >
+                {isSubmitting ? 'Sending...' : 'Send Reset Link'}
+              </Button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
