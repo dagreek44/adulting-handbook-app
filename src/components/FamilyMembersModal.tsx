@@ -320,7 +320,7 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto" data-tour="family-modal">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-gray-800 flex items-center">
             <Users className="w-6 h-6 mr-2 text-sage" />

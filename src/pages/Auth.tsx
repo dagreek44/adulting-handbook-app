@@ -34,8 +34,9 @@ const Auth = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-cream flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sage"></div>
+      <div className="min-h-screen bg-cream flex flex-col items-center justify-center">
+        <img src="/icon.png" alt="Adulting" className="w-24 h-24 mb-4" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sage"></div>
       </div>
     );
   }
@@ -84,6 +85,7 @@ const Auth = () => {
     <div className="min-h-screen bg-cream flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
         <div className="text-center mb-8">
+          <img src="/icon.png" alt="Adulting" className="w-16 h-16 mx-auto mb-4" />
           <h1 className="text-3xl font-bold text-gray-800 mb-2">
             {isLogin ? 'Welcome Back!' : 'Join the Adulting App'}
           </h1>

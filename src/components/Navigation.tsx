@@ -24,6 +24,7 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
+              data-tour={tab.id === 'reminders' ? 'reminders-tab' : undefined}
               className={`flex flex-col items-center py-2 px-4 rounded-xl transition-all duration-200 ${
                 isActive 
                   ? 'bg-sage text-white' 

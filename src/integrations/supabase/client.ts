@@ -14,6 +14,8 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storage: window.localStorage,
     storageKey: 'supabase.auth.token',
     autoRefreshToken: true,
-    detectSessionInUrl: true
+    detectSessionInUrl: true,
+    // Keep users logged in for 30 days (in seconds)
+    flowType: 'pkce'
   }
 });
