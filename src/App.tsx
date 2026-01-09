@@ -5,9 +5,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ReminderProvider } from "@/contexts/ReminderContext";
 import { NotificationService } from "@/services/NotificationService";
+import { DeviceTokenService } from "@/services/DeviceTokenService";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import PostJob from "./pages/PostJob";
@@ -18,17 +19,35 @@ const queryClient = new QueryClient();
 // Component to setup notification listeners
 const NotificationSetup = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   useEffect(() => {
-    // Request notification permissions and setup listeners
+    // Request local notification permissions and setup listeners
     NotificationService.requestPermissions();
     
-    // Setup listener for notification clicks
+    // Setup listener for local notification clicks
     NotificationService.setupNotificationListeners((taskId) => {
-      // Navigate to dashboard when notification is clicked
       navigate('/dashboard', { state: { openTaskId: taskId } });
     });
+
+    // Setup listener for push notification taps
+    const handlePushNotificationTap = (event: CustomEvent<{ taskId: string }>) => {
+      navigate('/dashboard', { state: { openTaskId: event.detail.taskId } });
+    };
+
+    window.addEventListener('push-notification-tap', handlePushNotificationTap as EventListener);
+
+    return () => {
+      window.removeEventListener('push-notification-tap', handlePushNotificationTap as EventListener);
+    };
   }, [navigate]);
+
+  // Initialize push notifications when user is authenticated
+  useEffect(() => {
+    if (user?.id) {
+      DeviceTokenService.initialize(user.id);
+    }
+  }, [user?.id]);
 
   return null;
 };

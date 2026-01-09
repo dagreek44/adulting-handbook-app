@@ -2,7 +2,9 @@ import React, { createContext, useState, useEffect, useContext } from "react";
 import { ReminderService } from "../services/ReminderService";
 import { UserTaskService } from "../services/UserTaskService";
 import { NotificationService } from "../services/NotificationService";
+import { PushNotificationService } from "../services/PushNotificationService";
 import { useAuth } from "./AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface UserTask {
   id: string;
@@ -181,13 +183,22 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       const newTaskId = await UserTaskService.addUserTask(user.id, taskData);
       
-      // Schedule notification if task is for another user and has a due date
+      // Send push notification if task is for another user
       if (taskData.user_id && taskData.user_id !== user.id && taskData.due_date) {
-        // Get assignee info to send notification
-        const assigneeName = taskData.assignedToNames?.[0] || 'You';
-        const creatorName = user.email?.split('@')[0] || 'A family member';
+        // Get creator's name from profile
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('id', user.id)
+          .single();
         
-        NotificationService.notifyReminderCreated(
+        const creatorName = profile?.first_name 
+          ? `${profile.first_name} ${profile.last_name || ''}`.trim()
+          : user.email?.split('@')[0] || 'A family member';
+        
+        // Send push notification to recipient
+        await PushNotificationService.notifyReminderCreated(
+          taskData.user_id,
           creatorName,
           taskData.title || 'New reminder',
           newTaskId
@@ -223,9 +234,36 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const markTaskCompleted = async (taskId: string) => {
     try {
+      // Get task details before completion
+      const task = userTasks.find(t => t.id === taskId);
+      
       await UserTaskService.completeTask(taskId);
       // Cancel the notification for this task
       await NotificationService.cancelNotification(taskId);
+      
+      // Send push notification to task creator if completed by someone else
+      if (task && task.user_id !== user?.id) {
+        // Get the original creator's user_id (we'd need to track this in the task)
+        // For now, we'll get the completer's name
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('id', user?.id)
+          .single();
+        
+        const completedByName = profile?.first_name 
+          ? `${profile.first_name} ${profile.last_name || ''}`.trim()
+          : user?.email?.split('@')[0] || 'A family member';
+        
+        // Notify the task owner
+        await PushNotificationService.notifyTaskCompleted(
+          task.user_id,
+          completedByName,
+          task.title,
+          taskId
+        );
+      }
+      
       await refreshTasks();
     } catch (error) {
       console.error("Failed to mark task as completed:", error);
