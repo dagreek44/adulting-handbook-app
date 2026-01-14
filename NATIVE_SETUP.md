@@ -129,22 +129,47 @@ npx cap run ios
 
 ## Troubleshooting
 
-### App Crashes on Launch
+### App Crashes on Launch (Emulator)
 
-1. **Version mismatch**: Ensure all `@capacitor/*` packages are version 7.x
+1. **Check Android Studio Logcat for actual error**:
+   - Open Android Studio → View → Tool Windows → Logcat
+   - Filter by your app package or "crash" or "fatal"
+   - Look for the actual exception/stack trace
+
+2. **Version mismatch**: Ensure ALL `@capacitor/*` packages are version 7.x
    ```bash
-   npm ls @capacitor/core @capacitor/push-notifications
+   npm ls @capacitor/core @capacitor/push-notifications @capacitor/ios @capacitor/android
+   ```
+   All should show `7.x.x`. If any is `8.x`, run:
+   ```bash
+   npm install @capacitor/push-notifications@7
    ```
 
-2. **Missing Firebase config**: Verify `google-services.json` (Android) or `GoogleService-Info.plist` (iOS) exists
+3. **Missing Firebase config**: The app will still work without Firebase, but if `google-services.json` is missing AND the Gradle plugin is configured, it will crash.
+   
+   **Option A**: Add the Firebase config file (see Step 2 above)
+   
+   **Option B**: Remove Firebase dependency temporarily for testing:
+   - Comment out `apply plugin: 'com.google.gms.google-services'` in `android/app/build.gradle`
+   - Re-sync: `npx cap sync android`
 
-3. **Fresh start**: Delete `android/` or `ios/` folder and re-run setup steps
+4. **Emulator lacks Google Play Services**: Push notifications require Google Play Services. Use a Google Play emulator image (not the basic one).
+
+5. **Fresh start** (nuclear option):
+   ```bash
+   rm -rf android node_modules
+   npm install
+   npm run build
+   npx cap add android
+   npx cap sync android
+   ```
 
 ### Push Notifications Not Working
 
-1. **Physical device required**: Push notifications don't work on most emulators
+1. **Physical device required**: Push notifications don't work reliably on emulators
 2. **Permission denied**: Check app permissions in device settings
 3. **Firebase not configured**: Verify Firebase project setup and config files
+4. **No token registered**: Check Logcat for "DeviceTokenService" logs
 
 ### Build Errors
 
@@ -153,6 +178,15 @@ npx cap run ios
 cd android && ./gradlew clean && cd ..
 npx cap sync android
 ```
+
+### Debugging with Logcat
+
+To see what's happening in the app:
+```bash
+# Run with live logs
+npx cap run android -l
+```
+Or in Android Studio, open Logcat and filter by package name.
 
 ---
 
