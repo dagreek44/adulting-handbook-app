@@ -1,76 +1,120 @@
 import { Capacitor } from '@capacitor/core';
-import { PushNotifications } from '@capacitor/push-notifications';
 import { supabase } from '@/integrations/supabase/client';
 
 export class DeviceTokenService {
   private static isNative = Capacitor.isNativePlatform();
   private static currentUserId: string | null = null;
+  private static isInitialized = false;
+
+  /**
+   * Check if push notifications are available
+   */
+  private static async isPushAvailable(): Promise<boolean> {
+    if (!this.isNative) {
+      console.log('DeviceTokenService: Not on native platform');
+      return false;
+    }
+
+    try {
+      // Dynamically import to prevent crashes if not available
+      const { PushNotifications } = await import('@capacitor/push-notifications');
+      return !!PushNotifications;
+    } catch (error) {
+      console.error('DeviceTokenService: Push notifications not available:', error);
+      return false;
+    }
+  }
 
   /**
    * Initialize push notifications and register device token
    */
   static async initialize(userId: string): Promise<void> {
-    if (!this.isNative) {
-      console.log('DeviceTokenService: Not on native platform, skipping initialization');
+    if (this.isInitialized) {
+      console.log('DeviceTokenService: Already initialized');
+      return;
+    }
+
+    if (!await this.isPushAvailable()) {
       return;
     }
 
     this.currentUserId = userId;
 
     try {
-      // Request permission
-      const permResult = await PushNotifications.requestPermissions();
+      const { PushNotifications } = await import('@capacitor/push-notifications');
       
-      if (permResult.receive !== 'granted') {
-        console.log('DeviceTokenService: Push notification permission denied');
-        return;
+      // Check current permission status first
+      const permStatus = await PushNotifications.checkPermissions();
+      console.log('DeviceTokenService: Current permission status:', permStatus.receive);
+      
+      // Request permission if not granted
+      if (permStatus.receive !== 'granted') {
+        const permResult = await PushNotifications.requestPermissions();
+        
+        if (permResult.receive !== 'granted') {
+          console.log('DeviceTokenService: Push notification permission denied');
+          return;
+        }
       }
+
+      // Setup listeners before registering
+      await this.setupListeners();
 
       // Register for push notifications
       await PushNotifications.register();
-
-      // Setup listeners
-      this.setupListeners();
       
+      this.isInitialized = true;
       console.log('DeviceTokenService: Initialized successfully');
     } catch (error) {
       console.error('DeviceTokenService: Failed to initialize:', error);
+      // Don't crash the app if push notifications fail
+      this.isInitialized = false;
     }
   }
 
   /**
    * Setup push notification listeners
    */
-  private static setupListeners(): void {
-    // On registration success
-    PushNotifications.addListener('registration', async (token) => {
-      console.log('DeviceTokenService: Registration successful, token:', token.value.substring(0, 20) + '...');
-      await this.saveToken(token.value);
-    });
-
-    // On registration error
-    PushNotifications.addListener('registrationError', (error) => {
-      console.error('DeviceTokenService: Registration failed:', error);
-    });
-
-    // On push notification received (foreground)
-    PushNotifications.addListener('pushNotificationReceived', (notification) => {
-      console.log('DeviceTokenService: Push notification received in foreground:', notification);
-    });
-
-    // On push notification action performed (tapped)
-    PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-      console.log('DeviceTokenService: Push notification tapped:', notification);
+  private static async setupListeners(): Promise<void> {
+    try {
+      const { PushNotifications } = await import('@capacitor/push-notifications');
       
-      // Extract task ID from notification data and navigate
-      const taskId = notification.notification.data?.taskId;
-      if (taskId) {
-        // Dispatch custom event for navigation
-        window.dispatchEvent(new CustomEvent('push-notification-tap', { 
-          detail: { taskId } 
-        }));
-      }
-    });
+      // Remove any existing listeners first
+      await PushNotifications.removeAllListeners();
+
+      // On registration success
+      await PushNotifications.addListener('registration', async (token) => {
+        console.log('DeviceTokenService: Registration successful, token:', token.value.substring(0, 20) + '...');
+        await this.saveToken(token.value);
+      });
+
+      // On registration error
+      await PushNotifications.addListener('registrationError', (error) => {
+        console.error('DeviceTokenService: Registration failed:', error);
+      });
+
+      // On push notification received (foreground)
+      await PushNotifications.addListener('pushNotificationReceived', (notification) => {
+        console.log('DeviceTokenService: Push notification received in foreground:', notification);
+      });
+
+      // On push notification action performed (tapped)
+      await PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+        console.log('DeviceTokenService: Push notification tapped:', notification);
+        
+        // Extract task ID from notification data and navigate
+        const taskId = notification.notification.data?.taskId;
+        if (taskId) {
+          window.dispatchEvent(new CustomEvent('push-notification-tap', { 
+            detail: { taskId } 
+          }));
+        }
+      });
+      
+      console.log('DeviceTokenService: Listeners setup complete');
+    } catch (error) {
+      console.error('DeviceTokenService: Failed to setup listeners:', error);
+    }
   }
 
   /**
@@ -129,6 +173,7 @@ export class DeviceTokenService {
       }
 
       this.currentUserId = null;
+      this.isInitialized = false;
     } catch (error) {
       console.error('DeviceTokenService: Error removing token:', error);
     }
