@@ -2,9 +2,19 @@ import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
 
 export class DeviceTokenService {
-  private static isNative = Capacitor.isNativePlatform();
   private static currentUserId: string | null = null;
   private static isInitialized = false;
+
+  /**
+   * Check if we're running on a native platform
+   */
+  private static get isNative(): boolean {
+    try {
+      return Capacitor.isNativePlatform();
+    } catch {
+      return false;
+    }
+  }
 
   /**
    * Check if push notifications are available

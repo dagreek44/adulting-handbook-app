@@ -293,56 +293,33 @@ const TaskDetailModal = ({ isOpen, onClose, task, onComplete, familyMembers = []
             </div>
           )}
 
-          {/* Calendar Sync Section */}
+          {/* Calendar Sync Section - Auto-detects device */}
           <div className="border-t pt-4">
             <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
               <CalendarPlus className="w-4 h-4 mr-2" />
-              Sync to Calendar
+              Add to Calendar
             </h4>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={async () => {
-                  const dueDate = task.dueDate && task.dueDate !== 'Not set' 
-                    ? new Date(task.dueDate) 
-                    : new Date();
-                  const success = await CalendarSyncService.addToCalendar(
-                    task.id,
-                    task.title,
-                    task.description,
-                    dueDate,
-                    true // Use Google Calendar
-                  );
-                  if (success) {
-                    toast.success('Opening Google Calendar...');
-                  }
-                }}
-              >
-                Google Calendar
-              </Button>
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={async () => {
-                  const dueDate = task.dueDate && task.dueDate !== 'Not set' 
-                    ? new Date(task.dueDate) 
-                    : new Date();
-                  const success = await CalendarSyncService.addToCalendar(
-                    task.id,
-                    task.title,
-                    task.description,
-                    dueDate,
-                    false // Download ICS file
-                  );
-                  if (success) {
-                    toast.success('Calendar file downloaded!');
-                  }
-                }}
-              >
-                Download .ics
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={async () => {
+                const dueDate = task.dueDate && task.dueDate !== 'Not set' 
+                  ? new Date(task.dueDate) 
+                  : new Date();
+                const success = await CalendarSyncService.syncToDeviceCalendar(
+                  task.id,
+                  task.title,
+                  task.description,
+                  dueDate
+                );
+                if (success) {
+                  toast.success('Adding to your calendar...');
+                }
+              }}
+            >
+              <CalendarPlus className="w-4 h-4 mr-2" />
+              Sync to Device Calendar
+            </Button>
           </div>
 
           <div className="flex space-x-3 pt-4">
