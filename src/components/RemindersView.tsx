@@ -11,6 +11,9 @@ import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import TaskDetailModal from './TaskDetailModal';
 import { PlusCircle, MinusCircle } from 'lucide-react';
+import { PushNotificationService } from '@/services/PushNotificationService';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 interface TaskDetails {
   id: string;
@@ -68,6 +71,7 @@ const RemindersView = ({
 }: RemindersViewProps) => {
   // Use the new reminder context
   const { userTasks, globalReminders, loading, markTaskCompleted, enableReminder, addCustomTask, postponeTask, updateTask, refreshTasks } = useReminders();
+  const { user } = useAuth();
   const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
   
   // Filter state
@@ -142,7 +146,31 @@ const RemindersView = ({
 
   const handleReassignTask = async (taskId: string, newUserId: string) => {
     try {
+      const task = userTasks.find(t => t.id === taskId);
       await updateTask(taskId, { user_id: newUserId });
+      
+      // Send push notification to the new assignee if it's not the current user
+      if (newUserId !== user?.id && task) {
+        // Get current user's name
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('id', user?.id)
+          .single();
+        
+        const reassignerName = profile?.first_name 
+          ? `${profile.first_name} ${profile.last_name || ''}`.trim()
+          : user?.email?.split('@')[0] || 'A family member';
+        
+        console.log('RemindersView: Sending reassignment notification to', newUserId);
+        await PushNotificationService.notifyReminderReassigned(
+          newUserId,
+          reassignerName,
+          task.title,
+          taskId
+        );
+      }
+      
       await refreshTasks();
       toast.success('Task reassigned successfully');
     } catch (error) {

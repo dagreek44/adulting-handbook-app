@@ -14,8 +14,21 @@ export class PushNotificationService {
    * Send push notification to specific users
    */
   static async sendToUsers(payload: PushNotificationPayload): Promise<boolean> {
+    console.log('PushNotificationService: sendToUsers called with:', {
+      user_ids: payload.user_ids,
+      title: payload.title,
+      body: payload.body,
+      data: payload.data
+    });
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        console.warn('PushNotificationService: No session token available');
+      }
+
+      console.log('PushNotificationService: Calling edge function:', this.FUNCTION_URL);
       
       const response = await fetch(this.FUNCTION_URL, {
         method: 'POST',
@@ -26,6 +39,8 @@ export class PushNotificationService {
         body: JSON.stringify(payload),
       });
 
+      console.log('PushNotificationService: Response status:', response.status);
+
       if (!response.ok) {
         const error = await response.text();
         console.error('PushNotificationService: Failed to send notification:', error);
@@ -33,7 +48,7 @@ export class PushNotificationService {
       }
 
       const result = await response.json();
-      console.log('PushNotificationService: Notification sent:', result);
+      console.log('PushNotificationService: Notification sent successfully:', result);
       return true;
     } catch (error) {
       console.error('PushNotificationService: Error sending notification:', error);
