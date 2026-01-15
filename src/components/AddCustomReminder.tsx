@@ -10,6 +10,7 @@ import { SupabaseReminder, FamilyMember } from '@/hooks/useSupabaseData';
 import { supabase } from '@/integrations/supabase/client';
 import { useReminders } from '@/contexts/ReminderContext';
 import { toast } from 'sonner';
+import { PushNotificationService } from '@/services/PushNotificationService';
 
 interface AddCustomReminderProps {
   familyMembers: FamilyMember[];
@@ -48,15 +49,18 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      // Get user's family_id
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('family_id')
-        .eq('id', user.id)
-        .single();
+      // Get user's family_id and profile info
+      const [userData, profileData] = await Promise.all([
+        supabase.from('users').select('family_id').eq('id', user.id).single(),
+        supabase.from('profiles').select('first_name, last_name').eq('id', user.id).single()
+      ]);
 
-      if (userError) throw userError;
-      if (!userData?.family_id) throw new Error('No family found');
+      if (userData.error) throw userData.error;
+      if (!userData.data?.family_id) throw new Error('No family found');
+
+      const creatorName = profileData.data?.first_name 
+        ? `${profileData.data.first_name} ${profileData.data.last_name || ''}`.trim()
+        : user.email?.split('@')[0] || 'A family member';
 
       // Determine who to assign the task to
       const assignees = newReminder.assignees || [];
@@ -82,11 +86,11 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
 
       // Create a task for each assignee directly in user_tasks table
       for (const assigneeId of assigneeProfileIds) {
-        const { error: insertError } = await supabase
+        const { data: insertedTask, error: insertError } = await supabase
           .from('user_tasks')
           .insert({
             user_id: assigneeId,
-            family_id: userData.family_id,
+            family_id: userData.data.family_id,
             title: newReminder.title || "",
             description: newReminder.description || "",
             frequency: newReminder.frequency || "once",
@@ -99,11 +103,24 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
             reminder_type: 'custom',
             enabled: true,
             status: 'pending'
-          });
+          })
+          .select('id')
+          .single();
 
         if (insertError) {
           console.error('Error inserting task:', insertError);
           throw insertError;
+        }
+
+        // Send push notification if task is assigned to someone other than creator
+        if (assigneeId !== user.id && insertedTask?.id) {
+          console.log('AddCustomReminder: Sending push notification to', assigneeId);
+          await PushNotificationService.notifyReminderCreated(
+            assigneeId,
+            creatorName,
+            newReminder.title || 'New reminder',
+            insertedTask.id
+          );
         }
       }
       
