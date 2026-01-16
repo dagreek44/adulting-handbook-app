@@ -1,8 +1,29 @@
-import { LocalNotifications } from '@capacitor/local-notifications';
 import { Capacitor } from '@capacitor/core';
 
 export class NotificationService {
-  private static isNative = Capacitor.isNativePlatform();
+  /**
+   * Safely check if we're on a native platform
+   */
+  private static get isNative(): boolean {
+    try {
+      return Capacitor.isNativePlatform();
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Safely get LocalNotifications plugin
+   */
+  private static async getLocalNotifications() {
+    try {
+      const { LocalNotifications } = await import('@capacitor/local-notifications');
+      return LocalNotifications;
+    } catch (error) {
+      console.error('NotificationService: LocalNotifications not available:', error);
+      return null;
+    }
+  }
 
   /**
    * Request notification permissions
@@ -12,6 +33,9 @@ export class NotificationService {
       console.log('NotificationService: Not on native platform, skipping permission request');
       return false;
     }
+
+    const LocalNotifications = await this.getLocalNotifications();
+    if (!LocalNotifications) return false;
 
     try {
       const result = await LocalNotifications.requestPermissions();
@@ -33,6 +57,9 @@ export class NotificationService {
       console.log('NotificationService: Not on native platform, skipping notification');
       return;
     }
+
+    const LocalNotifications = await this.getLocalNotifications();
+    if (!LocalNotifications) return;
 
     try {
       const hasPermission = await this.requestPermissions();
@@ -80,6 +107,9 @@ export class NotificationService {
     if (difficulty?.toLowerCase() !== 'medium' && difficulty?.toLowerCase() !== 'hard') {
       return;
     }
+
+    const LocalNotifications = await this.getLocalNotifications();
+    if (!LocalNotifications) return;
 
     try {
       const hasPermission = await this.requestPermissions();
@@ -133,6 +163,9 @@ export class NotificationService {
       console.log('NotificationService: Not on native platform, skipping notification');
       return;
     }
+
+    const LocalNotifications = await this.getLocalNotifications();
+    if (!LocalNotifications) return;
 
     try {
       const hasPermission = await this.requestPermissions();
@@ -192,6 +225,9 @@ export class NotificationService {
       return;
     }
 
+    const LocalNotifications = await this.getLocalNotifications();
+    if (!LocalNotifications) return;
+
     try {
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) {
@@ -232,6 +268,9 @@ export class NotificationService {
       console.log('NotificationService: Not on native platform, skipping notification');
       return;
     }
+
+    const LocalNotifications = await this.getLocalNotifications();
+    if (!LocalNotifications) return;
 
     try {
       const hasPermission = await this.requestPermissions();
@@ -274,6 +313,9 @@ export class NotificationService {
       return;
     }
 
+    const LocalNotifications = await this.getLocalNotifications();
+    if (!LocalNotifications) return;
+
     try {
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) {
@@ -308,6 +350,9 @@ export class NotificationService {
   static async cancelNotification(taskId: string): Promise<void> {
     if (!this.isNative) return;
 
+    const LocalNotifications = await this.getLocalNotifications();
+    if (!LocalNotifications) return;
+
     try {
       const notificationId = parseInt(taskId.substring(0, 8), 16);
       await LocalNotifications.cancel({ notifications: [{ id: notificationId }] });
@@ -321,15 +366,22 @@ export class NotificationService {
   /**
    * Listen for notification clicks and navigate to the reminder
    */
-  static setupNotificationListeners(onNotificationClick: (taskId: string) => void): void {
+  static async setupNotificationListeners(onNotificationClick: (taskId: string) => void): Promise<void> {
     if (!this.isNative) return;
 
-    LocalNotifications.addListener('localNotificationActionPerformed', (notification) => {
-      const taskId = notification.notification.extra?.taskId;
-      if (taskId && notification.notification.extra?.action === 'openReminder') {
-        onNotificationClick(taskId);
-      }
-    });
+    const LocalNotifications = await this.getLocalNotifications();
+    if (!LocalNotifications) return;
+
+    try {
+      await LocalNotifications.addListener('localNotificationActionPerformed', (notification) => {
+        const taskId = notification.notification.extra?.taskId;
+        if (taskId && notification.notification.extra?.action === 'openReminder') {
+          onNotificationClick(taskId);
+        }
+      });
+    } catch (error) {
+      console.error('NotificationService: Failed to setup listeners:', error);
+    }
   }
 
   /**
