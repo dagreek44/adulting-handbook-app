@@ -23,12 +23,20 @@ const NotificationSetup = () => {
 
   useEffect(() => {
     // Request local notification permissions and setup listeners
-    NotificationService.requestPermissions();
+    const setupNotifications = async () => {
+      try {
+        await NotificationService.requestPermissions();
+        
+        // Setup listener for local notification clicks
+        await NotificationService.setupNotificationListeners((taskId) => {
+          navigate('/dashboard', { state: { openTaskId: taskId } });
+        });
+      } catch (error) {
+        console.error('NotificationSetup: Failed to setup notifications:', error);
+      }
+    };
     
-    // Setup listener for local notification clicks
-    NotificationService.setupNotificationListeners((taskId) => {
-      navigate('/dashboard', { state: { openTaskId: taskId } });
-    });
+    setupNotifications();
 
     // Setup listener for push notification taps
     const handlePushNotificationTap = (event: CustomEvent<{ taskId: string }>) => {
