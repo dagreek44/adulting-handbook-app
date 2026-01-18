@@ -9,8 +9,22 @@ export interface CalendarEvent {
 }
 
 export class CalendarSyncService {
-  private static isNative = Capacitor.isNativePlatform();
-  private static platform = Capacitor.getPlatform();
+  // Lazy getters to avoid calling Capacitor methods at class load time
+  private static get isNative(): boolean {
+    try {
+      return Capacitor.isNativePlatform();
+    } catch {
+      return false;
+    }
+  }
+
+  private static get platform(): string {
+    try {
+      return Capacitor.getPlatform();
+    } catch {
+      return 'web';
+    }
+  }
 
   /**
    * Generate an ICS file content for a reminder

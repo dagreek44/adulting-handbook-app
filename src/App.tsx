@@ -25,6 +25,9 @@ const NotificationSetup = () => {
     // Request local notification permissions and setup listeners
     const setupNotifications = async () => {
       try {
+        // Wait a tick to ensure Capacitor is fully initialized on native platforms
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         await NotificationService.requestPermissions();
         
         // Setup listener for local notification clicks
