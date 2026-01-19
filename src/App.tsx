@@ -9,10 +9,12 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ReminderProvider } from "@/contexts/ReminderContext";
 import { NotificationService } from "@/services/NotificationService";
 import { DeviceTokenService } from "@/services/DeviceTokenService";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import PostJob from "./pages/PostJob";
 import NotFound from "./pages/NotFound";
+
 
 const queryClient = new QueryClient();
 
@@ -56,7 +58,14 @@ const NotificationSetup = () => {
   // Initialize push notifications when user is authenticated
   useEffect(() => {
     if (user?.id) {
-      DeviceTokenService.initialize(user.id);
+      // Add delay to ensure Capacitor is fully ready after login
+      const timer = setTimeout(() => {
+        DeviceTokenService.initialize(user.id).catch(err => {
+          console.error('Failed to initialize DeviceTokenService:', err);
+        });
+      }, 500);
+      
+      return () => clearTimeout(timer);
     }
   }, [user?.id]);
 
@@ -64,25 +73,27 @@ const NotificationSetup = () => {
 };
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <ReminderProvider>
-            <NotificationSetup />
-            <Routes>
-              <Route path="/" element={<Auth />} />
-              <Route path="/dashboard" element={<Index />} />
-              <Route path="/post-job" element={<PostJob />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </ReminderProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <ReminderProvider>
+              <NotificationSetup />
+              <Routes>
+                <Route path="/" element={<Auth />} />
+                <Route path="/dashboard" element={<Index />} />
+                <Route path="/post-job" element={<PostJob />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </ReminderProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

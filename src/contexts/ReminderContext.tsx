@@ -301,18 +301,27 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       
       for (const task of userTasks) {
         if (task.due_date === today && task.status !== 'completed') {
-          await NotificationService.scheduleReminderNotification(
-            task.id,
-            task.title,
-            task.description,
-            new Date(task.due_date)
-          );
+          try {
+            await NotificationService.scheduleReminderNotification(
+              task.id,
+              task.title,
+              task.description,
+              new Date(task.due_date)
+            );
+          } catch (error) {
+            console.error('Failed to schedule notification for task:', task.id, error);
+          }
         }
       }
     };
 
     if (userTasks.length > 0) {
-      scheduleTodayNotifications();
+      // Add delay to ensure NotificationService is ready
+      const timer = setTimeout(() => {
+        scheduleTodayNotifications().catch(console.error);
+      }, 1000);
+      
+      return () => clearTimeout(timer);
     }
   }, [userTasks]);
 

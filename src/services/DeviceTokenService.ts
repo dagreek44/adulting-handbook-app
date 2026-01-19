@@ -17,6 +17,17 @@ export class DeviceTokenService {
   }
 
   /**
+   * Get platform safely
+   */
+  private static get platform(): 'ios' | 'android' | 'web' {
+    try {
+      return Capacitor.getPlatform() as 'ios' | 'android' | 'web';
+    } catch {
+      return 'web';
+    }
+  }
+
+  /**
    * Check if push notifications are available
    */
   private static async isPushAvailable(): Promise<boolean> {
@@ -39,6 +50,11 @@ export class DeviceTokenService {
    * Initialize push notifications and register device token
    */
   static async initialize(userId: string): Promise<void> {
+    // Add extra safety delay for native platforms to ensure Capacitor is ready
+    if (this.isNative) {
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+
     if (this.isInitialized) {
       console.log('DeviceTokenService: Already initialized');
       return;
@@ -137,7 +153,7 @@ export class DeviceTokenService {
     }
 
     try {
-      const platform = Capacitor.getPlatform() as 'ios' | 'android' | 'web';
+      const platform = this.platform;
       
       // Upsert the token (insert or update if exists)
       const { error } = await supabase
