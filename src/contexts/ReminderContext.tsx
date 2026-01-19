@@ -5,6 +5,7 @@ import { NotificationService } from "../services/NotificationService";
 import { PushNotificationService } from "../services/PushNotificationService";
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { isNativePlatform } from "@/utils/capacitorUtils";
 
 export interface UserTask {
   id: string;
@@ -238,13 +239,16 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const task = userTasks.find(t => t.id === taskId);
       
       await UserTaskService.completeTask(taskId);
-      // Cancel the notification for this task
-      await NotificationService.cancelNotification(taskId);
+      
+      // Cancel the notification for this task (wrapped in try-catch)
+      try {
+        await NotificationService.cancelNotification(taskId);
+      } catch (error) {
+        console.error('Failed to cancel notification:', error);
+      }
       
       // Send push notification to task creator if completed by someone else
       if (task && task.user_id !== user?.id) {
-        // Get the original creator's user_id (we'd need to track this in the task)
-        // For now, we'll get the completer's name
         const { data: profile } = await supabase
           .from('profiles')
           .select('first_name, last_name')
@@ -276,15 +280,19 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const newDateString = newDate.toISOString().split('T')[0];
       await UserTaskService.updateUserTask(taskId, { due_date: newDateString });
       
-      // Reschedule notification if task is due today
+      // Reschedule notification if task is due today (wrapped in try-catch)
       const task = userTasks.find(t => t.id === taskId);
       if (task) {
-        await NotificationService.scheduleReminderNotification(
-          taskId,
-          task.title,
-          task.description,
-          newDate
-        );
+        try {
+          await NotificationService.scheduleReminderNotification(
+            taskId,
+            task.title,
+            task.description,
+            newDate
+          );
+        } catch (error) {
+          console.error('Failed to reschedule notification:', error);
+        }
       }
       
       await refreshTasks();
@@ -294,8 +302,12 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   };
 
-  // Schedule notifications for tasks due today
+  // Schedule notifications for tasks due today - only on native platforms
   useEffect(() => {
+    // Skip entirely if not on native platform
+    if (!isNativePlatform()) return;
+    if (userTasks.length === 0) return;
+
     const scheduleTodayNotifications = async () => {
       const today = new Date().toISOString().split('T')[0];
       
@@ -315,14 +327,12 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     };
 
-    if (userTasks.length > 0) {
-      // Add delay to ensure NotificationService is ready
-      const timer = setTimeout(() => {
-        scheduleTodayNotifications().catch(console.error);
-      }, 1000);
-      
-      return () => clearTimeout(timer);
-    }
+    // Add significant delay to ensure all native services are ready
+    const timer = setTimeout(() => {
+      scheduleTodayNotifications().catch(console.error);
+    }, 3000);
+    
+    return () => clearTimeout(timer);
   }, [userTasks]);
 
   return (

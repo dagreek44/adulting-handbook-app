@@ -1,4 +1,4 @@
-import { Capacitor } from '@capacitor/core';
+import { isNativePlatform, getPlatform } from '@/utils/capacitorUtils';
 
 export interface CalendarEvent {
   title: string;
@@ -9,21 +9,18 @@ export interface CalendarEvent {
 }
 
 export class CalendarSyncService {
-  // Lazy getters to avoid calling Capacitor methods at class load time
+  /**
+   * Safely check if running on native platform
+   */
   private static get isNative(): boolean {
-    try {
-      return Capacitor.isNativePlatform();
-    } catch {
-      return false;
-    }
+    return isNativePlatform();
   }
 
+  /**
+   * Safely get the current platform
+   */
   private static get platform(): string {
-    try {
-      return Capacitor.getPlatform();
-    } catch {
-      return 'web';
-    }
+    return getPlatform();
   }
 
   /**
@@ -92,18 +89,6 @@ END:VCALENDAR`;
    */
   private static addToiOSCalendar(event: CalendarEvent): boolean {
     try {
-      // Format dates for iOS calendar URL
-      const formatIOSDate = (date: Date) => {
-        return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-      };
-
-      // Use calshow:// or webcal:// for iOS
-      // iOS supports opening calendar app with a specific date
-      const startTimestamp = Math.floor(event.startDate.getTime() / 1000);
-      
-      // Try calendar URL scheme - opens to specific date
-      const calendarUrl = `calshow:${startTimestamp}`;
-      
       // For adding events, we need to use the ICS approach on iOS
       // as there's no direct "add event" URL scheme
       this.downloadICSFile(event);
@@ -121,16 +106,6 @@ END:VCALENDAR`;
    */
   private static addToAndroidCalendar(event: CalendarEvent): boolean {
     try {
-      // Android supports content:// intents for calendar
-      // Format: content://com.android.calendar/events
-      // Or use Google Calendar intent URL
-      
-      const startTime = event.startDate.getTime();
-      const endTime = event.endDate.getTime();
-      
-      // Use intent URL that works on Android
-      const intentUrl = `intent://com.android.calendar/time/${startTime}#Intent;scheme=content;package=com.google.android.calendar;end`;
-      
       // Fallback: Use Google Calendar web URL which Android will offer to open in app
       const googleCalendarUrl = new URL('https://calendar.google.com/calendar/render');
       googleCalendarUrl.searchParams.set('action', 'TEMPLATE');
