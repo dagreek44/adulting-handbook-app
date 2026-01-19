@@ -1,21 +1,21 @@
-import { Capacitor } from '@capacitor/core';
+import { isNativePlatform, safeNativeCall } from '@/utils/capacitorUtils';
 
 export class NotificationService {
   /**
    * Safely check if we're on a native platform
    */
   private static get isNative(): boolean {
-    try {
-      return Capacitor.isNativePlatform();
-    } catch {
-      return false;
-    }
+    return isNativePlatform();
   }
 
   /**
    * Safely get LocalNotifications plugin
    */
   private static async getLocalNotifications() {
+    if (!this.isNative) {
+      return null;
+    }
+    
     try {
       const { LocalNotifications } = await import('@capacitor/local-notifications');
       return LocalNotifications;
@@ -29,21 +29,13 @@ export class NotificationService {
    * Request notification permissions
    */
   static async requestPermissions(): Promise<boolean> {
-    if (!this.isNative) {
-      console.log('NotificationService: Not on native platform, skipping permission request');
-      return false;
-    }
+    return safeNativeCall(async () => {
+      const LocalNotifications = await this.getLocalNotifications();
+      if (!LocalNotifications) return false;
 
-    const LocalNotifications = await this.getLocalNotifications();
-    if (!LocalNotifications) return false;
-
-    try {
       const result = await LocalNotifications.requestPermissions();
       return result.display === 'granted';
-    } catch (error) {
-      console.error('NotificationService: Failed to request permissions:', error);
-      return false;
-    }
+    }, false);
   }
 
   /**
@@ -53,15 +45,10 @@ export class NotificationService {
     taskId: string,
     title: string
   ): Promise<void> {
-    if (!this.isNative) {
-      console.log('NotificationService: Not on native platform, skipping notification');
-      return;
-    }
+    await safeNativeCall(async () => {
+      const LocalNotifications = await this.getLocalNotifications();
+      if (!LocalNotifications) return;
 
-    const LocalNotifications = await this.getLocalNotifications();
-    if (!LocalNotifications) return;
-
-    try {
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) {
         console.log('NotificationService: No notification permission');
@@ -84,9 +71,7 @@ export class NotificationService {
       });
 
       console.log('NotificationService: Sent due today notification for', title);
-    } catch (error) {
-      console.error('NotificationService: Failed to schedule notification:', error);
-    }
+    }, undefined);
   }
 
   /**
@@ -98,20 +83,15 @@ export class NotificationService {
     dueDate: Date,
     difficulty: string
   ): Promise<void> {
-    if (!this.isNative) {
-      console.log('NotificationService: Not on native platform, skipping notification');
-      return;
-    }
-
     // Only schedule for medium or hard tasks
     if (difficulty?.toLowerCase() !== 'medium' && difficulty?.toLowerCase() !== 'hard') {
       return;
     }
 
-    const LocalNotifications = await this.getLocalNotifications();
-    if (!LocalNotifications) return;
+    await safeNativeCall(async () => {
+      const LocalNotifications = await this.getLocalNotifications();
+      if (!LocalNotifications) return;
 
-    try {
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) {
         console.log('NotificationService: No notification permission');
@@ -132,7 +112,7 @@ export class NotificationService {
       await LocalNotifications.schedule({
         notifications: [
           {
-            id: parseInt(taskId.substring(0, 8), 16) + 1, // Different ID for advance notification
+            id: parseInt(taskId.substring(0, 8), 16) + 1,
             title: 'Big Task Coming Up',
             body: 'You have a big task due next week. Make sure you have all the supplies to get it done.',
             schedule: { at: oneWeekBefore },
@@ -145,9 +125,7 @@ export class NotificationService {
       });
 
       console.log('NotificationService: Scheduled advance notification for', title, 'at', oneWeekBefore);
-    } catch (error) {
-      console.error('NotificationService: Failed to schedule advance notification:', error);
-    }
+    }, undefined);
   }
 
   /**
@@ -159,15 +137,10 @@ export class NotificationService {
     description: string,
     dueDate: Date
   ): Promise<void> {
-    if (!this.isNative) {
-      console.log('NotificationService: Not on native platform, skipping notification');
-      return;
-    }
+    await safeNativeCall(async () => {
+      const LocalNotifications = await this.getLocalNotifications();
+      if (!LocalNotifications) return;
 
-    const LocalNotifications = await this.getLocalNotifications();
-    if (!LocalNotifications) return;
-
-    try {
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) {
         console.log('NotificationService: No notification permission');
@@ -207,9 +180,7 @@ export class NotificationService {
       });
 
       console.log('NotificationService: Scheduled notification for', title, 'at', notificationTime);
-    } catch (error) {
-      console.error('NotificationService: Failed to schedule notification:', error);
-    }
+    }, undefined);
   }
 
   /**
@@ -220,20 +191,12 @@ export class NotificationService {
     reminderTitle: string,
     taskId: string
   ): Promise<void> {
-    if (!this.isNative) {
-      console.log('NotificationService: Not on native platform, skipping notification');
-      return;
-    }
+    await safeNativeCall(async () => {
+      const LocalNotifications = await this.getLocalNotifications();
+      if (!LocalNotifications) return;
 
-    const LocalNotifications = await this.getLocalNotifications();
-    if (!LocalNotifications) return;
-
-    try {
       const hasPermission = await this.requestPermissions();
-      if (!hasPermission) {
-        console.log('NotificationService: No notification permission');
-        return;
-      }
+      if (!hasPermission) return;
 
       await LocalNotifications.schedule({
         notifications: [
@@ -251,9 +214,7 @@ export class NotificationService {
       });
 
       console.log('NotificationService: Sent notification about new reminder from', creatorName);
-    } catch (error) {
-      console.error('NotificationService: Failed to send notification:', error);
-    }
+    }, undefined);
   }
 
   /**
@@ -264,20 +225,12 @@ export class NotificationService {
     reminderTitle: string,
     taskId: string
   ): Promise<void> {
-    if (!this.isNative) {
-      console.log('NotificationService: Not on native platform, skipping notification');
-      return;
-    }
+    await safeNativeCall(async () => {
+      const LocalNotifications = await this.getLocalNotifications();
+      if (!LocalNotifications) return;
 
-    const LocalNotifications = await this.getLocalNotifications();
-    if (!LocalNotifications) return;
-
-    try {
       const hasPermission = await this.requestPermissions();
-      if (!hasPermission) {
-        console.log('NotificationService: No notification permission');
-        return;
-      }
+      if (!hasPermission) return;
 
       await LocalNotifications.schedule({
         notifications: [
@@ -295,9 +248,7 @@ export class NotificationService {
       });
 
       console.log('NotificationService: Sent reassignment notification for', reminderTitle);
-    } catch (error) {
-      console.error('NotificationService: Failed to send reassignment notification:', error);
-    }
+    }, undefined);
   }
 
   /**
@@ -308,20 +259,12 @@ export class NotificationService {
     taskTitle: string,
     taskId: string
   ): Promise<void> {
-    if (!this.isNative) {
-      console.log('NotificationService: Not on native platform, skipping notification');
-      return;
-    }
+    await safeNativeCall(async () => {
+      const LocalNotifications = await this.getLocalNotifications();
+      if (!LocalNotifications) return;
 
-    const LocalNotifications = await this.getLocalNotifications();
-    if (!LocalNotifications) return;
-
-    try {
       const hasPermission = await this.requestPermissions();
-      if (!hasPermission) {
-        console.log('NotificationService: No notification permission');
-        return;
-      }
+      if (!hasPermission) return;
 
       await LocalNotifications.schedule({
         notifications: [
@@ -339,49 +282,39 @@ export class NotificationService {
       });
 
       console.log('NotificationService: Sent task completion notification for', taskTitle);
-    } catch (error) {
-      console.error('NotificationService: Failed to send completion notification:', error);
-    }
+    }, undefined);
   }
 
   /**
    * Cancel a scheduled notification
    */
   static async cancelNotification(taskId: string): Promise<void> {
-    if (!this.isNative) return;
+    await safeNativeCall(async () => {
+      const LocalNotifications = await this.getLocalNotifications();
+      if (!LocalNotifications) return;
 
-    const LocalNotifications = await this.getLocalNotifications();
-    if (!LocalNotifications) return;
-
-    try {
       const notificationId = parseInt(taskId.substring(0, 8), 16);
       await LocalNotifications.cancel({ notifications: [{ id: notificationId }] });
       // Also cancel the advance notification
       await LocalNotifications.cancel({ notifications: [{ id: notificationId + 1 }] });
-    } catch (error) {
-      console.error('NotificationService: Failed to cancel notification:', error);
-    }
+    }, undefined);
   }
 
   /**
    * Listen for notification clicks and navigate to the reminder
    */
   static async setupNotificationListeners(onNotificationClick: (taskId: string) => void): Promise<void> {
-    if (!this.isNative) return;
+    await safeNativeCall(async () => {
+      const LocalNotifications = await this.getLocalNotifications();
+      if (!LocalNotifications) return;
 
-    const LocalNotifications = await this.getLocalNotifications();
-    if (!LocalNotifications) return;
-
-    try {
       await LocalNotifications.addListener('localNotificationActionPerformed', (notification) => {
         const taskId = notification.notification.extra?.taskId;
         if (taskId && notification.notification.extra?.action === 'openReminder') {
           onNotificationClick(taskId);
         }
       });
-    } catch (error) {
-      console.error('NotificationService: Failed to setup listeners:', error);
-    }
+    }, undefined);
   }
 
   /**

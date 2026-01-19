@@ -1,4 +1,4 @@
-import { Capacitor } from '@capacitor/core';
+import { isNativePlatform, getPlatform, waitForCapacitor, safeNativeCall } from '@/utils/capacitorUtils';
 import { supabase } from '@/integrations/supabase/client';
 
 export class DeviceTokenService {
@@ -9,22 +9,14 @@ export class DeviceTokenService {
    * Check if we're running on a native platform
    */
   private static get isNative(): boolean {
-    try {
-      return Capacitor.isNativePlatform();
-    } catch {
-      return false;
-    }
+    return isNativePlatform();
   }
 
   /**
    * Get platform safely
    */
   private static get platform(): 'ios' | 'android' | 'web' {
-    try {
-      return Capacitor.getPlatform() as 'ios' | 'android' | 'web';
-    } catch {
-      return 'web';
-    }
+    return getPlatform();
   }
 
   /**
@@ -50,9 +42,15 @@ export class DeviceTokenService {
    * Initialize push notifications and register device token
    */
   static async initialize(userId: string): Promise<void> {
-    // Add extra safety delay for native platforms to ensure Capacitor is ready
-    if (this.isNative) {
-      await new Promise(resolve => setTimeout(resolve, 200));
+    console.log('DeviceTokenService: Initialize called for user:', userId);
+    
+    // Wait for Capacitor to be fully ready
+    const isReady = await waitForCapacitor(2000);
+    console.log('DeviceTokenService: Capacitor ready:', isReady);
+    
+    if (!isReady) {
+      console.log('DeviceTokenService: Capacitor not ready, skipping initialization');
+      return;
     }
 
     if (this.isInitialized) {
@@ -61,6 +59,7 @@ export class DeviceTokenService {
     }
 
     if (!await this.isPushAvailable()) {
+      console.log('DeviceTokenService: Push not available');
       return;
     }
 
