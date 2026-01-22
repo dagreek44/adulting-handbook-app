@@ -5,11 +5,12 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { Clock, DollarSign, Calendar, Play, CheckCircle2, ExternalLink, Users, CalendarDays, CalendarPlus } from 'lucide-react';
+import { Clock, DollarSign, Calendar, Play, CheckCircle2, ExternalLink, Users, CalendarDays, CalendarPlus, Info } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { CalendarSyncService } from '@/services/CalendarSyncService';
 import { toast } from 'sonner';
+import YouTubeEmbed from './YouTubeEmbed';
 
 interface Task {
   id: string;
@@ -25,6 +26,7 @@ interface Task {
   supplies?: any[];
   isGlobalReminder?: boolean;
   user_id?: string;
+  why?: string;
 }
 
 interface FamilyMember {
@@ -137,22 +139,26 @@ const TaskDetailModal = ({ isOpen, onClose, task, onComplete, familyMembers = []
             </div>
           </div>
 
+          {/* Why It Matters Section - only for global reminders with 'why' content */}
+          {task.isGlobalReminder && task.why && (
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 p-4 rounded-lg border border-blue-100 dark:border-blue-900">
+              <h4 className="font-semibold text-blue-800 dark:text-blue-300 mb-2 flex items-center">
+                <Info className="w-4 h-4 mr-2" />
+                Why It Matters
+              </h4>
+              <p className="text-blue-700 dark:text-blue-400 text-sm leading-relaxed">
+                {task.why}
+              </p>
+            </div>
+          )}
+
           {task.videoUrl && (
             <div>
               <h4 className="font-semibold text-gray-800 mb-2 flex items-center">
                 <Play className="w-4 h-4 mr-2" />
                 Tutorial Video
               </h4>
-              <div className="bg-gray-100 p-3 rounded-lg">
-                <a 
-                  href={task.videoUrl} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:text-blue-800 underline text-sm"
-                >
-                  Watch Tutorial
-                </a>
-              </div>
+              <YouTubeEmbed videoUrl={task.videoUrl} title={task.title} />
             </div>
           )}
 
