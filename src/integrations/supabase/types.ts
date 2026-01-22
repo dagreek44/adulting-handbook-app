@@ -184,6 +184,7 @@ export type Database = {
           tools: Json | null
           updated_at: string
           video_url: string | null
+          why: string | null
         }
         Insert: {
           assignees?: string[] | null
@@ -206,6 +207,7 @@ export type Database = {
           tools?: Json | null
           updated_at?: string
           video_url?: string | null
+          why?: string | null
         }
         Update: {
           assignees?: string[] | null
@@ -228,6 +230,7 @@ export type Database = {
           tools?: Json | null
           updated_at?: string
           video_url?: string | null
+          why?: string | null
         }
         Relationships: []
       }
@@ -317,6 +320,7 @@ export type Database = {
           tools: Json | null
           user_id: string | null
           video_url: string | null
+          why: string | null
         }
         Insert: {
           completed_by?: string | null
@@ -343,6 +347,7 @@ export type Database = {
           tools?: Json | null
           user_id?: string | null
           video_url?: string | null
+          why?: string | null
         }
         Update: {
           completed_by?: string | null
@@ -369,6 +374,7 @@ export type Database = {
           tools?: Json | null
           user_id?: string | null
           video_url?: string | null
+          why?: string | null
         }
         Relationships: [
           {

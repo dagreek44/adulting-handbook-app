@@ -39,7 +39,8 @@ export class ReminderService {
       // Add frequency_days for backward compatibility
       return {
         ...data,
-        frequency_days: this.getFrequencyDays(data.frequency)
+        frequency_days: this.getFrequencyDays(data.frequency),
+        why: data.why || null
       };
     } catch (error) {
       console.error('Error fetching reminder by ID:', error);

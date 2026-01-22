@@ -34,7 +34,8 @@ export class UserTaskService {
             video_url,
             instructions,
             tools,
-            supplies
+            supplies,
+            why
           ),
           assignee:users!user_tasks_user_id_fkey(
             id,
@@ -75,6 +76,7 @@ export class UserTaskService {
           instructions: reminderData?.instructions || row.instructions || [],
           tools: reminderData?.tools || row.tools || [],
           supplies: reminderData?.supplies || row.supplies || [],
+          why: reminderData?.why || row.why, // Inherit "why it matters" from global reminder
           isPastDue,
           assignees: [assigneeName],
           assignedToNames: [assigneeName],
@@ -325,6 +327,7 @@ export class UserTaskService {
         instructions: reminder.instructions || [],
         tools: reminder.tools || [],
         supplies: reminder.supplies || [],
+        why: reminder.why || null, // Inherit "why it matters" from global reminder
         is_custom: false,
         reminder_type: 'global',
         enabled: true,

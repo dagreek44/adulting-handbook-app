@@ -119,7 +119,8 @@ const Index = () => {
       instructions: task.instructions || [],
       tools: task.tools || [],
       supplies: task.supplies || [],
-      isGlobalReminder: task.reminder_id != null // Mark as global reminder if it has a reminder_id
+      isGlobalReminder: task.reminder_id != null, // Mark as global reminder if it has a reminder_id
+      why: task.why || null
     };
   };
 
@@ -169,7 +170,6 @@ const Index = () => {
                   icon={Calendar}
                   color="bg-gradient-to-br from-blue-soft to-blue-400"
                   onClick={() => setActiveTab('reminders')}
-                  badge={upcomingTasks.length}
                 />
               </div>
               <DashboardCard
