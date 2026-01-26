@@ -234,7 +234,9 @@ const RemindersView = ({
     assignedToNames: task.assignedToNames,
     status: task.status,
     last_completed: task.last_completed,
-    next_due: task.due_date
+    next_due: task.due_date,
+    why: task.why,
+    isGlobalReminder: !!task.reminder_id
   }));
 
   // Create wrapper functions to handle type conversions

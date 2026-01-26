@@ -5,12 +5,13 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { Clock, DollarSign, Calendar, Play, CheckCircle2, ExternalLink, Users, CalendarDays, CalendarPlus, Info } from 'lucide-react';
+import { Clock, DollarSign, Calendar, Play, CheckCircle2, ShoppingCart, Users, CalendarDays, CalendarPlus, Info } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { CalendarSyncService } from '@/services/CalendarSyncService';
 import { toast } from 'sonner';
 import YouTubeEmbed from './YouTubeEmbed';
+import { openAmazonLink } from '@/utils/amazonDeepLink';
 
 interface Task {
   id: string;
@@ -100,10 +101,6 @@ const TaskDetailModal = ({ isOpen, onClose, task, onComplete, familyMembers = []
     }
   };
 
-  const generateAmazonSearchUrl = (itemName: string) => {
-    const searchQuery = encodeURIComponent(itemName);
-    return `https://www.amazon.com/s?k=${searchQuery}&ref=nb_sb_noss`;
-  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -139,18 +136,6 @@ const TaskDetailModal = ({ isOpen, onClose, task, onComplete, familyMembers = []
             </div>
           </div>
 
-          {/* Why It Matters Section - only for global reminders with 'why' content */}
-          {task.isGlobalReminder && task.why && (
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 p-4 rounded-lg border border-blue-100 dark:border-blue-900">
-              <h4 className="font-semibold text-blue-800 dark:text-blue-300 mb-2 flex items-center">
-                <Info className="w-4 h-4 mr-2" />
-                Why It Matters
-              </h4>
-              <p className="text-blue-700 dark:text-blue-400 text-sm leading-relaxed">
-                {task.why}
-              </p>
-            </div>
-          )}
 
           {task.videoUrl && (
             <div>
@@ -173,6 +158,19 @@ const TaskDetailModal = ({ isOpen, onClose, task, onComplete, familyMembers = []
             </div>
           )}
 
+          {/* Why It Matters Section - after instructions, before tools */}
+          {task.isGlobalReminder && task.why && (
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 p-4 rounded-lg border border-blue-100 dark:border-blue-900">
+              <h4 className="font-semibold text-blue-800 dark:text-blue-300 mb-2 flex items-center">
+                <Info className="w-4 h-4 mr-2" />
+                Why It Matters
+              </h4>
+              <p className="text-blue-700 dark:text-blue-400 text-sm leading-relaxed">
+                {task.why}
+              </p>
+            </div>
+          )}
+
           {task.tools && task.tools.length > 0 && (
             <div>
               <h4 className="font-semibold text-gray-800 mb-2">Tools Needed</h4>
@@ -183,15 +181,13 @@ const TaskDetailModal = ({ isOpen, onClose, task, onComplete, familyMembers = []
                     <li key={index} className="flex items-center justify-between text-sm text-gray-600">
                       <span>{toolName}</span>
                       {task.isGlobalReminder && (
-                        <a
-                          href={generateAmazonSearchUrl(toolName)}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          onClick={() => openAmazonLink(toolName)}
                           className="flex items-center text-blue-600 hover:text-blue-800 text-xs"
                         >
-                          <ExternalLink className="w-3 h-3 mr-1" />
+                          <ShoppingCart className="w-3 h-3 mr-1" />
                           Shop
-                        </a>
+                        </button>
                       )}
                     </li>
                   );
@@ -210,15 +206,13 @@ const TaskDetailModal = ({ isOpen, onClose, task, onComplete, familyMembers = []
                     <li key={index} className="flex items-center justify-between text-sm text-gray-600">
                       <span>{supplyName}</span>
                       {task.isGlobalReminder && (
-                        <a
-                          href={generateAmazonSearchUrl(supplyName)}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          onClick={() => openAmazonLink(supplyName)}
                           className="flex items-center text-blue-600 hover:text-blue-800 text-xs"
                         >
-                          <ExternalLink className="w-3 h-3 mr-1" />
+                          <ShoppingCart className="w-3 h-3 mr-1" />
                           Shop
-                        </a>
+                        </button>
                       )}
                     </li>
                   );
