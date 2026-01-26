@@ -18,6 +18,8 @@ interface TaskCardProps {
   lastCompleted?: string | null;
   nextDue?: string;
   taskId?: string;
+  why?: string;
+  isGlobalReminder?: boolean;
   onComplete: () => void;
   onPostpone?: (newDate: Date) => Promise<void>;
   onClick?: () => void;
@@ -36,6 +38,8 @@ const TaskCard = ({
   lastCompleted,
   nextDue,
   taskId,
+  why,
+  isGlobalReminder,
   onComplete,
   onPostpone,
   onClick 
@@ -121,6 +125,13 @@ const TaskCard = ({
             <Users className="w-3 h-3 mr-1" />
             <span>Assigned to: {assignedToNames.join(', ')}</span>
           </div>
+
+          {/* Why It Matters - for global reminders with 'why' content */}
+          {isGlobalReminder && why && (
+            <div className="text-xs text-blue-600 mb-2 italic">
+              Why: {why}
+            </div>
+          )}
 
           {/* Last Completed Info */}
           {lastCompleted && (

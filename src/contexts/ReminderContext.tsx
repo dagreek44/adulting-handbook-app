@@ -32,6 +32,7 @@ export interface UserTask {
   assignees: string[];
   assignedToNames: string[];
   isPastDue?: boolean;
+  why?: string | null;
 }
 
 export interface GlobalReminder {

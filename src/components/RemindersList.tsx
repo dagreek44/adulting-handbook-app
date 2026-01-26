@@ -14,6 +14,8 @@ interface UserTaskForList {
   status: string;
   last_completed: string | null;
   next_due: string;
+  why?: string;
+  isGlobalReminder?: boolean;
 }
 
 interface RemindersListProps {
@@ -50,6 +52,8 @@ const RemindersList = ({
               isCompleted={reminder.status === 'completed'}
               lastCompleted={reminder.last_completed}
               nextDue={reminder.next_due}
+              why={reminder.why}
+              isGlobalReminder={reminder.isGlobalReminder}
               onComplete={() => onTaskComplete(reminder)}
               onPostpone={onPostpone ? (newDate) => onPostpone(reminder.id, newDate) : undefined}
               onClick={() => onTaskClick(reminder)}
