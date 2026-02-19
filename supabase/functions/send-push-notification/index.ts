@@ -26,7 +26,6 @@ interface ServiceAccount {
   client_x509_cert_url: string;
 }
 
-// Base64URL encode for JWT
 function base64URLEncode(str: string): string {
   return btoa(str)
     .replace(/\+/g, '-')
@@ -34,13 +33,11 @@ function base64URLEncode(str: string): string {
     .replace(/=+$/, '');
 }
 
-// Convert string to ArrayBuffer
 function stringToArrayBuffer(str: string): ArrayBuffer {
   const encoder = new TextEncoder();
   return encoder.encode(str).buffer;
 }
 
-// Import private key for signing
 async function importPrivateKey(pem: string): Promise<CryptoKey> {
   const pemHeader = "-----BEGIN PRIVATE KEY-----";
   const pemFooter = "-----END PRIVATE KEY-----";
@@ -54,25 +51,17 @@ async function importPrivateKey(pem: string): Promise<CryptoKey> {
   return await crypto.subtle.importKey(
     "pkcs8",
     binaryDer,
-    {
-      name: "RSASSA-PKCS1-v1_5",
-      hash: "SHA-256",
-    },
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
     ["sign"]
   );
 }
 
-// Generate OAuth2 access token using service account
 async function getAccessToken(serviceAccount: ServiceAccount): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
-  const expiry = now + 3600; // 1 hour
+  const expiry = now + 3600;
 
-  const header = {
-    alg: "RS256",
-    typ: "JWT",
-  };
-
+  const header = { alg: "RS256", typ: "JWT" };
   const payload = {
     iss: serviceAccount.client_email,
     sub: serviceAccount.client_email,
@@ -98,12 +87,9 @@ async function getAccessToken(serviceAccount: ServiceAccount): Promise<string> {
   );
   const jwt = `${unsignedToken}.${encodedSignature}`;
 
-  // Exchange JWT for access token
   const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
       assertion: jwt,
@@ -119,7 +105,11 @@ async function getAccessToken(serviceAccount: ServiceAccount): Promise<string> {
   return tokenData.access_token;
 }
 
-// Send FCM notification
+interface FCMResult {
+  success: boolean;
+  errorBody?: string;
+}
+
 async function sendFCMNotification(
   accessToken: string,
   projectId: string,
@@ -127,28 +117,23 @@ async function sendFCMNotification(
   title: string,
   body: string,
   data?: Record<string, string>
-): Promise<boolean> {
+): Promise<FCMResult> {
   const message = {
     message: {
       token: fcmToken,
-      notification: {
-        title,
-        body,
-      },
+      notification: { title, body },
       data: data || {},
       android: {
         priority: "high",
         notification: {
+          channel_id: "default",
           sound: "default",
           click_action: "FLUTTER_NOTIFICATION_CLICK",
         },
       },
       apns: {
         payload: {
-          aps: {
-            sound: "default",
-            badge: 1,
-          },
+          aps: { sound: "default", badge: 1 },
         },
       },
     },
@@ -167,30 +152,26 @@ async function sendFCMNotification(
   );
 
   if (!response.ok) {
-    const error = await response.text();
-    console.error(`FCM send error for token ${fcmToken.substring(0, 20)}...:`, error);
-    return false;
+    const errorBody = await response.text();
+    console.error(`FCM send error for token ${fcmToken.substring(0, 20)}...:`, errorBody);
+    return { success: false, errorBody };
   }
 
-  return true;
+  return { success: true };
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Get service account from environment
     const serviceAccountJson = Deno.env.get("FIREBASE_SERVICE_ACCOUNT");
     if (!serviceAccountJson) {
       throw new Error("FIREBASE_SERVICE_ACCOUNT not configured");
     }
 
     const serviceAccount: ServiceAccount = JSON.parse(serviceAccountJson);
-
-    // Parse request body
     const { user_ids, title, body, data }: PushNotificationRequest = await req.json();
 
     if (!user_ids || !user_ids.length || !title || !body) {
@@ -200,12 +181,10 @@ serve(async (req) => {
       );
     }
 
-    // Initialize Supabase client with service role
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get device tokens for users
     const { data: deviceTokens, error: tokensError } = await supabase
       .from("device_tokens")
       .select("fcm_token, user_id")
@@ -223,15 +202,14 @@ serve(async (req) => {
       );
     }
 
-    // Get access token
     const accessToken = await getAccessToken(serviceAccount);
 
-    // Send notifications to all devices
     let successCount = 0;
     let failCount = 0;
+    let cleanedCount = 0;
 
     for (const { fcm_token } of deviceTokens) {
-      const success = await sendFCMNotification(
+      const result = await sendFCMNotification(
         accessToken,
         serviceAccount.project_id,
         fcm_token,
@@ -240,20 +218,40 @@ serve(async (req) => {
         data
       );
 
-      if (success) {
+      if (result.success) {
         successCount++;
       } else {
         failCount++;
+
+        // Clean up stale/unregistered tokens
+        if (result.errorBody && (
+          result.errorBody.includes("UNREGISTERED") ||
+          result.errorBody.includes("NOT_FOUND")
+        )) {
+          console.log(`Cleaning up stale token: ${fcm_token.substring(0, 20)}...`);
+          const { error: deleteError } = await supabase
+            .from("device_tokens")
+            .delete()
+            .eq("fcm_token", fcm_token);
+
+          if (deleteError) {
+            console.error("Failed to delete stale token:", deleteError);
+          } else {
+            cleanedCount++;
+            console.log("Stale token deleted successfully");
+          }
+        }
       }
     }
 
-    console.log(`Push notifications sent: ${successCount} success, ${failCount} failed`);
+    console.log(`Push notifications: ${successCount} sent, ${failCount} failed, ${cleanedCount} stale tokens cleaned`);
 
     return new Response(
       JSON.stringify({
         success: true,
         sent: successCount,
         failed: failCount,
+        cleaned: cleanedCount,
         total_tokens: deviceTokens.length,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

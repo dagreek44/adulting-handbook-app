@@ -23,6 +23,9 @@ const config: CapacitorConfig = {
       smallIcon: "ic_stat_icon",
       iconColor: "#D97458",
     },
+    PushNotifications: {
+      presentationOptions: ["badge", "sound", "alert"],
+    },
   },
   android: {
     allowMixedContent: true,
