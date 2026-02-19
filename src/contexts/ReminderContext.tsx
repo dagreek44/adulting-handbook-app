@@ -123,6 +123,16 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setUserTasks(formattedTasks);
         setGlobalReminders(reminders);
         setCompletedTasks(completed);
+
+        // Schedule local notifications for all tasks as backup (native only)
+        if (isNativePlatform()) {
+          try {
+            await NotificationService.scheduleAllTaskNotifications(formattedTasks, user.id);
+            console.log('ReminderContext: Scheduled local notifications for all tasks');
+          } catch (err) {
+            console.error('ReminderContext: Failed to schedule local notifications:', err);
+          }
+        }
       } catch (error) {
         console.error("Failed to load data:", error);
       } finally {
