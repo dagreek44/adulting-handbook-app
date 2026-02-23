@@ -15,6 +15,14 @@ interface FamilyInvitationRequest {
   role: string;
 }
 
+const escapeHtml = (str: string): string =>
+  str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -24,6 +32,11 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const { to, name, inviterName, role }: FamilyInvitationRequest = await req.json();
 
+    // Sanitize all user inputs before embedding in HTML
+    const safeName = escapeHtml(name || '');
+    const safeInviterName = escapeHtml(inviterName || '');
+    const safeRole = escapeHtml(role || '');
+
     console.log(`Sending family invitation to ${to} from ${inviterName}`);
 
     const signUpUrl = `${req.headers.get('origin') || 'https://lovableproject.com'}/auth?email=${encodeURIComponent(to)}&signup=true`;
@@ -31,17 +44,17 @@ const handler = async (req: Request): Promise<Response> => {
     const emailResponse = await resend.emails.send({
       from: "Adulting App <welcome@adulting101.co>",
       to: [to],
-      subject: `${inviterName} invited you to join their family on Adulting App!`,
+      subject: `${safeInviterName} invited you to join their family on Adulting App!`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h1 style="color: #2C5F2D; margin-bottom: 20px;">Welcome to Adulting App!</h1>
           
           <p style="font-size: 16px; line-height: 1.6; color: #333;">
-            Hi ${name},
+            Hi ${safeName},
           </p>
           
           <p style="font-size: 16px; line-height: 1.6; color: #333;">
-            Great news! <strong>${inviterName}</strong> has invited you to join their family on Adulting App as a <strong>${role}</strong>.
+            Great news! <strong>${safeInviterName}</strong> has invited you to join their family on Adulting App as a <strong>${safeRole}</strong>.
           </p>
           
           <p style="font-size: 16px; line-height: 1.6; color: #333;">
