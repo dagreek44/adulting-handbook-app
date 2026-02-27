@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Calendar as CalendarIcon } from 'lucide-react';
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useReminders } from '@/contexts/ReminderContext';
 import { toast } from 'sonner';
 import { PushNotificationService } from '@/services/PushNotificationService';
+import { FriendGroupService, FriendGroup } from '@/services/FriendGroupService';
 
 interface AddCustomReminderProps {
   familyMembers: FamilyMember[];
@@ -39,7 +40,13 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
     assignees: []
   });
   const [selectedDate, setSelectedDate] = useState<Date>();
+  const [taskTarget, setTaskTarget] = useState<string>('family'); // 'family' or group id
+  const [friendGroups, setFriendGroups] = useState<FriendGroup[]>([]);
   const { refreshTasks } = useReminders();
+
+  useEffect(() => {
+    FriendGroupService.getUserGroups().then(setFriendGroups).catch(console.error);
+  }, [showAddForm]);
 
   const addCustomReminder = async () => {
     if (!newReminder.title?.trim() || !selectedDate) return;
@@ -83,27 +90,37 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
       }
 
       const dueDate = selectedDate.toISOString().split('T')[0];
+      
+      // Determine if this is a friend group task
+      const isGroupTask = taskTarget !== 'family' && taskTarget !== '';
+      const groupId = isGroupTask ? taskTarget : null;
 
       // Create a task for each assignee directly in user_tasks table
       for (const assigneeId of assigneeProfileIds) {
+        const insertData: any = {
+          user_id: assigneeId,
+          family_id: userData.data.family_id,
+          title: newReminder.title || "",
+          description: newReminder.description || "",
+          frequency: newReminder.frequency || "once",
+          due_date: dueDate,
+          difficulty: 'Easy',
+          instructions: [],
+          tools: [],
+          supplies: [],
+          is_custom: true,
+          reminder_type: 'custom',
+          enabled: true,
+          status: 'pending'
+        };
+
+        if (groupId) {
+          insertData.group_id = groupId;
+        }
+
         const { data: insertedTask, error: insertError } = await supabase
           .from('user_tasks')
-          .insert({
-            user_id: assigneeId,
-            family_id: userData.data.family_id,
-            title: newReminder.title || "",
-            description: newReminder.description || "",
-            frequency: newReminder.frequency || "once",
-            due_date: dueDate,
-            difficulty: 'Easy',
-            instructions: [],
-            tools: [],
-            supplies: [],
-            is_custom: true,
-            reminder_type: 'custom',
-            enabled: true,
-            status: 'pending'
-          })
+          .insert(insertData)
           .select('id')
           .single();
 
@@ -130,6 +147,7 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
       toast.success('Custom reminder added successfully!');
       setNewReminder({ title: '', description: '', frequency: 'once', due_date: null, assignees: [] });
       setSelectedDate(undefined);
+      setTaskTarget('family');
       setShowAddForm(false);
     } catch (error) {
       console.error('Error adding custom reminder:', error);
@@ -163,6 +181,21 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
               <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>
             ))}
           </select>
+
+          {/* Task target - Family or Friend Group */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">Create for</label>
+            <select
+              value={taskTarget}
+              onChange={e => setTaskTarget(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-lg"
+            >
+              <option value="family">My Family</option>
+              {friendGroups.map(group => (
+                <option key={group.id} value={group.id}>{group.name} (Friend Group)</option>
+              ))}
+            </select>
+          </div>
           
           {/* Date Picker - now mandatory */}
           <div>

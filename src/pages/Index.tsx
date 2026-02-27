@@ -6,12 +6,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useReminders, type UserTask } from '@/contexts/ReminderContext';
 import { useBadges } from '@/hooks/useBadges';
+import { Users } from 'lucide-react';
 import Header from '@/components/Header';
 import DashboardCard from '@/components/DashboardCard';
 import Navigation from '@/components/Navigation';
 import TaskDetailModal from '@/components/TaskDetailModal';
 import FamilyMembersModal from '@/components/FamilyMembersModal';
 import RemindersView from "@/components/RemindersView";
+import FriendGroupsModal from "@/components/FriendGroupsModal";
 import ContractorsView from "@/components/ContractorsView";
 import CompletedTasksView from "@/components/CompletedTasksView";
 import AchievementBadge from '@/components/AchievementBadge';
@@ -27,6 +29,7 @@ const Index = () => {
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFamilyModalOpen, setIsFamilyModalOpen] = useState(false);
+  const [isFriendGroupsOpen, setIsFriendGroupsOpen] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const { toast } = useToast();
 
@@ -231,6 +234,28 @@ const Index = () => {
           />
         );
 
+      case 'groups':
+        return (
+          <div className="space-y-6">
+            <SharedHeader
+              title="Friend Groups"
+              setIsFamilyModalOpen={setIsFamilyModalOpen}
+            />
+            <div className="bg-white p-4 rounded-xl shadow-md">
+              <p className="text-gray-600 text-sm mb-4">
+                Create friend groups to share reminders and tasks with people outside your family.
+              </p>
+              <button
+                onClick={() => setIsFriendGroupsOpen(true)}
+                className="w-full bg-sage text-white py-3 rounded-lg font-medium hover:bg-sage/90 transition-colors flex items-center justify-center"
+              >
+                <Users className="w-5 h-5 mr-2" />
+                Manage Friend Groups
+              </button>
+            </div>
+          </div>
+        );
+
       case 'contractors':
         // Convert userTasks to a format that matches SupabaseReminder for ContractorsView
         const convertedTasksForContractors = pendingTasks.map(task => ({
@@ -371,6 +396,11 @@ const Index = () => {
           onUpdateMembers={(updatedMembers) => {
             console.log('Family members updated:', updatedMembers);
           }}
+        />
+
+        <FriendGroupsModal
+          isOpen={isFriendGroupsOpen}
+          onClose={() => setIsFriendGroupsOpen(false)}
         />
 
         <OnboardingTour

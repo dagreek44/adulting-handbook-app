@@ -1,5 +1,5 @@
 
-import { House, Wrench, Flame } from 'lucide-react';
+import { House, Wrench, Flame, Users } from 'lucide-react';
 
 interface NavigationProps {
   activeTab: string;
@@ -10,6 +10,7 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
   const tabs = [
     { id: 'home', label: 'Home', icon: House },
     { id: 'reminders', label: 'Reminders', icon: Wrench },
+    { id: 'groups', label: 'Groups', icon: Users },
     { id: 'contractors', label: 'Contractors', icon: Flame },
   ];
 

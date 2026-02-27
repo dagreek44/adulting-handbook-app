@@ -7,8 +7,11 @@ interface RemindersFilterProps {
   familyMembers: FamilyMember[];
   selectedCategories: string[];
   selectedMembers: string[];
+  selectedSources: string[];
+  availableSources: { id: string; label: string }[];
   onCategoryChange: (categories: string[]) => void;
   onMemberChange: (members: string[]) => void;
+  onSourceChange: (sources: string[]) => void;
   onClearFilters: () => void;
 }
 
@@ -17,13 +20,16 @@ const RemindersFilter = ({
   familyMembers,
   selectedCategories,
   selectedMembers,
+  selectedSources,
+  availableSources,
   onCategoryChange,
   onMemberChange,
+  onSourceChange,
   onClearFilters
 }: RemindersFilterProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
-  const hasActiveFilters = selectedCategories.length > 0 || selectedMembers.length > 0;
+  const hasActiveFilters = selectedCategories.length > 0 || selectedMembers.length > 0 || selectedSources.length > 0;
 
   const toggleCategory = (category: string) => {
     if (selectedCategories.includes(category)) {
@@ -34,12 +40,19 @@ const RemindersFilter = ({
   };
 
   const toggleMember = (member: FamilyMember) => {
-    // Use profile_id if available, otherwise fall back to id
     const memberId = member.profile_id || member.id;
     if (selectedMembers.includes(memberId)) {
       onMemberChange(selectedMembers.filter(m => m !== memberId));
     } else {
       onMemberChange([...selectedMembers, memberId]);
+    }
+  };
+
+  const toggleSource = (sourceId: string) => {
+    if (selectedSources.includes(sourceId)) {
+      onSourceChange(selectedSources.filter(s => s !== sourceId));
+    } else {
+      onSourceChange([...selectedSources, sourceId]);
     }
   };
 
@@ -94,6 +107,28 @@ const RemindersFilter = ({
                     }`}
                   >
                     {category}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Source filter */}
+          {availableSources.length > 0 && (
+            <div className="mt-3">
+              <h4 className="text-sm font-semibold text-gray-600 mb-2">By Source</h4>
+              <div className="flex flex-wrap gap-2">
+                {availableSources.map(source => (
+                  <button
+                    key={source.id}
+                    onClick={() => toggleSource(source.id)}
+                    className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
+                      selectedSources.includes(source.id)
+                        ? 'bg-sage text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {source.label}
                   </button>
                 ))}
               </div>

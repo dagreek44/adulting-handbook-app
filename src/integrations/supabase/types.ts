@@ -126,6 +126,115 @@ export type Database = {
           },
         ]
       }
+      friend_group_invitations: {
+        Row: {
+          created_at: string
+          expires_at: string
+          group_id: string
+          id: string
+          invitee_email: string
+          inviter_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          group_id: string
+          id?: string
+          invitee_email: string
+          inviter_id: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          group_id?: string
+          id?: string
+          invitee_email?: string
+          inviter_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "friend_group_invitations_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "friend_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      friend_group_members: {
+        Row: {
+          created_at: string
+          email: string
+          group_id: string
+          id: string
+          invited_by: string | null
+          name: string
+          role: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          group_id: string
+          id?: string
+          invited_by?: string | null
+          name: string
+          role?: string
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          group_id?: string
+          id?: string
+          invited_by?: string | null
+          name?: string
+          role?: string
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "friend_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "friend_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      friend_groups: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          max_members: number
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          max_members?: number
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          max_members?: number
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -308,6 +417,7 @@ export type Database = {
           family_id: string
           frequency: string
           frequency_days: number | null
+          group_id: string | null
           id: string
           instructions: string[] | null
           is_custom: boolean | null
@@ -335,6 +445,7 @@ export type Database = {
           family_id: string
           frequency: string
           frequency_days?: number | null
+          group_id?: string | null
           id?: string
           instructions?: string[] | null
           is_custom?: boolean | null
@@ -362,6 +473,7 @@ export type Database = {
           family_id?: string
           frequency?: string
           frequency_days?: number | null
+          group_id?: string | null
           id?: string
           instructions?: string[] | null
           is_custom?: boolean | null
@@ -377,6 +489,13 @@ export type Database = {
           why?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "user_tasks_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "friend_groups"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "user_tasks_reminder_id_fkey"
             columns: ["reminder_id"]
@@ -438,16 +557,29 @@ export type Database = {
         Args: { invitation_email: string }
         Returns: string
       }
+      accept_friend_group_invitation: {
+        Args: { p_invitation_email: string }
+        Returns: undefined
+      }
       calculate_next_due_date: {
         Args: { completed_date: string; frequency: string }
         Returns: string
       }
       get_user_family_id: { Args: { user_id: string }; Returns: string }
+      get_user_group_ids: { Args: { p_user_id: string }; Returns: string[] }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_group_creator: {
+        Args: { p_group_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_group_member: {
+        Args: { p_group_id: string; p_user_id: string }
         Returns: boolean
       }
       update_badge_progress: {
