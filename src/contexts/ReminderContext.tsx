@@ -33,6 +33,9 @@ export interface UserTask {
   assignedToNames: string[];
   isPastDue?: boolean;
   why?: string | null;
+  source?: string;
+  sourceGroupName?: string | null;
+  group_id?: string | null;
 }
 
 export interface GlobalReminder {

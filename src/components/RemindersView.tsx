@@ -77,14 +77,32 @@ const RemindersView = ({
   // Filter state
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
 
   // Filter to show only pending/enabled tasks (not completed ones or disabled "once" tasks)
   const pendingTasks = userTasks.filter(task => 
     task.status !== 'completed' && 
-    task.enabled !== false && // Exclude disabled tasks (completed "once" tasks)
-    !task.completed_date // Exclude tasks that have been completed
+    task.enabled !== false &&
+    !task.completed_date
   );
   
+  // Build available sources for filter
+  const availableSources = useMemo(() => {
+    const sources: { id: string; label: string }[] = [
+      { id: 'family', label: 'Family' },
+    ];
+    const groupNames = new Set<string>();
+    userTasks.forEach(task => {
+      if ((task as any).source === 'friend_group' && (task as any).sourceGroupName) {
+        groupNames.add((task as any).sourceGroupName);
+      }
+    });
+    groupNames.forEach(name => {
+      sources.push({ id: `group:${name}`, label: name });
+    });
+    return sources;
+  }, [userTasks]);
+
   // Extract unique categories from tasks
   const categories = useMemo(() => {
     const cats = new Set<string>();
@@ -108,13 +126,23 @@ const RemindersView = ({
       });
     }
     
+    // Filter by source
+    if (selectedSources.length > 0) {
+      tasks = tasks.filter(task => {
+        const taskAny = task as any;
+        if (selectedSources.includes('family') && taskAny.source === 'family') return true;
+        if (taskAny.source === 'friend_group' && selectedSources.includes(`group:${taskAny.sourceGroupName}`)) return true;
+        return false;
+      });
+    }
+    
     // Filter by family member
     if (selectedMembers.length > 0) {
       tasks = tasks.filter(task => selectedMembers.includes(task.user_id));
     }
     
     return tasks;
-  }, [pendingTasks, selectedCategories, selectedMembers]);
+  }, [pendingTasks, selectedCategories, selectedMembers, selectedSources]);
   
   // Show all upcoming tasks (sorted by due date already from service)
   const upcomingTasks = filteredTasks;
@@ -122,6 +150,7 @@ const RemindersView = ({
   const clearFilters = () => {
     setSelectedCategories([]);
     setSelectedMembers([]);
+    setSelectedSources([]);
   };
 
   const handleTaskClick = (task: ContextUserTask) => {
@@ -282,8 +311,11 @@ const RemindersView = ({
         familyMembers={familyMembers}
         selectedCategories={selectedCategories}
         selectedMembers={selectedMembers}
+        selectedSources={selectedSources}
+        availableSources={availableSources}
         onCategoryChange={setSelectedCategories}
         onMemberChange={setSelectedMembers}
+        onSourceChange={setSelectedSources}
         onClearFilters={clearFilters}
       />
 

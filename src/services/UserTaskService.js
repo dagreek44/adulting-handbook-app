@@ -42,9 +42,12 @@ export class UserTaskService {
             first_name,
             last_name,
             username
+          ),
+          group:friend_groups(
+            id,
+            name
           )
         `)
-        .eq('family_id', userData.family_id)
         .eq('enabled', true)
         .order('due_date', { ascending: true });
 
@@ -63,6 +66,17 @@ export class UserTaskService {
           ? `${assigneeData.first_name} ${assigneeData.last_name}`.trim() 
           : 'Unassigned';
         const assigneeUsername = assigneeData?.username || 'Unassigned';
+
+        // Determine task source
+        let source = 'family';
+        let sourceGroupName = null;
+        if (row.group_id && row.group?.[0]) {
+          source = 'friend_group';
+          sourceGroupName = row.group[0].name;
+        } else if (row.user_id === userId && !row.group_id) {
+          // Personal task if assigned to current user within family context
+          source = row.family_id === userData.family_id ? 'family' : 'personal';
+        }
         
         return {
           ...row,
@@ -76,12 +90,14 @@ export class UserTaskService {
           instructions: reminderData?.instructions || row.instructions || [],
           tools: reminderData?.tools || row.tools || [],
           supplies: reminderData?.supplies || row.supplies || [],
-          why: reminderData?.why || row.why, // Inherit "why it matters" from global reminder
+          why: reminderData?.why || row.why,
           isPastDue,
           assignees: [assigneeName],
           assignedToNames: [assigneeName],
           assigneeUsername,
-          isGlobalReminder: !!row.reminder_id // Mark as global reminder if it has a reminder_id
+          isGlobalReminder: !!row.reminder_id,
+          source,
+          sourceGroupName
         };
       });
       

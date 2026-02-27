@@ -397,7 +397,12 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
           )}
 
           {/* Invite Form */}
-          {isParent && showInviteForm ? (
+          {familyMembers.length >= 10 && isParent && (
+            <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
+              <p className="text-sm text-yellow-800 font-medium">Family limit reached (10 members max)</p>
+            </div>
+          )}
+          {isParent && familyMembers.length < 10 && showInviteForm ? (
             <div className="bg-sage/10 p-4 rounded-lg space-y-3" data-tour="invite-form">
               <h3 className="font-semibold text-gray-800">Invite Family Member</h3>
               <Input
@@ -440,7 +445,7 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
                 </button>
               </div>
             </div>
-          ) : isParent ? (
+          ) : isParent && familyMembers.length < 10 ? (
             <button
               onClick={() => setShowInviteForm(true)}
               data-tour="invite-family"
