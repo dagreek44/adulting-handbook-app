@@ -1,103 +1,136 @@
 
 
-# Fix Push Notifications Not Arriving on Devices
+# Add Friend Groups and Family Size Limit
 
-## Critical Finding: Firebase Console Test Messages Don't Arrive Either
+## Current Architecture
 
-If a test message sent **directly from the Firebase Console** to a device token doesn't show up on the device, the problem is on the **native Android app side**, not the server. This narrows the root cause to one or more of these:
+The app uses a single `family_id` on `users`, `profiles`, `user_tasks`, and `family_members` tables to scope all data. Tasks are fetched by `family_id`, and RLS policies enforce family-based isolation. There is no concept of groups beyond the family.
 
-1. **Missing or misconfigured notification channel** -- Android 8+ (API 26+) requires a notification channel to display notifications. Without one, messages are silently dropped.
-2. **Stale/expired FCM tokens** -- Matt's token is already confirmed `UNREGISTERED`. But even Sylvie's token (last updated Jan 14) could be stale after 5+ weeks.
-3. **Missing `google-services.json` or Gradle config** -- If the Firebase SDK isn't properly linked, the device won't process incoming FCM messages.
-4. **App not creating a default notification channel** -- Capacitor Push Notifications plugin requires a default channel on Android.
+## Design Decision: How Friend Groups Work
 
----
+A "friend group" is a separate group (like a family but without the parent/child hierarchy). A user belongs to exactly one family, but can belong to multiple friend groups. Friend groups share reminders/tasks the same way families do -- members can see, create, and complete tasks within the group.
+
+When a user logs in, the Reminders view will show tasks in three sections:
+1. **My Tasks** -- tasks assigned directly to the user
+2. **Family Tasks** -- tasks from the user's family (current behavior)
+3. **Friend Group Tasks** -- tasks from each friend group the user belongs to
 
 ## Implementation Plan
 
-### Step 1: Add Android Notification Channel Configuration
+### Step 1: Enforce Family Size Limit (max 10)
 
-Update `capacitor.config.ts` to include the `PushNotifications` plugin config with a default notification channel. Android 8+ silently drops notifications without a registered channel.
+**Database migration:**
+- Create a validation trigger on `family_members` that counts existing members for the `family_id` before INSERT. If count >= 10, raise an exception.
 
-**File:** `capacitor.config.ts`
-- Add `PushNotifications` plugin config with `presentationOptions` and a default channel definition.
+**Frontend change:**
+- In `FamilyMembersModal.tsx`, check `familyMembers.length >= 10` before showing the invite button. Show a message like "Family limit reached (10 members max)."
 
-### Step 2: Create a Notification Channel on App Startup (Android)
+### Step 2: Create Friend Group Tables
 
-Update `DeviceTokenService.ts` to explicitly create a notification channel when initializing on Android. This ensures the channel exists before any FCM message arrives.
+**Database migration:**
+```text
+friend_groups
+  id          uuid PK
+  name        text
+  created_by  uuid (references auth.users)
+  max_members int default 10
+  created_at  timestamptz
+  updated_at  timestamptz
 
-**File:** `src/services/DeviceTokenService.ts`
-- After `PushNotifications.register()`, call `PushNotifications.createChannel()` with channel ID `default`, name `Default`, importance `5` (high), and sound `default`.
+friend_group_members
+  id          uuid PK
+  group_id    uuid FK -> friend_groups
+  user_id     uuid FK -> auth.users (nullable, null = pending invite)
+  email       text
+  name        text
+  role        text default 'member' (creator, member)
+  status      text default 'pending' (active, pending, expired)
+  invited_by  uuid
+  created_at  timestamptz
 
-### Step 3: Force Token Refresh on Every App Open
+friend_group_invitations
+  id              uuid PK
+  group_id        uuid FK -> friend_groups
+  inviter_id      uuid
+  invitee_email   text
+  status          text default 'pending'
+  expires_at      timestamptz default now() + 7 days
+  created_at      timestamptz
+```
 
-Both tokens in the database are 5+ weeks old. Tokens expire and rotate. The current code skips re-registration if `isInitialized` is true (static flag that persists per app session). We need to:
+**RLS policies:**
+- `friend_groups`: Users can view/update groups they are a member of (via `friend_group_members`).
+- `friend_group_members`: Members can view other members in their groups. Creators can insert/delete.
+- `friend_group_invitations`: Members can view invitations for their groups. Creators can insert.
+- Size limit trigger on `friend_group_members` (max 10 per group).
 
-**File:** `src/services/DeviceTokenService.ts`
-- Remove the `isInitialized` early-return guard so that `PushNotifications.register()` is called every time the app opens, ensuring a fresh token is always saved to the database.
+### Step 3: Add `group_id` to `user_tasks`
 
-### Step 4: Add Stale Token Cleanup to send-push-notification
+**Database migration:**
+- Add nullable `group_id uuid` column to `user_tasks` referencing `friend_groups(id)`.
+- A task belongs to either a family (`family_id`) or a friend group (`group_id`), or just the individual user.
 
-When FCM returns `UNREGISTERED` (404) or `NOT_FOUND`, delete the stale token from `device_tokens` so we stop sending to dead tokens.
+**Update RLS on `user_tasks`:**
+- Extend the existing SELECT policy to also allow viewing tasks where `group_id` is in the user's friend groups.
+- Extend INSERT/UPDATE/DELETE policies similarly.
 
-**File:** `supabase/functions/send-push-notification/index.ts`
-- After a failed `sendFCMNotification`, parse the error. If it contains `UNREGISTERED` or `NOT_FOUND`, delete that `fcm_token` from `device_tokens`.
+### Step 4: Create Friend Group Management UI
 
-### Step 5: Create check-due-reminders Edge Function
+**New component: `FriendGroupsModal.tsx`**
+- List user's friend groups
+- Create a new friend group (name)
+- Invite members by email
+- View/remove members
+- Similar structure to `FamilyMembersModal`
 
-A new edge function that queries `user_tasks` for tasks due today (and tasks due in 7 days for medium/hard tasks), then calls `send-push-notification` for each user.
+**New component: `FriendGroupSelector.tsx`**
+- When creating a custom reminder, allow the user to assign it to a friend group instead of (or in addition to) the family
 
-**File:** `supabase/functions/check-due-reminders/index.ts` (new)
-- Query `user_tasks` where `due_date = CURRENT_DATE` and `status = 'pending'` and `enabled = true`
-- Query `user_tasks` where `due_date = CURRENT_DATE + 7` and `difficulty IN ('Medium','Hard')` and `status = 'pending'`
-- Group results by `user_id`
-- Call `send-push-notification` for each user group
+### Step 5: Update Task Fetching to Include Friend Group Tasks
 
-**File:** `supabase/config.toml`
-- Add `[functions.check-due-reminders]` with `verify_jwt = false`
+**`UserTaskService.js`:**
+- `getUserTasks()`: After fetching family tasks, also fetch tasks where `group_id` is in any of the user's friend groups. Merge and sort by due date.
+- Add a `source` field to each task: `'personal'`, `'family'`, or `'friend_group'` (with group name).
 
-### Step 6: Schedule Daily Cron Job
+**`ReminderContext.tsx`:**
+- Add `friendGroups` to context state.
+- Fetch user's friend groups on load.
 
-Use `pg_cron` + `pg_net` to call `check-due-reminders` daily at 8 AM EST (1 PM UTC).
+### Step 6: Update Reminders View with Sections
 
-**Via SQL insert (not migration, contains project-specific data):**
-- Enable `pg_cron` and `pg_net` extensions
-- Schedule: `0 13 * * *` (1 PM UTC = 8 AM EST)
-- Calls the `check-due-reminders` edge function URL with the anon key
+**`RemindersView.tsx` / `RemindersList.tsx`:**
+- Add a "source" filter option (My Tasks / Family / Friend Groups).
+- Group tasks visually with section headers when viewing all.
 
-### Step 7: Schedule Local Notifications as Backup
+**`RemindersFilter.tsx`:**
+- Add filter chips for task source (Personal, Family, each friend group name).
 
-Update `ReminderContext.tsx` to call `NotificationService.scheduleAllTaskNotifications()` after tasks load, so local notifications are also set as a fallback on-device.
+### Step 7: Update Navigation
 
-**File:** `src/contexts/ReminderContext.tsx`
-- In the `loadData` effect, after tasks are loaded and formatted, call `scheduleAllTaskNotifications` with the user's tasks.
+**`Navigation.tsx`:**
+- Add a "Groups" tab or integrate friend group access into the existing Family Members modal.
+
+### Step 8: Add Friend Group to Custom Reminder Creation
+
+**`AddCustomReminder.tsx`:**
+- Add a dropdown to select whether the reminder is for: "Just Me", "My Family", or a specific friend group.
+- Set `group_id` or `family_id` accordingly on the task.
 
 ---
 
-## What You Need To Do After Implementation
+## Technical Summary
 
-1. **Rebuild the native app** -- After these changes, you must run:
-   ```text
-   npm run build
-   npx cap sync android
-   npx cap run android
-   ```
-2. **Verify `google-services.json`** is present at `android/app/google-services.json`
-3. **Verify `android/app/build.gradle`** has `apply plugin: 'com.google.gms.google-services'` at the bottom
-4. **Have both Matt and Sylvie open the app** so fresh tokens are registered
-5. **Send a test from Firebase Console** using the new token (not the old one) to verify delivery
-
----
-
-## Technical Summary of File Changes
-
-| File | Action | Purpose |
-|------|--------|---------|
-| `capacitor.config.ts` | Update | Add PushNotifications channel config |
-| `src/services/DeviceTokenService.ts` | Update | Create notification channel, force token refresh every launch |
-| `supabase/functions/send-push-notification/index.ts` | Update | Delete stale UNREGISTERED tokens |
-| `supabase/functions/check-due-reminders/index.ts` | Create | Daily cron function for due-today notifications |
-| `supabase/config.toml` | Update | Register check-due-reminders function |
-| `src/contexts/ReminderContext.tsx` | Update | Call scheduleAllTaskNotifications on load |
-| Database (SQL insert) | Execute | pg_cron job for daily 8 AM trigger |
+| File/Resource | Action | Purpose |
+|---|---|---|
+| Database migration | Create | `friend_groups`, `friend_group_members`, `friend_group_invitations` tables with RLS |
+| Database migration | Alter | Add `group_id` to `user_tasks`, update RLS policies |
+| Database trigger | Create | Family member limit (10), friend group member limit (10) |
+| `FamilyMembersModal.tsx` | Update | Enforce 10-member limit in UI |
+| `FriendGroupsModal.tsx` | Create | Friend group management UI |
+| `UserTaskService.js` | Update | Fetch friend group tasks alongside family tasks |
+| `ReminderContext.tsx` | Update | Add friend groups to context |
+| `RemindersView.tsx` | Update | Show tasks by source (personal/family/group) |
+| `RemindersFilter.tsx` | Update | Add source filter |
+| `AddCustomReminder.tsx` | Update | Allow assigning to friend group |
+| `Navigation.tsx` | Update | Add groups access point |
 
