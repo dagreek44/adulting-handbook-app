@@ -692,6 +692,17 @@ export type Database = {
         Args: { p_group_id: string; p_user_id: string }
         Returns: boolean
       }
+      mark_outbox_result: {
+        Args: { p_error?: string; p_outbox_id: string; p_success: boolean }
+        Returns: undefined
+      }
+      process_notification_outbox: {
+        Args: { p_auth_token: string; p_function_url: string }
+        Returns: {
+          processed: number
+          queued: number
+        }[]
+      }
       update_badge_progress: {
         Args: {
           p_badge_key: string
