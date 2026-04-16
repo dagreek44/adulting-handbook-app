@@ -235,6 +235,105 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_log: {
+        Row: {
+          body: string
+          created_at: string
+          error_message: string | null
+          id: string
+          notification_type: string
+          outbox_id: string | null
+          payload: Json | null
+          recipient_user_id: string
+          sender_user_id: string | null
+          sent_at: string | null
+          status: string
+          title: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          notification_type: string
+          outbox_id?: string | null
+          payload?: Json | null
+          recipient_user_id: string
+          sender_user_id?: string | null
+          sent_at?: string | null
+          status?: string
+          title: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          notification_type?: string
+          outbox_id?: string | null
+          payload?: Json | null
+          recipient_user_id?: string
+          sender_user_id?: string | null
+          sent_at?: string | null
+          status?: string
+          title?: string
+        }
+        Relationships: []
+      }
+      notification_outbox: {
+        Row: {
+          attempts: number
+          body: string
+          created_at: string
+          data: Json | null
+          id: string
+          last_error: string | null
+          max_attempts: number
+          next_attempt_at: string
+          notification_type: string
+          recipient_user_id: string
+          sender_user_id: string | null
+          sent_at: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          body: string
+          created_at?: string
+          data?: Json | null
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          next_attempt_at?: string
+          notification_type: string
+          recipient_user_id: string
+          sender_user_id?: string | null
+          sent_at?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          body?: string
+          created_at?: string
+          data?: Json | null
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          next_attempt_at?: string
+          notification_type?: string
+          recipient_user_id?: string
+          sender_user_id?: string | null
+          sent_at?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -563,6 +662,17 @@ export type Database = {
       }
       calculate_next_due_date: {
         Args: { completed_date: string; frequency: string }
+        Returns: string
+      }
+      enqueue_notification: {
+        Args: {
+          p_body: string
+          p_data?: Json
+          p_notification_type: string
+          p_recipient_user_id: string
+          p_sender_user_id: string
+          p_title: string
+        }
         Returns: string
       }
       get_user_family_id: { Args: { user_id: string }; Returns: string }
