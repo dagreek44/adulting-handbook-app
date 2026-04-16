@@ -57,10 +57,10 @@ export class DeviceTokenService {
    */
   static async initialize(userId: string): Promise<void> {
     console.log('DeviceTokenService: Initialize called for user:', userId);
-    
+
     const isReady = await waitForCapacitor(2000);
     console.log('DeviceTokenService: Capacitor ready:', isReady);
-    
+
     if (!isReady) {
       console.log('DeviceTokenService: Capacitor not ready, skipping initialization');
       return;
@@ -69,6 +69,16 @@ export class DeviceTokenService {
     if (!await this.isPushAvailable()) {
       console.log('DeviceTokenService: Push not available');
       return;
+    }
+
+    // CRITICAL: ensure auth session is hydrated before saveToken hits RLS
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) {
+      console.warn('DeviceTokenService: No active session yet, aborting init');
+      return;
+    }
+    if (session.user.id !== userId) {
+      console.warn('DeviceTokenService: session userId mismatch', { expected: userId, actual: session.user.id });
     }
 
     this.currentUserId = userId;

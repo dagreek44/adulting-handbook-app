@@ -11,6 +11,10 @@ interface PushNotificationRequest {
   title: string;
   body: string;
   data?: Record<string, string>;
+  // Outbox-driven fields (server-only)
+  outbox_id?: string;
+  sender_user_id?: string;
+  notification_type?: string;
 }
 
 interface ServiceAccount {
@@ -27,27 +31,19 @@ interface ServiceAccount {
 }
 
 function base64URLEncode(str: string): string {
-  return btoa(str)
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
+  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 function stringToArrayBuffer(str: string): ArrayBuffer {
-  const encoder = new TextEncoder();
-  return encoder.encode(str).buffer;
+  return new TextEncoder().encode(str).buffer;
 }
 
 async function importPrivateKey(pem: string): Promise<CryptoKey> {
-  const pemHeader = "-----BEGIN PRIVATE KEY-----";
-  const pemFooter = "-----END PRIVATE KEY-----";
   const pemContents = pem
-    .replace(pemHeader, "")
-    .replace(pemFooter, "")
+    .replace("-----BEGIN PRIVATE KEY-----", "")
+    .replace("-----END PRIVATE KEY-----", "")
     .replace(/\s/g, "");
-  
   const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
-  
   return await crypto.subtle.importKey(
     "pkcs8",
     binaryDer,
@@ -59,32 +55,19 @@ async function importPrivateKey(pem: string): Promise<CryptoKey> {
 
 async function getAccessToken(serviceAccount: ServiceAccount): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
-  const expiry = now + 3600;
-
   const header = { alg: "RS256", typ: "JWT" };
   const payload = {
     iss: serviceAccount.client_email,
     sub: serviceAccount.client_email,
     aud: "https://oauth2.googleapis.com/token",
     iat: now,
-    exp: expiry,
+    exp: now + 3600,
     scope: "https://www.googleapis.com/auth/firebase.messaging",
   };
-
-  const encodedHeader = base64URLEncode(JSON.stringify(header));
-  const encodedPayload = base64URLEncode(JSON.stringify(payload));
-  const unsignedToken = `${encodedHeader}.${encodedPayload}`;
-
+  const unsignedToken = `${base64URLEncode(JSON.stringify(header))}.${base64URLEncode(JSON.stringify(payload))}`;
   const privateKey = await importPrivateKey(serviceAccount.private_key);
-  const signature = await crypto.subtle.sign(
-    "RSASSA-PKCS1-v1_5",
-    privateKey,
-    stringToArrayBuffer(unsignedToken)
-  );
-
-  const encodedSignature = base64URLEncode(
-    String.fromCharCode(...new Uint8Array(signature))
-  );
+  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", privateKey, stringToArrayBuffer(unsignedToken));
+  const encodedSignature = base64URLEncode(String.fromCharCode(...new Uint8Array(signature)));
   const jwt = `${unsignedToken}.${encodedSignature}`;
 
   const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
@@ -95,20 +78,11 @@ async function getAccessToken(serviceAccount: ServiceAccount): Promise<string> {
       assertion: jwt,
     }),
   });
-
-  if (!tokenResponse.ok) {
-    const error = await tokenResponse.text();
-    throw new Error(`Failed to get access token: ${error}`);
-  }
-
-  const tokenData = await tokenResponse.json();
-  return tokenData.access_token;
+  if (!tokenResponse.ok) throw new Error(`Failed to get access token: ${await tokenResponse.text()}`);
+  return (await tokenResponse.json()).access_token;
 }
 
-interface FCMResult {
-  success: boolean;
-  errorBody?: string;
-}
+interface FCMResult { success: boolean; errorBody?: string; }
 
 async function sendFCMNotification(
   accessToken: string,
@@ -125,17 +99,9 @@ async function sendFCMNotification(
       data: data || {},
       android: {
         priority: "high",
-        notification: {
-          channel_id: "default",
-          sound: "default",
-          click_action: "FLUTTER_NOTIFICATION_CLICK",
-        },
+        notification: { channel_id: "default", sound: "default", click_action: "FLUTTER_NOTIFICATION_CLICK" },
       },
-      apns: {
-        payload: {
-          aps: { sound: "default", badge: 1 },
-        },
-      },
+      apns: { payload: { aps: { sound: "default", badge: 1 } } },
     },
   };
 
@@ -143,38 +109,30 @@ async function sendFCMNotification(
     `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
     {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
       body: JSON.stringify(message),
     }
   );
-
   if (!response.ok) {
     const errorBody = await response.text();
     console.error(`FCM send error for token ${fcmToken.substring(0, 20)}...:`, errorBody);
     return { success: false, errorBody };
   }
-
   return { success: true };
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const serviceAccountJson = Deno.env.get("FIREBASE_SERVICE_ACCOUNT");
-    if (!serviceAccountJson) {
-      throw new Error("FIREBASE_SERVICE_ACCOUNT not configured");
-    }
-
+    if (!serviceAccountJson) throw new Error("FIREBASE_SERVICE_ACCOUNT not configured");
     const serviceAccount: ServiceAccount = JSON.parse(serviceAccountJson);
-    const { user_ids, title, body, data }: PushNotificationRequest = await req.json();
 
-    if (!user_ids || !user_ids.length || !title || !body) {
+    const reqBody: PushNotificationRequest = await req.json();
+    const { user_ids, title, body, data, outbox_id, sender_user_id, notification_type } = reqBody;
+
+    if (!user_ids?.length || !title || !body) {
       return new Response(
         JSON.stringify({ error: "Missing required fields: user_ids, title, body" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -182,20 +140,41 @@ serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     const { data: deviceTokens, error: tokensError } = await supabase
       .from("device_tokens")
       .select("fcm_token, user_id")
       .in("user_id", user_ids);
 
-    if (tokensError) {
-      throw new Error(`Failed to fetch device tokens: ${tokensError.message}`);
-    }
+    if (tokensError) throw new Error(`Failed to fetch device tokens: ${tokensError.message}`);
+
+    // Helper to write to notification_log via service role (bypasses RLS)
+    const writeLog = async (recipient: string, status: string, errorMessage?: string) => {
+      await supabase.from("notification_log").insert({
+        sender_user_id: sender_user_id ?? null,
+        recipient_user_id: recipient,
+        notification_type: notification_type ?? 'manual',
+        title,
+        body,
+        payload: data ?? {},
+        status,
+        error_message: errorMessage ?? null,
+        outbox_id: outbox_id ?? null,
+        sent_at: status === 'sent' ? new Date().toISOString() : null,
+      });
+    };
 
     if (!deviceTokens || deviceTokens.length === 0) {
       console.log("No device tokens found for users:", user_ids);
+      // Log no-token result for each recipient
+      for (const uid of user_ids) await writeLog(uid, 'no_token', 'No device tokens registered');
+      // Mark outbox as sent (no point retrying — there's nothing to send to)
+      if (outbox_id) {
+        await supabase.rpc('mark_outbox_result', {
+          p_outbox_id: outbox_id, p_success: true, p_error: 'no_token'
+        });
+      }
       return new Response(
         JSON.stringify({ success: true, sent: 0, message: "No device tokens found" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -204,56 +183,57 @@ serve(async (req) => {
 
     const accessToken = await getAccessToken(serviceAccount);
 
-    let successCount = 0;
-    let failCount = 0;
-    let cleanedCount = 0;
+    let successCount = 0, failCount = 0, cleanedCount = 0;
+    const recipientResults = new Map<string, { sent: boolean; error?: string }>();
 
-    for (const { fcm_token } of deviceTokens) {
+    for (const { fcm_token, user_id } of deviceTokens) {
       const result = await sendFCMNotification(
-        accessToken,
-        serviceAccount.project_id,
-        fcm_token,
-        title,
-        body,
-        data
+        accessToken, serviceAccount.project_id, fcm_token, title, body, data
       );
 
       if (result.success) {
         successCount++;
+        recipientResults.set(user_id, { sent: true });
       } else {
         failCount++;
-
-        // Clean up stale/unregistered tokens
-        if (result.errorBody && (
-          result.errorBody.includes("UNREGISTERED") ||
-          result.errorBody.includes("NOT_FOUND")
-        )) {
-          console.log(`Cleaning up stale token: ${fcm_token.substring(0, 20)}...`);
+        const prev = recipientResults.get(user_id);
+        if (!prev?.sent) {
+          recipientResults.set(user_id, { sent: false, error: result.errorBody });
+        }
+        if (result.errorBody && (result.errorBody.includes("UNREGISTERED") || result.errorBody.includes("NOT_FOUND"))) {
           const { error: deleteError } = await supabase
-            .from("device_tokens")
-            .delete()
-            .eq("fcm_token", fcm_token);
-
-          if (deleteError) {
-            console.error("Failed to delete stale token:", deleteError);
-          } else {
-            cleanedCount++;
-            console.log("Stale token deleted successfully");
-          }
+            .from("device_tokens").delete().eq("fcm_token", fcm_token);
+          if (!deleteError) cleanedCount++;
         }
       }
     }
 
-    console.log(`Push notifications: ${successCount} sent, ${failCount} failed, ${cleanedCount} stale tokens cleaned`);
+    // Write log row per recipient
+    for (const uid of user_ids) {
+      const r = recipientResults.get(uid);
+      if (!r) {
+        await writeLog(uid, 'no_token', 'No device tokens registered');
+      } else if (r.sent) {
+        await writeLog(uid, 'sent');
+      } else {
+        await writeLog(uid, 'failed', r.error?.substring(0, 500));
+      }
+    }
+
+    // Mark outbox row
+    if (outbox_id) {
+      const anySent = [...recipientResults.values()].some(r => r.sent);
+      await supabase.rpc('mark_outbox_result', {
+        p_outbox_id: outbox_id,
+        p_success: anySent || deviceTokens.length === 0,
+        p_error: anySent ? null : 'all_recipients_failed'
+      });
+    }
+
+    console.log(`Push: ${successCount} sent, ${failCount} failed, ${cleanedCount} cleaned, outbox=${outbox_id ?? 'none'}`);
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        sent: successCount,
-        failed: failCount,
-        cleaned: cleanedCount,
-        total_tokens: deviceTokens.length,
-      }),
+      JSON.stringify({ success: true, sent: successCount, failed: failCount, cleaned: cleanedCount, total_tokens: deviceTokens.length }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {

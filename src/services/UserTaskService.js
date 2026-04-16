@@ -424,35 +424,9 @@ export class UserTaskService {
       
       if (updateError) throw updateError;
       
-      // Notify family members about task completion
-      if (userData?.family_id && user?.id) {
-        try {
-          // Get all family members except the one who completed the task
-          const { data: familyMembers } = await supabase
-            .from('users')
-            .select('id, first_name, last_name')
-            .eq('family_id', userData.family_id)
-            .neq('id', user.id);
-          
-          if (familyMembers && familyMembers.length > 0) {
-            // Dynamically import NotificationService to avoid circular dependencies
-            const { NotificationService } = await import('./NotificationService');
-            
-            // Send notification to each family member
-            for (const member of familyMembers) {
-              await NotificationService.notifyTaskCompleted(
-                completedByName,
-                task.title,
-                taskId
-              );
-            }
-          }
-        } catch (notificationError) {
-          console.error('Error sending completion notifications:', notificationError);
-          // Don't fail the completion if notifications fail
-        }
-      }
-      
+      // Cross-user notifications are now handled server-side by the
+      // notify_user_task_completed trigger -> notification_outbox -> push edge fn.
+      // We keep only the local on-device notification (LocalNotifications) here.
       return true;
     } catch (error) {
       console.error('Error completing task:', error);
