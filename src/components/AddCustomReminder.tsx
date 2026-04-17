@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { SupabaseReminder, FamilyMember } from '@/hooks/useSupabaseData';
+import { FamilyMember } from '@/hooks/useSupabaseData';
 import { supabase } from '@/integrations/supabase/client';
 import { useReminders } from '@/contexts/ReminderContext';
 import { toast } from 'sonner';
@@ -15,10 +15,6 @@ import { FriendGroupService, FriendGroup } from '@/services/FriendGroupService';
 
 interface AddCustomReminderProps {
   familyMembers: FamilyMember[];
-  supabaseOperations: {
-    addReminder: (reminder: Partial<SupabaseReminder>) => Promise<void>;
-    addUserTask: (userId: string, task: any) => Promise<void>;
-  };
 }
 
 const frequencies = [
@@ -30,13 +26,17 @@ const frequencies = [
   "yearly"
 ];
 
-const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomReminderProps) => {
+const AddCustomReminder = ({ familyMembers }: AddCustomReminderProps) => {
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newReminder, setNewReminder] = useState<Partial<SupabaseReminder>>({
+  const [newReminder, setNewReminder] = useState<{
+    title: string;
+    description: string;
+    frequency: string;
+    assignees: string[];
+  }>({
     title: '',
     description: '',
     frequency: 'once',
-    due_date: null,
     assignees: []
   });
   const [selectedDate, setSelectedDate] = useState<Date>();
@@ -145,7 +145,7 @@ const AddCustomReminder = ({ familyMembers, supabaseOperations }: AddCustomRemin
       await refreshTasks();
       
       toast.success('Custom reminder added successfully!');
-      setNewReminder({ title: '', description: '', frequency: 'once', due_date: null, assignees: [] });
+      setNewReminder({ title: '', description: '', frequency: 'once', assignees: [] });
       setSelectedDate(undefined);
       setTaskTarget('family');
       setShowAddForm(false);

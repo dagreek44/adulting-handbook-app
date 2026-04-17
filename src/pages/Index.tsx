@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Wrench, Calendar, Trophy, CheckCircle2, CalendarPlus } from 'lucide-react';
+import { Calendar, Trophy, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
@@ -14,12 +14,10 @@ import TaskDetailModal from '@/components/TaskDetailModal';
 import FamilyMembersModal from '@/components/FamilyMembersModal';
 import RemindersView from "@/components/RemindersView";
 import FriendGroupsModal from "@/components/FriendGroupsModal";
-import ContractorsView from "@/components/ContractorsView";
 import CompletedTasksView from "@/components/CompletedTasksView";
 import AchievementBadge from '@/components/AchievementBadge';
 import SharedHeader from '@/components/SharedHeader';
 import OnboardingTour from '@/components/OnboardingTour';
-import { CalendarSyncService } from '@/services/CalendarSyncService';
 import { completeOnboarding } from '@/services/userProfileService';
 
 const Index = () => {
@@ -39,14 +37,10 @@ const Index = () => {
   // Use badges hook
   const { badges, loading: badgesLoading, updateBadgesAfterTaskComplete } = useBadges();
 
-  // Call useSupabaseData for family members 
+  // Family member data (the only thing useSupabaseData provides now)
   const {
     familyMembers,
     loading: supabaseLoading,
-    addReminder,
-    updateReminder,
-    deleteReminder,
-    toggleReminderEnabled,
     fetchFamilyMembers
   } = useSupabaseData();
 
@@ -176,13 +170,6 @@ const Index = () => {
                 />
               </div>
               <DashboardCard
-                title="Find Help"
-                subtitle="Browse contractors"
-                icon={Wrench}
-                color="bg-gradient-to-br from-coral to-orange-400"
-                onClick={() => setActiveTab('contractors')}
-              />
-              <DashboardCard
                 title="Achievements"
                 subtitle="Level up your skills"
                 icon={Trophy}
@@ -212,7 +199,6 @@ const Index = () => {
       case 'reminders':
         return (
           <RemindersView
-            allReminders={[]}
             familyMembers={familyMembers}
             setFamilyMembers={() => {}}
             completedTasks={completedTasks.length}
@@ -225,12 +211,6 @@ const Index = () => {
             isFamilyModalOpen={isFamilyModalOpen}
             setIsFamilyModalOpen={setIsFamilyModalOpen}
             onNavigateToCompleted={() => setActiveTab('completed')}
-            supabaseOperations={{
-              addReminder,
-              updateReminder,
-              deleteReminder,
-              toggleReminderEnabled
-            }}
           />
         );
 
@@ -256,37 +236,6 @@ const Index = () => {
           </div>
         );
 
-      case 'contractors':
-        // Convert userTasks to a format that matches SupabaseReminder for ContractorsView
-        const convertedTasksForContractors = pendingTasks.map(task => ({
-          id: task.id,
-          title: task.title,
-          description: task.description,
-          difficulty: task.difficulty,
-          estimated_time: task.estimated_time,
-          estimated_budget: task.estimated_budget,
-          frequency: 'monthly', // Default frequency
-          due_date: task.due_date,
-          enabled: true,
-          video_url: task.video_url,
-          instructions: task.instructions,
-          tools: task.tools,
-          supplies: task.supplies,
-          is_custom: task.is_custom,
-          created_at: task.created_at,
-          updated_at: task.created_at,
-          family_id: null,
-          assignees: task.assignees
-        }));
-        return (
-          <div className="space-y-6">
-            <SharedHeader
-              title="Contractors"
-              setIsFamilyModalOpen={setIsFamilyModalOpen}
-            />
-            <ContractorsView reminders={convertedTasksForContractors} />
-          </div>
-        );
 
       case 'completed':
         return (

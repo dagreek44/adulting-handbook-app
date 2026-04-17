@@ -12,7 +12,6 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { waitForCapacitor } from "@/utils/capacitorUtils";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
-import PostJob from "./pages/PostJob";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -99,7 +98,6 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<Auth />} />
                 <Route path="/dashboard" element={<Index />} />
-                <Route path="/post-job" element={<PostJob />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </ReminderProvider>
