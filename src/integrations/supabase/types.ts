@@ -81,7 +81,6 @@ export type Database = {
       }
       family_members: {
         Row: {
-          adulting_progress: number | null
           created_at: string
           email: string
           family_id: string | null
@@ -93,7 +92,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          adulting_progress?: number | null
           created_at?: string
           email: string
           family_id?: string | null
@@ -105,7 +103,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          adulting_progress?: number | null
           created_at?: string
           email?: string
           family_id?: string | null
@@ -372,19 +369,14 @@ export type Database = {
       }
       reminders: {
         Row: {
-          assignees: string[] | null
           created_at: string
           description: string | null
           difficulty: string | null
-          due_date: string | null
-          enabled: boolean | null
           estimated_budget: string | null
           estimated_time: string | null
-          family_id: string | null
           frequency: string
           id: string
           instructions: string[] | null
-          is_custom: boolean | null
           main_category: string | null
           subcategory: string | null
           supplies: Json | null
@@ -395,19 +387,14 @@ export type Database = {
           why: string | null
         }
         Insert: {
-          assignees?: string[] | null
           created_at?: string
           description?: string | null
           difficulty?: string | null
-          due_date?: string | null
-          enabled?: boolean | null
           estimated_budget?: string | null
           estimated_time?: string | null
-          family_id?: string | null
           frequency: string
           id?: string
           instructions?: string[] | null
-          is_custom?: boolean | null
           main_category?: string | null
           subcategory?: string | null
           supplies?: Json | null
@@ -418,19 +405,14 @@ export type Database = {
           why?: string | null
         }
         Update: {
-          assignees?: string[] | null
           created_at?: string
           description?: string | null
           difficulty?: string | null
-          due_date?: string | null
-          enabled?: boolean | null
           estimated_budget?: string | null
           estimated_time?: string | null
-          family_id?: string | null
           frequency?: string
           id?: string
           instructions?: string[] | null
-          is_custom?: boolean | null
           main_category?: string | null
           subcategory?: string | null
           supplies?: Json | null
