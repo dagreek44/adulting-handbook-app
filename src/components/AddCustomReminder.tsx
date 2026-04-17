@@ -145,7 +145,7 @@ const AddCustomReminder = ({ familyMembers }: AddCustomReminderProps) => {
       await refreshTasks();
       
       toast.success('Custom reminder added successfully!');
-      setNewReminder({ title: '', description: '', frequency: 'once', due_date: null, assignees: [] });
+      setNewReminder({ title: '', description: '', frequency: 'once', assignees: [] });
       setSelectedDate(undefined);
       setTaskTarget('family');
       setShowAddForm(false);
