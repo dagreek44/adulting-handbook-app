@@ -32,7 +32,6 @@ interface TaskDetails {
 }
 
 interface RemindersViewProps {
-  allReminders: SupabaseReminder[];
   familyMembers: FamilyMember[];
   setFamilyMembers: (members: FamilyMember[]) => void;
   completedTasks: number;
@@ -45,16 +44,9 @@ interface RemindersViewProps {
   isFamilyModalOpen: boolean;
   setIsFamilyModalOpen: (b: boolean) => void;
   onNavigateToCompleted: () => void;
-  supabaseOperations: {
-    addReminder: (reminder: Partial<SupabaseReminder>) => Promise<void>;
-    updateReminder: (id: string, updates: Partial<SupabaseReminder>) => Promise<void>;
-    deleteReminder: (id: string) => Promise<void>;
-    toggleReminderEnabled: (id: string, enabled: boolean) => Promise<void>;
-  };
 }
 
 const RemindersView = ({
-  allReminders,
   familyMembers,
   setFamilyMembers,
   completedTasks,
@@ -67,7 +59,6 @@ const RemindersView = ({
   isFamilyModalOpen,
   setIsFamilyModalOpen,
   onNavigateToCompleted,
-  supabaseOperations
 }: RemindersViewProps) => {
   // Use the new reminder context
   const { userTasks, globalReminders, loading, markTaskCompleted, enableReminder, addCustomTask, postponeTask, updateTask, refreshTasks } = useReminders();
@@ -357,20 +348,12 @@ const RemindersView = ({
         <ReminderEditMode
           isEditMode={isEditMode}
           onExitEdit={() => setIsEditMode(false)}
-          allReminders={allReminders}
           globalReminders={globalReminders}
           familyMembers={familyMembers}
-          supabaseOperations={supabaseOperations}
         />
       )}
 
-      <AddCustomReminder
-        familyMembers={familyMembers}
-        supabaseOperations={{
-          ...supabaseOperations,
-          addUserTask: handleAddUserTask
-        }}
-      />
+      <AddCustomReminder familyMembers={familyMembers} />
 
       <CompletedTasksButton onNavigateToCompleted={onNavigateToCompleted} />
 
