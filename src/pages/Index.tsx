@@ -170,13 +170,6 @@ const Index = () => {
                 />
               </div>
               <DashboardCard
-                title="Find Help"
-                subtitle="Browse contractors"
-                icon={Wrench}
-                color="bg-gradient-to-br from-coral to-orange-400"
-                onClick={() => setActiveTab('contractors')}
-              />
-              <DashboardCard
                 title="Achievements"
                 subtitle="Level up your skills"
                 icon={Trophy}
@@ -206,7 +199,6 @@ const Index = () => {
       case 'reminders':
         return (
           <RemindersView
-            allReminders={[]}
             familyMembers={familyMembers}
             setFamilyMembers={() => {}}
             completedTasks={completedTasks.length}
@@ -219,12 +211,6 @@ const Index = () => {
             isFamilyModalOpen={isFamilyModalOpen}
             setIsFamilyModalOpen={setIsFamilyModalOpen}
             onNavigateToCompleted={() => setActiveTab('completed')}
-            supabaseOperations={{
-              addReminder,
-              updateReminder,
-              deleteReminder,
-              toggleReminderEnabled
-            }}
           />
         );
 
