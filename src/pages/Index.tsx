@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Wrench, Calendar, Trophy, CheckCircle2, CalendarPlus } from 'lucide-react';
+import { Calendar, Trophy, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
@@ -14,12 +14,10 @@ import TaskDetailModal from '@/components/TaskDetailModal';
 import FamilyMembersModal from '@/components/FamilyMembersModal';
 import RemindersView from "@/components/RemindersView";
 import FriendGroupsModal from "@/components/FriendGroupsModal";
-import ContractorsView from "@/components/ContractorsView";
 import CompletedTasksView from "@/components/CompletedTasksView";
 import AchievementBadge from '@/components/AchievementBadge';
 import SharedHeader from '@/components/SharedHeader';
 import OnboardingTour from '@/components/OnboardingTour';
-import { CalendarSyncService } from '@/services/CalendarSyncService';
 import { completeOnboarding } from '@/services/userProfileService';
 
 const Index = () => {
@@ -39,14 +37,10 @@ const Index = () => {
   // Use badges hook
   const { badges, loading: badgesLoading, updateBadgesAfterTaskComplete } = useBadges();
 
-  // Call useSupabaseData for family members 
+  // Family member data (the only thing useSupabaseData provides now)
   const {
     familyMembers,
     loading: supabaseLoading,
-    addReminder,
-    updateReminder,
-    deleteReminder,
-    toggleReminderEnabled,
     fetchFamilyMembers
   } = useSupabaseData();
 
