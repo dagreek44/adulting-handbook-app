@@ -27,7 +27,12 @@ const ReminderEditMode = ({
   const { userTasks, enableReminder, deleteTask, updateTask } = useReminders();
 
   const [editId, setEditId] = useState<string | null>(null);
-  const [editTask, setEditTask] = useState<Partial<UserTask>>({
+  const [editTask, setEditTask] = useState<{
+    title: string;
+    description: string;
+    frequency: string;
+    assignees: string[];
+  }>({
     title: '',
     description: '',
     frequency: 'monthly',
@@ -89,7 +94,7 @@ const ReminderEditMode = ({
     setEditTask({
       title: task.title,
       description: task.description,
-      frequency: task.frequency,
+      frequency: (task as any).frequency ?? 'monthly',
       assignees: task.assignees ?? [],
     });
     setEditSelectedDate(task.due_date ? new Date(task.due_date) : undefined);
@@ -100,9 +105,10 @@ const ReminderEditMode = ({
     const updates: Partial<UserTask> = {
       title: editTask.title,
       description: editTask.description,
-      frequency: editTask.frequency,
       due_date: editSelectedDate ? format(editSelectedDate, 'yyyy-MM-dd') : undefined,
     };
+    // Pass-through frequency change (not in UserTask interface but accepted by service)
+    (updates as any).frequency = editTask.frequency;
     await updateTask(editId, updates);
     setEditId(null);
     setEditTask({ title: '', description: '', frequency: 'monthly', assignees: [] });
@@ -234,7 +240,7 @@ const ReminderEditMode = ({
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground">{task.frequency}</p>
+                      <p className="text-sm text-muted-foreground">{(task as any).frequency ?? ''}</p>
                       {task.due_date && (
                         <p className="text-xs text-muted-foreground">
                           Due: {format(new Date(task.due_date), "MMM d, yyyy")}
