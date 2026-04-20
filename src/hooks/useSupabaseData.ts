@@ -166,16 +166,20 @@ export const useSupabaseData = () => {
 
       setFamilyMembers(allMembers);
       return allMembers;
-    } catch (error) {
-      console.error('Error fetching family members:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch family members',
-        variant: 'destructive',
+    } catch (error: any) {
+      console.error('Error fetching family members:', {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+        familyId,
       });
+      // Don't surface a destructive toast — on native startup this can fire
+      // repeatedly while the auth session is being restored. The UI will
+      // simply show no members and recover on the next render.
       return [];
     }
-  }, [userProfile?.family_id, toast]);
+  }, [userProfile?.family_id]);
 
   useEffect(() => {
     if (!user) {
