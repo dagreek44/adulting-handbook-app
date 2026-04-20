@@ -114,6 +114,15 @@ export const useSupabaseData = () => {
     }
 
     try {
+      // Ensure we have an authenticated session before querying RLS-protected tables.
+      // On native (Capacitor) startup, the session may not be restored yet on the
+      // first render, causing RLS to silently deny the query.
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) {
+        console.warn('fetchFamilyMembers: no active session yet, skipping');
+        return [];
+      }
+
       const { data: membersData, error: membersError } = await supabase
         .from('family_members')
         .select('id, name, email, role, invited_at, created_at, updated_at, profile_id, family_id')
@@ -157,16 +166,20 @@ export const useSupabaseData = () => {
 
       setFamilyMembers(allMembers);
       return allMembers;
-    } catch (error) {
-      console.error('Error fetching family members:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch family members',
-        variant: 'destructive',
+    } catch (error: any) {
+      console.error('Error fetching family members:', {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+        familyId,
       });
+      // Don't surface a destructive toast — on native startup this can fire
+      // repeatedly while the auth session is being restored. The UI will
+      // simply show no members and recover on the next render.
       return [];
     }
-  }, [userProfile?.family_id, toast]);
+  }, [userProfile?.family_id]);
 
   useEffect(() => {
     if (!user) {
