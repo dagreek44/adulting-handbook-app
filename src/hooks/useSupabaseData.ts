@@ -114,6 +114,15 @@ export const useSupabaseData = () => {
     }
 
     try {
+      // Ensure we have an authenticated session before querying RLS-protected tables.
+      // On native (Capacitor) startup, the session may not be restored yet on the
+      // first render, causing RLS to silently deny the query.
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) {
+        console.warn('fetchFamilyMembers: no active session yet, skipping');
+        return [];
+      }
+
       const { data: membersData, error: membersError } = await supabase
         .from('family_members')
         .select('id, name, email, role, invited_at, created_at, updated_at, profile_id, family_id')
