@@ -1,136 +1,65 @@
 
 
-# Add Friend Groups and Family Size Limit
+## Diagnosis
 
-## Current Architecture
+Sylvie's notifications are silently failing because **no FCM token is registered for her account**. Investigation revealed:
 
-The app uses a single `family_id` on `users`, `profiles`, `user_tasks`, and `family_members` tables to scope all data. Tasks are fetched by `family_id`, and RLS policies enforce family-based isolation. There is no concept of groups beyond the family.
+- `device_tokens` table is completely empty for her user (`54768e7e-…b6c0`) — and actually empty for everyone.
+- `notification_outbox` and `notification_log` have zero rows for her.
+- The `process-notification-outbox` pg_cron job is **not scheduled** (the SQL from the hardening step was never executed in the dashboard).
+- Earlier network log confirms it: `send-push-notification` returned `"sent":0,"message":"No device tokens found"` when Matt assigned her a reminder.
 
-## Design Decision: How Friend Groups Work
+So two independent things are broken: (a) her device never persists a token, and (b) even if it did, the outbox-driven path has no cron worker pushing rows to the edge function.
 
-A "friend group" is a separate group (like a family but without the parent/child hierarchy). A user belongs to exactly one family, but can belong to multiple friend groups. Friend groups share reminders/tasks the same way families do -- members can see, create, and complete tasks within the group.
+## Plan
 
-When a user logs in, the Reminders view will show tasks in three sections:
-1. **My Tasks** -- tasks assigned directly to the user
-2. **Family Tasks** -- tasks from the user's family (current behavior)
-3. **Friend Group Tasks** -- tasks from each friend group the user belongs to
+### 1. Fix token registration on her device (code + rebuild)
 
-## Implementation Plan
+Harden `DeviceTokenService.ts` so we can actually see why registration fails on Android, and so it self-recovers:
 
-### Step 1: Enforce Family Size Limit (max 10)
+- Surface `registrationError` payloads with full detail (currently logs but doesn't persist) — write the error to a lightweight `device_token_errors` audit (or just `console.error` with structured fields if we don't want a new table).
+- Add a `force=true` re-register path that runs every cold start *after* `getSession()` resolves (already partially done, but currently bails silently when push isn't available — add a visible warning).
+- Confirm Android 13+ POST_NOTIFICATIONS permission is requested explicitly via `PushNotifications.requestPermissions()` (Capacitor handles this, but we'll log the resolved status).
+- After this code change, **she must reinstall the APK** — the previous build has the pre-fix race condition.
 
-**Database migration:**
-- Create a validation trigger on `family_members` that counts existing members for the `family_id` before INSERT. If count >= 10, raise an exception.
+### 2. Schedule the missing cron job (one SQL statement)
 
-**Frontend change:**
-- In `FamilyMembersModal.tsx`, check `familyMembers.length >= 10` before showing the invite button. Show a message like "Family limit reached (10 members max)."
+The hardening migration created `process_notification_outbox()` but never scheduled it. We'll re-run the cron schedule SQL (the same block the AI gave earlier). Without this, even if her token registers, queued notifications never leave the outbox.
 
-### Step 2: Create Friend Group Tables
-
-**Database migration:**
-```text
-friend_groups
-  id          uuid PK
-  name        text
-  created_by  uuid (references auth.users)
-  max_members int default 10
-  created_at  timestamptz
-  updated_at  timestamptz
-
-friend_group_members
-  id          uuid PK
-  group_id    uuid FK -> friend_groups
-  user_id     uuid FK -> auth.users (nullable, null = pending invite)
-  email       text
-  name        text
-  role        text default 'member' (creator, member)
-  status      text default 'pending' (active, pending, expired)
-  invited_by  uuid
-  created_at  timestamptz
-
-friend_group_invitations
-  id              uuid PK
-  group_id        uuid FK -> friend_groups
-  inviter_id      uuid
-  invitee_email   text
-  status          text default 'pending'
-  expires_at      timestamptz default now() + 7 days
-  created_at      timestamptz
+```sql
+SELECT cron.schedule(
+  'process-notification-outbox',
+  '* * * * *',
+  $cmd$ SELECT public.process_notification_outbox(
+    'https://dgwzmfgcuxtsrvcvahat.supabase.co/functions/v1/send-push-notification',
+    '<anon key>'
+  ); $cmd$
+);
 ```
 
-**RLS policies:**
-- `friend_groups`: Users can view/update groups they are a member of (via `friend_group_members`).
-- `friend_group_members`: Members can view other members in their groups. Creators can insert/delete.
-- `friend_group_invitations`: Members can view invitations for their groups. Creators can insert.
-- Size limit trigger on `friend_group_members` (max 10 per group).
+### 3. Add a tiny in-app diagnostics surface (optional but recommended)
 
-### Step 3: Add `group_id` to `user_tasks`
+Add a "Notifications status" line on the Profile/Settings area showing:
+- Permission granted: yes/no
+- Token registered: yes/no (queries `device_tokens` for current user)
+- Last registration error (if any)
 
-**Database migration:**
-- Add nullable `group_id uuid` column to `user_tasks` referencing `friend_groups(id)`.
-- A task belongs to either a family (`family_id`) or a friend group (`group_id`), or just the individual user.
+This way Sylvie (and you) can confirm at a glance whether the device successfully registered, instead of guessing.
 
-**Update RLS on `user_tasks`:**
-- Extend the existing SELECT policy to also allow viewing tasks where `group_id` is in the user's friend groups.
-- Extend INSERT/UPDATE/DELETE policies similarly.
+### 4. Verify end-to-end after rebuild
 
-### Step 4: Create Friend Group Management UI
+After she installs the new APK and signs in:
+- Check `select * from device_tokens where user_id = '54768e7e-…b6c0'` → should have one row.
+- Have Matt assign her a reminder → check `notification_outbox` (row appears) → cron flushes within 60s → `notification_log` row with `status='sent'` → device shows banner.
 
-**New component: `FriendGroupsModal.tsx`**
-- List user's friend groups
-- Create a new friend group (name)
-- Invite members by email
-- View/remove members
-- Similar structure to `FamilyMembersModal`
+## Files to change
 
-**New component: `FriendGroupSelector.tsx`**
-- When creating a custom reminder, allow the user to assign it to a friend group instead of (or in addition to) the family
+- `src/services/DeviceTokenService.ts` — better error surfacing, explicit permission logging.
+- `src/components/Header.tsx` or a new `NotificationStatus.tsx` — small diagnostics widget (optional based on your answer below).
+- One DB action (insert tool) to schedule the cron job.
 
-### Step 5: Update Task Fetching to Include Friend Group Tasks
+## Questions before implementing
 
-**`UserTaskService.js`:**
-- `getUserTasks()`: After fetching family tasks, also fetch tasks where `group_id` is in any of the user's friend groups. Merge and sort by due date.
-- Add a `source` field to each task: `'personal'`, `'family'`, or `'friend_group'` (with group name).
-
-**`ReminderContext.tsx`:**
-- Add `friendGroups` to context state.
-- Fetch user's friend groups on load.
-
-### Step 6: Update Reminders View with Sections
-
-**`RemindersView.tsx` / `RemindersList.tsx`:**
-- Add a "source" filter option (My Tasks / Family / Friend Groups).
-- Group tasks visually with section headers when viewing all.
-
-**`RemindersFilter.tsx`:**
-- Add filter chips for task source (Personal, Family, each friend group name).
-
-### Step 7: Update Navigation
-
-**`Navigation.tsx`:**
-- Add a "Groups" tab or integrate friend group access into the existing Family Members modal.
-
-### Step 8: Add Friend Group to Custom Reminder Creation
-
-**`AddCustomReminder.tsx`:**
-- Add a dropdown to select whether the reminder is for: "Just Me", "My Family", or a specific friend group.
-- Set `group_id` or `family_id` accordingly on the task.
-
----
-
-## Technical Summary
-
-| File/Resource | Action | Purpose |
-|---|---|---|
-| Database migration | Create | `friend_groups`, `friend_group_members`, `friend_group_invitations` tables with RLS |
-| Database migration | Alter | Add `group_id` to `user_tasks`, update RLS policies |
-| Database trigger | Create | Family member limit (10), friend group member limit (10) |
-| `FamilyMembersModal.tsx` | Update | Enforce 10-member limit in UI |
-| `FriendGroupsModal.tsx` | Create | Friend group management UI |
-| `UserTaskService.js` | Update | Fetch friend group tasks alongside family tasks |
-| `ReminderContext.tsx` | Update | Add friend groups to context |
-| `RemindersView.tsx` | Update | Show tasks by source (personal/family/group) |
-| `RemindersFilter.tsx` | Update | Add source filter |
-| `AddCustomReminder.tsx` | Update | Allow assigning to friend group |
-| `Navigation.tsx` | Update | Add groups access point |
+- **Diagnostics widget**: Add the in-app "Notifications status" indicator, or skip it and just rely on the DB query?
+- **Old tokens**: Once registration works, should we also add a periodic cleanup of `device_tokens` rows older than 60 days with no recent `updated_at`?
 
