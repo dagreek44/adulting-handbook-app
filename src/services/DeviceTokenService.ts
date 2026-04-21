@@ -1,9 +1,21 @@
-import { isNativePlatform, getPlatform, waitForCapacitor, safeNativeCall } from '@/utils/capacitorUtils';
+import { isNativePlatform, getPlatform, waitForCapacitor } from '@/utils/capacitorUtils';
 import { supabase } from '@/integrations/supabase/client';
+
+export interface NotificationDiagnostics {
+  isNative: boolean;
+  platform: 'ios' | 'android' | 'web';
+  permissionStatus: string;
+  tokenRegistered: boolean;
+  lastError: string | null;
+  lastErrorAt: string | null;
+}
 
 export class DeviceTokenService {
   private static currentUserId: string | null = null;
   private static listenersSetup = false;
+  private static lastError: string | null = null;
+  private static lastErrorAt: string | null = null;
+  private static lastPermissionStatus: string = 'unknown';
 
   private static get isNative(): boolean {
     return isNativePlatform();
@@ -62,12 +74,14 @@ export class DeviceTokenService {
     console.log('DeviceTokenService: Capacitor ready:', isReady);
 
     if (!isReady) {
-      console.log('DeviceTokenService: Capacitor not ready, skipping initialization');
+      console.warn('DeviceTokenService: Capacitor not ready — push notifications will not register this session');
+      this.recordError('Capacitor not ready');
       return;
     }
 
     if (!await this.isPushAvailable()) {
-      console.log('DeviceTokenService: Push not available');
+      console.warn('DeviceTokenService: Push plugin not available on this build');
+      this.recordError('Push plugin unavailable');
       return;
     }
 
@@ -75,6 +89,7 @@ export class DeviceTokenService {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user?.id) {
       console.warn('DeviceTokenService: No active session yet, aborting init');
+      this.recordError('No auth session at init');
       return;
     }
     if (session.user.id !== userId) {
@@ -88,15 +103,20 @@ export class DeviceTokenService {
 
       // Create notification channel BEFORE registering (Android 8+ requirement)
       await this.createDefaultChannel();
-      
-      // Check current permission status first
+
+      // Check current permission status first (handles Android 13+ POST_NOTIFICATIONS)
       const permStatus = await PushNotifications.checkPermissions();
-      console.log('DeviceTokenService: Current permission status:', permStatus.receive);
-      
+      this.lastPermissionStatus = permStatus.receive;
+      console.log('DeviceTokenService: Current permission status:', permStatus.receive, 'platform:', this.platform);
+
       if (permStatus.receive !== 'granted') {
+        console.log('DeviceTokenService: Requesting push permission...');
         const permResult = await PushNotifications.requestPermissions();
+        this.lastPermissionStatus = permResult.receive;
+        console.log('DeviceTokenService: Permission request result:', permResult.receive);
         if (permResult.receive !== 'granted') {
-          console.log('DeviceTokenService: Push notification permission denied');
+          console.warn('DeviceTokenService: Push notification permission denied by user');
+          this.recordError(`Permission denied: ${permResult.receive}`);
           return;
         }
       }
@@ -111,8 +131,15 @@ export class DeviceTokenService {
       await PushNotifications.register();
       console.log('DeviceTokenService: Register called (fresh token requested)');
     } catch (error) {
-      console.error('DeviceTokenService: Failed to initialize:', error);
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error('DeviceTokenService: Failed to initialize:', { message: msg, error });
+      this.recordError(`Init failed: ${msg}`);
     }
+  }
+
+  private static recordError(msg: string): void {
+    this.lastError = msg;
+    this.lastErrorAt = new Date().toISOString();
   }
 
   private static async setupListeners(): Promise<void> {
@@ -127,7 +154,13 @@ export class DeviceTokenService {
       });
 
       await PushNotifications.addListener('registrationError', (error) => {
-        console.error('DeviceTokenService: Registration failed:', error);
+        const detail = JSON.stringify(error);
+        console.error('DeviceTokenService: Registration failed:', {
+          error: detail,
+          platform: this.platform,
+          userId: this.currentUserId,
+        });
+        this.recordError(`Registration error: ${detail}`);
       });
 
       await PushNotifications.addListener('pushNotificationReceived', (notification) => {
@@ -153,6 +186,7 @@ export class DeviceTokenService {
   private static async saveToken(fcmToken: string): Promise<void> {
     if (!this.currentUserId) {
       console.error('DeviceTokenService: No user ID available');
+      this.recordError('saveToken called with no user ID');
       return;
     }
 
@@ -174,12 +208,23 @@ export class DeviceTokenService {
         );
 
       if (error) {
-        console.error('DeviceTokenService: Failed to save token:', error);
+        console.error('DeviceTokenService: Failed to save token:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          userId: this.currentUserId,
+          platform,
+        });
+        this.recordError(`Save token failed: ${error.message}`);
       } else {
         console.log('DeviceTokenService: Token saved successfully');
+        this.lastError = null;
+        this.lastErrorAt = null;
       }
     } catch (error) {
-      console.error('DeviceTokenService: Error saving token:', error);
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error('DeviceTokenService: Error saving token:', msg);
+      this.recordError(`Save token exception: ${msg}`);
     }
   }
 
@@ -203,5 +248,31 @@ export class DeviceTokenService {
     } catch (error) {
       console.error('DeviceTokenService: Error removing token:', error);
     }
+  }
+
+  /**
+   * Get current diagnostics for the in-app status widget.
+   */
+  static async getDiagnostics(userId: string): Promise<NotificationDiagnostics> {
+    let tokenRegistered = false;
+    try {
+      const { data } = await supabase
+        .from('device_tokens')
+        .select('id')
+        .eq('user_id', userId)
+        .limit(1);
+      tokenRegistered = !!(data && data.length > 0);
+    } catch (e) {
+      console.warn('DeviceTokenService.getDiagnostics: token lookup failed', e);
+    }
+
+    return {
+      isNative: this.isNative,
+      platform: this.platform,
+      permissionStatus: this.lastPermissionStatus,
+      tokenRegistered,
+      lastError: this.lastError,
+      lastErrorAt: this.lastErrorAt,
+    };
   }
 }
