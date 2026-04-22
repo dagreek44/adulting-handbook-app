@@ -601,7 +601,6 @@ export type Database = {
           first_name: string
           id: string
           last_name: string
-          password_hash: string
           updated_at: string
           username: string
         }
@@ -612,7 +611,6 @@ export type Database = {
           first_name: string
           id?: string
           last_name: string
-          password_hash: string
           updated_at?: string
           username: string
         }
@@ -623,7 +621,6 @@ export type Database = {
           first_name?: string
           id?: string
           last_name?: string
-          password_hash?: string
           updated_at?: string
           username?: string
         }
