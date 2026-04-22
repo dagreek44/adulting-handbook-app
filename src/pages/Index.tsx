@@ -320,6 +320,7 @@ const Index = () => {
     <div className="min-h-screen bg-cream">
       <div className="max-w-md mx-auto bg-white min-h-screen shadow-xl">
         <Header />
+        <NotificationStatus />
         
         <div className="p-4 pb-20">
           {renderContent()}
