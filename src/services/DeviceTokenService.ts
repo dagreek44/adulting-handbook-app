@@ -70,7 +70,7 @@ export class DeviceTokenService {
   static async initialize(userId: string): Promise<void> {
     console.log('DeviceTokenService: Initialize called for user:', userId);
 
-    const isReady = await waitForCapacitor(2000);
+    const isReady = await waitForCapacitor(5000);
     console.log('DeviceTokenService: Capacitor ready:', isReady);
 
     if (!isReady) {
