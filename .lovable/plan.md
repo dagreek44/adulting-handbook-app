@@ -2,59 +2,47 @@
 
 ## Diagnosis
 
-Two separate problems, both visible in the console logs you shared:
+The Android APK reports `"Notifications: web (no push)"` and never registers a device token because `src/utils/capacitorUtils.ts` uses CommonJS `require('@capacitor/core')` inside a Vite-built ES module bundle. `require` does not exist in the WebView at runtime, every call throws, the `try/catch` swallows the error, and the helpers fall back to `'web'` / `false`. The downstream effect:
 
-### 1. `permission denied for table users` (42501) on every login
-The recent security migration added a tighter `SELECT` policy on `family_invitations` ("Inviter and invitee can view invitations") but **did not drop the old policy** ("Users can view invitations for their family"). The old policy contains `family_id IN (SELECT family_id FROM public.users WHERE id = auth.uid())`. Because the security pass also revoked the authenticated role's privileges on `public.users`, that subquery now throws 42501 — and Postgres surfaces the error even though the new policy alone would have allowed the row.
+- `NotificationStatus` shows the web fallback message.
+- `DeviceTokenService.isPushAvailable()` returns `false` immediately, so `PushNotifications.register()` is never called.
+- `device_tokens` stays empty.
+- `waitForCapacitor()` always times out and resolves `false` even on the device.
 
-This is also why `acceptPendingInvitations` never finds an invitation: the very first query bails out with the permission error.
+The native side (Gradle, `google-services.json`, FCM project, permissions) is almost certainly fine — we just never reach it.
 
-### 2. No device token registers
-The console shows:
-```
-DeviceTokenService: Capacitor ready: false
-DeviceTokenService: Capacitor not ready — push notifications will not register this session
-```
-You're testing in the **web preview**, not in the rebuilt APK. `waitForCapacitor` correctly returns `false` on web, so registration is skipped — that's expected behavior in the browser. We have no on-device log evidence yet to confirm the APK is or isn't registering.
+## Fix
 
-To get visibility on-device we need the `NotificationStatus` diagnostics widget actually mounted somewhere visible (right now the file exists but isn't shown on the dashboard).
+Single-file change: replace the dynamic `require()` calls in `src/utils/capacitorUtils.ts` with a static ESM import.
 
-## Fix plan
+### `src/utils/capacitorUtils.ts`
 
-### A. Drop the legacy invitations policy (DB migration)
-```sql
-DROP POLICY IF EXISTS "Users can view invitations for their family"
-  ON public.family_invitations;
-```
-The replacement policy "Inviter and invitee can view invitations" already covers both roles correctly without touching `public.users`. After this, `acceptPendingInvitations` will succeed and the 42501 spam will stop.
+- Add `import { Capacitor } from '@capacitor/core';` at the top.
+- `isNativePlatform()` → return `Capacitor.isNativePlatform()` directly (sync, no try/catch needed beyond a defensive guard).
+- `getPlatform()` → return `Capacitor.getPlatform()` directly.
+- `waitForCapacitor()` → simplify to: if `Capacitor.isNativePlatform()` is true, resolve immediately; otherwise resolve `false`. The polling loop was only needed because of the `require` failure — Capacitor 7's bridge is ready before the JS bundle executes.
+- Remove the cached `cachedIsNative` / `cachedPlatform` module variables (no longer needed, and they masked the bug across HMR reloads in dev).
 
-### B. Mount `NotificationStatus` on the dashboard
-Add the existing `NotificationStatus` component to the top of `src/pages/Index.tsx` (above the dashboard cards) so that on the APK you'll instantly see:
-- Platform (android / ios / web)
-- Permission status
-- Token registered: yes/no
-- Last error if registration failed
+No other files need code changes. `DeviceTokenService`, `App.tsx`, and `NotificationStatus` will start working as designed once the helpers return correct values.
 
-This is the only way to know whether the APK is hitting permission denial, plugin unavailability, or an FCM-side `registrationError`.
+## Verification steps after the fix
 
-### C. Increase Capacitor wait timeout slightly
-`DeviceTokenService.initialize` waits 2000ms for Capacitor; on cold start of a freshly installed APK on Android this can occasionally take longer. Bump to 5000ms to remove that as a variable. (`App.tsx` already waits 3000ms before calling initialize, so end-to-end budget becomes ~8s which is fine.)
+1. `npm run build && npx cap sync android`
+2. Rebuild and reinstall the APK from Android Studio.
+3. Open the app, log in, look at the Notifications panel on the dashboard. Expected new state:
+   - Platform: `android`
+   - Permission: `granted` (Android will prompt on first launch on Android 13+)
+   - Token: `registered`
+4. Confirm with a query: `SELECT user_id, device_platform, created_at FROM device_tokens ORDER BY created_at DESC LIMIT 5;` — your row should appear.
 
-### D. Confirm on device, then iterate
-Reinstall the APK, log in, open the dashboard, and tell me what the Notifications panel shows. Three likely outcomes and what each means:
-- **"Permission: denied"** → Android 13+ POST_NOTIFICATIONS was rejected; user must grant in Settings.
-- **"Token: missing" + Last error: Registration error: …** → FCM-side issue (mismatched `google-services.json`, SHA-1 not added, or `FIREBASE_SERVICE_ACCOUNT` secret belongs to a different Firebase project).
-- **"Token: registered"** → Registration works; problem is then on the *send* side (`process-notification-outbox` cron / `send-push-notification` edge function), and we'll debug from there.
+If after the rebuild the panel shows Platform: `android` but Token: `missing` with a `Last error: Registration error: …`, that's a *real* FCM problem (mismatched `google-services.json`, missing SHA-1, or wrong `FIREBASE_SERVICE_ACCOUNT` secret) and we'll debug from the error message. But the symptoms you're seeing right now are 100% the `require` bug.
 
 ## Files to change
 
-- **DB migration** — drop the stale `family_invitations` SELECT policy.
-- `src/pages/Index.tsx` — render `<NotificationStatus />` at the top of the page (only for authenticated users).
-- `src/services/DeviceTokenService.ts` — change `waitForCapacitor(2000)` → `waitForCapacitor(5000)`.
+- `src/utils/capacitorUtils.ts` — switch to static ESM import, simplify helpers.
 
 ## What I will not touch
 
-- `android/` (you've rebuilt it).
-- `google-services.json` / `GoogleService-Info.plist` (you've placed them).
-- `capacitor.config.ts`, edge functions, cron schedule — until on-device diagnostics tell us where it's actually failing.
+- `DeviceTokenService.ts`, `App.tsx`, `NotificationStatus.tsx` — they're correct; they just need truthful answers from the utils module.
+- `capacitor.config.ts`, `android/`, edge functions, DB.
 
