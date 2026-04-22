@@ -40,7 +40,6 @@ export const createUserProfile = async (
         first_name: firstName,
         last_name: lastName,
         username: username,
-        password_hash: 'authenticated_via_supabase_auth',
         family_id: user.user_metadata?.family_id || crypto.randomUUID()
       })
       .select()
