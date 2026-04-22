@@ -18,6 +18,7 @@ import CompletedTasksView from "@/components/CompletedTasksView";
 import AchievementBadge from '@/components/AchievementBadge';
 import SharedHeader from '@/components/SharedHeader';
 import OnboardingTour from '@/components/OnboardingTour';
+import NotificationStatus from '@/components/NotificationStatus';
 import { completeOnboarding } from '@/services/userProfileService';
 
 const Index = () => {
