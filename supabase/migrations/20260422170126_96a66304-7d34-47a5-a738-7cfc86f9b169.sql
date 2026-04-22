@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Users can view invitations for their family" ON public.family_invitations;

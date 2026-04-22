@@ -18,6 +18,7 @@ import CompletedTasksView from "@/components/CompletedTasksView";
 import AchievementBadge from '@/components/AchievementBadge';
 import SharedHeader from '@/components/SharedHeader';
 import OnboardingTour from '@/components/OnboardingTour';
+import NotificationStatus from '@/components/NotificationStatus';
 import { completeOnboarding } from '@/services/userProfileService';
 
 const Index = () => {
@@ -319,6 +320,7 @@ const Index = () => {
     <div className="min-h-screen bg-cream">
       <div className="max-w-md mx-auto bg-white min-h-screen shadow-xl">
         <Header />
+        <NotificationStatus />
         
         <div className="p-4 pb-20">
           {renderContent()}
