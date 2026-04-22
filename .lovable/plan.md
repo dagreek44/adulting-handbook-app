@@ -1,65 +1,60 @@
 
-
 ## Diagnosis
 
-Sylvie's notifications are silently failing because **no FCM token is registered for her account**. Investigation revealed:
+The only Android build error captured so far is:
 
-- `device_tokens` table is completely empty for her user (`54768e7e-…b6c0`) — and actually empty for everyone.
-- `notification_outbox` and `notification_log` have zero rows for her.
-- The `process-notification-outbox` pg_cron job is **not scheduled** (the SQL from the hardening step was never executed in the dashboard).
-- Earlier network log confirms it: `send-push-notification` returned `"sent":0,"message":"No device tokens found"` when Matt assigned her a reminder.
-
-So two independent things are broken: (a) her device never persists a token, and (b) even if it did, the outbox-driven path has no cron worker pushing rows to the edge function.
-
-## Plan
-
-### 1. Fix token registration on her device (code + rebuild)
-
-Harden `DeviceTokenService.ts` so we can actually see why registration fails on Android, and so it self-recovers:
-
-- Surface `registrationError` payloads with full detail (currently logs but doesn't persist) — write the error to a lightweight `device_token_errors` audit (or just `console.error` with structured fields if we don't want a new table).
-- Add a `force=true` re-register path that runs every cold start *after* `getSession()` resolves (already partially done, but currently bails silently when push isn't available — add a visible warning).
-- Confirm Android 13+ POST_NOTIFICATIONS permission is requested explicitly via `PushNotifications.requestPermissions()` (Capacitor handles this, but we'll log the resolved status).
-- After this code change, **she must reinstall the APK** — the previous build has the pre-fix race condition.
-
-### 2. Schedule the missing cron job (one SQL statement)
-
-The hardening migration created `process_notification_outbox()` but never scheduled it. We'll re-run the cron schedule SQL (the same block the AI gave earlier). Without this, even if her token registers, queued notifications never leave the outbox.
-
-```sql
-SELECT cron.schedule(
-  'process-notification-outbox',
-  '* * * * *',
-  $cmd$ SELECT public.process_notification_outbox(
-    'https://dgwzmfgcuxtsrvcvahat.supabase.co/functions/v1/send-push-notification',
-    '<anon key>'
-  ); $cmd$
-);
+```
+:capacitor-android:compileDebugJavaWithJavac
+> error: invalid source release: 21
 ```
 
-### 3. Add a tiny in-app diagnostics surface (optional but recommended)
+This is **not** a bug in your TypeScript/React code — it's a JDK mismatch. Capacitor 7 (you're on `@capacitor/android@^7.4.3`) requires **JDK 21** to compile its Android module. Android Studio is currently using an older embedded JDK (likely 17), so the compiler refuses `sourceCompatibility = 21`.
 
-Add a "Notifications status" line on the Profile/Settings area showing:
-- Permission granted: yes/no
-- Token registered: yes/no (queries `device_tokens` for current user)
-- Last registration error (if any)
+Everything generated under `android/` lives on your local machine (it isn't in the repo), so the fix has to be applied there. Nothing in the web codebase is broken from a Gradle perspective.
 
-This way Sylvie (and you) can confirm at a glance whether the device successfully registered, instead of guessing.
+## Fix plan
 
-### 4. Verify end-to-end after rebuild
+### 1. Point Android Studio at JDK 21
 
-After she installs the new APK and signs in:
-- Check `select * from device_tokens where user_id = '54768e7e-…b6c0'` → should have one row.
-- Have Matt assign her a reminder → check `notification_outbox` (row appears) → cron flushes within 60s → `notification_log` row with `status='sent'` → device shows banner.
+In Android Studio:
+- **Settings → Build, Execution, Deployment → Build Tools → Gradle**
+- Set **Gradle JDK** to a **JDK 21** entry. If none is listed, click the dropdown → **Download JDK…** → Vendor: *Eclipse Temurin 21* (or *Oracle OpenJDK 21*) → Download.
+- Click **Apply**, then **File → Sync Project with Gradle Files**.
+
+For command-line builds (`npx cap run android`), also set:
+```bash
+export JAVA_HOME=/path/to/jdk-21        # macOS/Linux
+# or on Windows: setx JAVA_HOME "C:\Program Files\Java\jdk-21"
+```
+
+### 2. Clean and rebuild
+
+From the project root:
+```bash
+cd android
+./gradlew clean
+cd ..
+npm run build
+npx cap sync android
+npx cap run android
+```
+
+### 3. If errors remain, share the new log
+
+The "series of errors" you mention this round wasn't included in the message. After applying the JDK 21 fix, if the build still fails, paste the new Gradle output (especially the first `FAILURE:` block and the `> Task :…` line above it). Common follow-on issues at this stage are:
+- Missing `google-services.json` in `android/app/` (needed for FCM push) — symptom: `File google-services.json is missing`.
+- Stale `node_modules` after the recent refactor — fix with `rm -rf node_modules && npm install` then `npx cap sync android`.
+- Android SDK 34/35 not installed — Android Studio will offer to install it via the SDK Manager link in the error.
+
+## Why no code changes are needed
+
+The recent refactor removed unused TS/React files but did not touch any native Android sources, Gradle files, or the Capacitor config. The Capacitor 7 → JDK 21 requirement has been in place since you upgraded Capacitor; the previous successful builds were on a different machine/JDK setup.
 
 ## Files to change
 
-- `src/services/DeviceTokenService.ts` — better error surfacing, explicit permission logging.
-- `src/components/Header.tsx` or a new `NotificationStatus.tsx` — small diagnostics widget (optional based on your answer below).
-- One DB action (insert tool) to schedule the cron job.
+None in this repo. All changes are local IDE/JDK configuration on your build machine.
 
-## Questions before implementing
-
-- **Diagnostics widget**: Add the in-app "Notifications status" indicator, or skip it and just rely on the DB query?
-- **Old tokens**: Once registration works, should we also add a periodic cleanup of `device_tokens` rows older than 60 days with no recent `updated_at`?
-
+<lov-actions>
+<lov-link url="https://capacitorjs.com/docs/main/updating/7-0#update-your-environment">Capacitor 7 environment requirements</lov-link>
+<lov-link url="https://docs.lovable.dev/tips-tricks/troubleshooting">Troubleshooting docs</lov-link>
+</lov-actions>
