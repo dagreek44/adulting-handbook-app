@@ -1,60 +1,60 @@
 
+
 ## Diagnosis
 
-The only Android build error captured so far is:
+Two separate problems, both visible in the console logs you shared:
 
+### 1. `permission denied for table users` (42501) on every login
+The recent security migration added a tighter `SELECT` policy on `family_invitations` ("Inviter and invitee can view invitations") but **did not drop the old policy** ("Users can view invitations for their family"). The old policy contains `family_id IN (SELECT family_id FROM public.users WHERE id = auth.uid())`. Because the security pass also revoked the authenticated role's privileges on `public.users`, that subquery now throws 42501 — and Postgres surfaces the error even though the new policy alone would have allowed the row.
+
+This is also why `acceptPendingInvitations` never finds an invitation: the very first query bails out with the permission error.
+
+### 2. No device token registers
+The console shows:
 ```
-:capacitor-android:compileDebugJavaWithJavac
-> error: invalid source release: 21
+DeviceTokenService: Capacitor ready: false
+DeviceTokenService: Capacitor not ready — push notifications will not register this session
 ```
+You're testing in the **web preview**, not in the rebuilt APK. `waitForCapacitor` correctly returns `false` on web, so registration is skipped — that's expected behavior in the browser. We have no on-device log evidence yet to confirm the APK is or isn't registering.
 
-This is **not** a bug in your TypeScript/React code — it's a JDK mismatch. Capacitor 7 (you're on `@capacitor/android@^7.4.3`) requires **JDK 21** to compile its Android module. Android Studio is currently using an older embedded JDK (likely 17), so the compiler refuses `sourceCompatibility = 21`.
-
-Everything generated under `android/` lives on your local machine (it isn't in the repo), so the fix has to be applied there. Nothing in the web codebase is broken from a Gradle perspective.
+To get visibility on-device we need the `NotificationStatus` diagnostics widget actually mounted somewhere visible (right now the file exists but isn't shown on the dashboard).
 
 ## Fix plan
 
-### 1. Point Android Studio at JDK 21
-
-In Android Studio:
-- **Settings → Build, Execution, Deployment → Build Tools → Gradle**
-- Set **Gradle JDK** to a **JDK 21** entry. If none is listed, click the dropdown → **Download JDK…** → Vendor: *Eclipse Temurin 21* (or *Oracle OpenJDK 21*) → Download.
-- Click **Apply**, then **File → Sync Project with Gradle Files**.
-
-For command-line builds (`npx cap run android`), also set:
-```bash
-export JAVA_HOME=/path/to/jdk-21        # macOS/Linux
-# or on Windows: setx JAVA_HOME "C:\Program Files\Java\jdk-21"
+### A. Drop the legacy invitations policy (DB migration)
+```sql
+DROP POLICY IF EXISTS "Users can view invitations for their family"
+  ON public.family_invitations;
 ```
+The replacement policy "Inviter and invitee can view invitations" already covers both roles correctly without touching `public.users`. After this, `acceptPendingInvitations` will succeed and the 42501 spam will stop.
 
-### 2. Clean and rebuild
+### B. Mount `NotificationStatus` on the dashboard
+Add the existing `NotificationStatus` component to the top of `src/pages/Index.tsx` (above the dashboard cards) so that on the APK you'll instantly see:
+- Platform (android / ios / web)
+- Permission status
+- Token registered: yes/no
+- Last error if registration failed
 
-From the project root:
-```bash
-cd android
-./gradlew clean
-cd ..
-npm run build
-npx cap sync android
-npx cap run android
-```
+This is the only way to know whether the APK is hitting permission denial, plugin unavailability, or an FCM-side `registrationError`.
 
-### 3. If errors remain, share the new log
+### C. Increase Capacitor wait timeout slightly
+`DeviceTokenService.initialize` waits 2000ms for Capacitor; on cold start of a freshly installed APK on Android this can occasionally take longer. Bump to 5000ms to remove that as a variable. (`App.tsx` already waits 3000ms before calling initialize, so end-to-end budget becomes ~8s which is fine.)
 
-The "series of errors" you mention this round wasn't included in the message. After applying the JDK 21 fix, if the build still fails, paste the new Gradle output (especially the first `FAILURE:` block and the `> Task :…` line above it). Common follow-on issues at this stage are:
-- Missing `google-services.json` in `android/app/` (needed for FCM push) — symptom: `File google-services.json is missing`.
-- Stale `node_modules` after the recent refactor — fix with `rm -rf node_modules && npm install` then `npx cap sync android`.
-- Android SDK 34/35 not installed — Android Studio will offer to install it via the SDK Manager link in the error.
-
-## Why no code changes are needed
-
-The recent refactor removed unused TS/React files but did not touch any native Android sources, Gradle files, or the Capacitor config. The Capacitor 7 → JDK 21 requirement has been in place since you upgraded Capacitor; the previous successful builds were on a different machine/JDK setup.
+### D. Confirm on device, then iterate
+Reinstall the APK, log in, open the dashboard, and tell me what the Notifications panel shows. Three likely outcomes and what each means:
+- **"Permission: denied"** → Android 13+ POST_NOTIFICATIONS was rejected; user must grant in Settings.
+- **"Token: missing" + Last error: Registration error: …** → FCM-side issue (mismatched `google-services.json`, SHA-1 not added, or `FIREBASE_SERVICE_ACCOUNT` secret belongs to a different Firebase project).
+- **"Token: registered"** → Registration works; problem is then on the *send* side (`process-notification-outbox` cron / `send-push-notification` edge function), and we'll debug from there.
 
 ## Files to change
 
-None in this repo. All changes are local IDE/JDK configuration on your build machine.
+- **DB migration** — drop the stale `family_invitations` SELECT policy.
+- `src/pages/Index.tsx` — render `<NotificationStatus />` at the top of the page (only for authenticated users).
+- `src/services/DeviceTokenService.ts` — change `waitForCapacitor(2000)` → `waitForCapacitor(5000)`.
 
-<lov-actions>
-<lov-link url="https://capacitorjs.com/docs/main/updating/7-0#update-your-environment">Capacitor 7 environment requirements</lov-link>
-<lov-link url="https://docs.lovable.dev/tips-tricks/troubleshooting">Troubleshooting docs</lov-link>
-</lov-actions>
+## What I will not touch
+
+- `android/` (you've rebuilt it).
+- `google-services.json` / `GoogleService-Info.plist` (you've placed them).
+- `capacitor.config.ts`, edge functions, cron schedule — until on-device diagnostics tell us where it's actually failing.
+
