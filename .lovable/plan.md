@@ -1,48 +1,56 @@
 
 
-## Diagnosis
+## Combined diagnosis
 
-The Android APK reports `"Notifications: web (no push)"` and never registers a device token because `src/utils/capacitorUtils.ts` uses CommonJS `require('@capacitor/core')` inside a Vite-built ES module bundle. `require` does not exist in the WebView at runtime, every call throws, the `try/catch` swallows the error, and the helpers fall back to `'web'` / `false`. The downstream effect:
+Comparing Gemini's checklist against your actual code:
 
-- `NotificationStatus` shows the web fallback message.
-- `DeviceTokenService.isPushAvailable()` returns `false` immediately, so `PushNotifications.register()` is never called.
-- `device_tokens` stays empty.
-- `waitForCapacitor()` always times out and resolves `false` even on the device.
+| Gemini's recommendation | Status in your code |
+|---|---|
+| 1. Runtime permission request | **Already implemented** in `DeviceTokenService.initialize` (lines checking `checkPermissions` then `requestPermissions`). |
+| 2. Notification channels (Android 8+) | **Already implemented** — `createDefaultChannel()` runs before `register()` with id `default`, importance 5. |
+| 3. Small icon (`ic_stat_icon`) | Referenced in `capacitor.config.ts` for **LocalNotifications only**, not push. If the drawable is missing, Android falls back to the app icon — annoying (white square) but **not a reason no token registers**. Worth fixing later for polish. |
+| 4. FCM token registration listener | **Already implemented** — `addListener('registration', ...)` and `registrationError` are wired up in `setupListeners()`. |
 
-The native side (Gradle, `google-services.json`, FCM project, permissions) is almost certainly fine — we just never reach it.
+So Gemini's list is correct in general but **none of those items explain your specific symptom**. Your symptom is "Platform: web (no push)" *on the actual Android device*. That can only happen if `Capacitor.isNativePlatform()` is never reached — and it isn't, because `src/utils/capacitorUtils.ts` calls `require('@capacitor/core')` inside an ES module bundle. `require` is undefined in the WebView, every call throws, the `try/catch` swallows it, and we cache `'web'` / `false` forever. Permission requests, channels, and listeners are all downstream of that check, so none of them ever run on device.
 
-## Fix
+Fixing the `require` bug unblocks all four of Gemini's items simultaneously, because the code that implements them already exists and is gated behind `isNativePlatform()`.
 
-Single-file change: replace the dynamic `require()` calls in `src/utils/capacitorUtils.ts` with a static ESM import.
+## Fix (single file)
 
 ### `src/utils/capacitorUtils.ts`
-
-- Add `import { Capacitor } from '@capacitor/core';` at the top.
-- `isNativePlatform()` → return `Capacitor.isNativePlatform()` directly (sync, no try/catch needed beyond a defensive guard).
+- Replace `require('@capacitor/core')` with a static ESM import: `import { Capacitor } from '@capacitor/core';`.
+- `isNativePlatform()` → return `Capacitor.isNativePlatform()` directly.
 - `getPlatform()` → return `Capacitor.getPlatform()` directly.
-- `waitForCapacitor()` → simplify to: if `Capacitor.isNativePlatform()` is true, resolve immediately; otherwise resolve `false`. The polling loop was only needed because of the `require` failure — Capacitor 7's bridge is ready before the JS bundle executes.
-- Remove the cached `cachedIsNative` / `cachedPlatform` module variables (no longer needed, and they masked the bug across HMR reloads in dev).
+- `waitForCapacitor()` → simplify: if `Capacitor.isNativePlatform()` is true, resolve `true` immediately; otherwise resolve `false`. The polling loop only existed to retry the failing `require`.
+- Drop the module-level `cachedIsNative` / `cachedPlatform` (no longer needed; `Capacitor` is a synchronous singleton once the bundle loads, which is always after the bridge is ready in a Capacitor WebView).
+- Keep `safeNativeCall` as-is.
 
-No other files need code changes. `DeviceTokenService`, `App.tsx`, and `NotificationStatus` will start working as designed once the helpers return correct values.
+No other source files need changes. `DeviceTokenService`, `NotificationStatus`, and `App.tsx` will start behaving correctly the moment `isNativePlatform()` returns the truth.
 
-## Verification steps after the fix
+## Optional polish (defer unless you want it now)
+
+- **Small icon**: add a transparent white `ic_stat_icon.png` to `android/app/src/main/res/drawable-*` folders so push notifications don't show as a white square. Cosmetic, not required for tokens to register.
+
+## Verification after rebuild
 
 1. `npm run build && npx cap sync android`
-2. Rebuild and reinstall the APK from Android Studio.
-3. Open the app, log in, look at the Notifications panel on the dashboard. Expected new state:
+2. Rebuild + reinstall the APK from Android Studio.
+3. On first launch, Android 13+ will prompt for notification permission — accept.
+4. Open the dashboard. The Notifications panel should now read:
    - Platform: `android`
-   - Permission: `granted` (Android will prompt on first launch on Android 13+)
+   - Permission: `granted`
    - Token: `registered`
-4. Confirm with a query: `SELECT user_id, device_platform, created_at FROM device_tokens ORDER BY created_at DESC LIMIT 5;` — your row should appear.
+5. Confirm in DB: a row appears in `device_tokens` for your user.
 
-If after the rebuild the panel shows Platform: `android` but Token: `missing` with a `Last error: Registration error: …`, that's a *real* FCM problem (mismatched `google-services.json`, missing SHA-1, or wrong `FIREBASE_SERVICE_ACCOUNT` secret) and we'll debug from the error message. But the symptoms you're seeing right now are 100% the `require` bug.
+If after the rebuild Platform shows `android` but Token still shows `missing`, the panel will display the FCM `Last error` (mismatched `google-services.json`, missing SHA-1 in Firebase, or wrong `FIREBASE_SERVICE_ACCOUNT` secret) and we'll act on that specific message.
 
 ## Files to change
 
-- `src/utils/capacitorUtils.ts` — switch to static ESM import, simplify helpers.
+- `src/utils/capacitorUtils.ts`
 
-## What I will not touch
+## Files explicitly NOT changing
 
-- `DeviceTokenService.ts`, `App.tsx`, `NotificationStatus.tsx` — they're correct; they just need truthful answers from the utils module.
+- `src/services/DeviceTokenService.ts` — permission flow, channel creation, listeners are already correct.
+- `src/App.tsx`, `src/components/NotificationStatus.tsx`, `src/pages/Index.tsx` — wiring is correct.
 - `capacitor.config.ts`, `android/`, edge functions, DB.
 
