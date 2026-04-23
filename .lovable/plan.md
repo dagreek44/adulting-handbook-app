@@ -1,56 +1,66 @@
 
 
-## Combined diagnosis
+## Diagnosis
 
-Comparing Gemini's checklist against your actual code:
+Token registration works on Android — confirmed. The new symptom (dashboard hangs at "Loading your tasks") is a database-side regression caused by the recent security migration.
 
-| Gemini's recommendation | Status in your code |
-|---|---|
-| 1. Runtime permission request | **Already implemented** in `DeviceTokenService.initialize` (lines checking `checkPermissions` then `requestPermissions`). |
-| 2. Notification channels (Android 8+) | **Already implemented** — `createDefaultChannel()` runs before `register()` with id `default`, importance 5. |
-| 3. Small icon (`ic_stat_icon`) | Referenced in `capacitor.config.ts` for **LocalNotifications only**, not push. If the drawable is missing, Android falls back to the app icon — annoying (white square) but **not a reason no token registers**. Worth fixing later for polish. |
-| 4. FCM token registration listener | **Already implemented** — `addListener('registration', ...)` and `registrationError` are wired up in `setupListeners()`. |
+The audit logs show non-stop `permission denied for table users` (42501) errors. I confirmed why:
 
-So Gemini's list is correct in general but **none of those items explain your specific symptom**. Your symptom is "Platform: web (no push)" *on the actual Android device*. That can only happen if `Capacitor.isNativePlatform()` is never reached — and it isn't, because `src/utils/capacitorUtils.ts` calls `require('@capacitor/core')` inside an ES module bundle. `require` is undefined in the WebView, every call throws, the `try/catch` swallows it, and we cache `'web'` / `false` forever. Permission requests, channels, and listeners are all downstream of that check, so none of them ever run on device.
+```
+SELECT grantee, privilege_type
+  FROM information_schema.role_table_grants
+ WHERE table_schema='public' AND table_name='users';
+→ []   ← zero rows
+```
 
-Fixing the `require` bug unblocks all four of Gemini's items simultaneously, because the code that implements them already exists and is gated behind `isNativePlatform()`.
+The `authenticated` role has **no GRANTs** on `public.users` at all. A previous "lock down PII" pass revoked them. Without table-level GRANT, Postgres rejects the query at the privilege layer **before RLS is ever evaluated**. So every one of these breaks:
 
-## Fix (single file)
+- `users` direct SELECT (e.g. `fetchUserProfile`, `acceptPendingInvitations`, `getUserTasks` first call, `useBadges`)
+- The PostgREST embed `assignee:users!user_tasks_user_id_fkey(...)` in `getUserTasks` and `getCompletedTasks`
+- RLS policies on **other** tables whose USING clauses contain `SELECT … FROM users` — the subquery runs as the caller, hits 42501, and the whole row read fails:
+  - `user_tasks` ("Users can view family and group tasks")
+  - `user_badges` ("Users can view family badges")
+  - `family_invitations` ("Users can create invitations…")
+  - `family_members` (delete policy)
 
-### `src/utils/capacitorUtils.ts`
-- Replace `require('@capacitor/core')` with a static ESM import: `import { Capacitor } from '@capacitor/core';`.
-- `isNativePlatform()` → return `Capacitor.isNativePlatform()` directly.
-- `getPlatform()` → return `Capacitor.getPlatform()` directly.
-- `waitForCapacitor()` → simplify: if `Capacitor.isNativePlatform()` is true, resolve `true` immediately; otherwise resolve `false`. The polling loop only existed to retry the failing `require`.
-- Drop the module-level `cachedIsNative` / `cachedPlatform` (no longer needed; `Capacitor` is a synchronous singleton once the bundle loads, which is always after the bridge is ready in a Capacitor WebView).
-- Keep `safeNativeCall` as-is.
+Net effect on the dashboard: `getUserTasks` returns `[]` quickly because of its catch, BUT `useSupabaseData.fetchFamilyMembers` keeps calling `family_invitations` (also 42501) and the loading flag for that hook only flips when its first call settles. On the device the auth listener fires multiple `SIGNED_IN` / `INITIAL_SESSION` / `TOKEN_REFRESHED` events; each one re-runs `handleUserProfileFetch` → `acceptPendingInvitations`, which calls `family_invitations` (42501) and `family_members` insert (also touches `users` RLS → 42501) on a 0-ms `setTimeout`, creating a tight retry storm. That's what's keeping the WebView pegged and the spinner spinning.
 
-No other source files need changes. `DeviceTokenService`, `NotificationStatus`, and `App.tsx` will start behaving correctly the moment `isNativePlatform()` returns the truth.
+The previous policy I dropped on `family_invitations` removed *one* `users` reference — but the underlying problem (authenticated cannot read `users` at all) was never fixed and many other policies still depend on it.
 
-## Optional polish (defer unless you want it now)
+## Fix
 
-- **Small icon**: add a transparent white `ic_stat_icon.png` to `android/app/src/main/res/drawable-*` folders so push notifications don't show as a white square. Cosmetic, not required for tokens to register.
+Single migration. Restore the standard grants on `public.users` to `authenticated`, then rely on RLS (which is already correct: own row + family members) to do the access control. This is the normal Supabase pattern — RLS without GRANT is a no-op that surfaces as 42501.
 
-## Verification after rebuild
+```sql
+-- Allow the authenticated role to access public.users at the privilege layer.
+-- RLS policies already restrict rows to: own record OR same family.
+GRANT SELECT, INSERT, UPDATE ON public.users TO authenticated;
 
-1. `npm run build && npx cap sync android`
-2. Rebuild + reinstall the APK from Android Studio.
-3. On first launch, Android 13+ will prompt for notification permission — accept.
-4. Open the dashboard. The Notifications panel should now read:
-   - Platform: `android`
-   - Permission: `granted`
-   - Token: `registered`
-5. Confirm in DB: a row appears in `device_tokens` for your user.
+-- Keep anon explicitly locked out (already covered by RLS deny policies,
+-- but make the privilege layer match).
+REVOKE ALL ON public.users FROM anon;
+```
 
-If after the rebuild Platform shows `android` but Token still shows `missing`, the panel will display the FCM `Last error` (mismatched `google-services.json`, missing SHA-1 in Firebase, or wrong `FIREBASE_SERVICE_ACCOUNT` secret) and we'll act on that specific message.
+That's it. No code changes required. After this:
+
+- `fetchUserProfile`, `getUserTasks`, badges, family members, invitations all start returning real data.
+- `permission denied for table users` errors stop in both the client console and Postgres logs.
+- The "Loading your tasks…" spinner clears on Android.
+
+## Verification after the migration
+
+1. Reinstall is **not** required (DB-only change).
+2. Pull-to-refresh / re-open the app; dashboard should populate within 1–2 seconds.
+3. Browser console: no more `42501` rows.
+4. `select count(*) from postgres_logs where event_message='permission denied for table users' and timestamp > now() - interval '5 minutes'` → 0.
+
+## What I will NOT touch
+
+- RLS policies — the existing ones already correctly restrict `users` to own row + same family. The bug is the missing GRANT, not the policies.
+- Any application code (`UserTaskService`, `useBadges`, `AuthContext`, `useSupabaseData`).
+- Capacitor / Android / push notification code — that side is now working.
 
 ## Files to change
 
-- `src/utils/capacitorUtils.ts`
-
-## Files explicitly NOT changing
-
-- `src/services/DeviceTokenService.ts` — permission flow, channel creation, listeners are already correct.
-- `src/App.tsx`, `src/components/NotificationStatus.tsx`, `src/pages/Index.tsx` — wiring is correct.
-- `capacitor.config.ts`, `android/`, edge functions, DB.
+- One new Supabase migration (the GRANT/REVOKE above).
 
