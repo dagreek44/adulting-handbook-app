@@ -1,66 +1,144 @@
 
+Fix the stuck dashboard by addressing the real failing path: family invitation lookups, not the core reminder query.
 
-## Diagnosis
+## What’s actually failing
 
-Token registration works on Android — confirmed. The new symptom (dashboard hangs at "Loading your tasks") is a database-side regression caused by the recent security migration.
+The console evidence points to this sequence:
 
-The audit logs show non-stop `permission denied for table users` (42501) errors. I confirmed why:
+1. `fetchUserProfile` succeeds from `public.users`
+2. `getUserTasks` starts for the correct family
+3. The app then runs `acceptPendingInvitations()` and `fetchFamilyMembers()`
+4. Both hit `family_invitations`
+5. That query throws `42501 permission denied for table users`
 
-```
-SELECT grantee, privilege_type
-  FROM information_schema.role_table_grants
- WHERE table_schema='public' AND table_name='users';
-→ []   ← zero rows
-```
+This means the app is not blocked because family/group reminder visibility is conceptually wrong. It is blocked because startup is repeatedly calling a failing invitation query.
 
-The `authenticated` role has **no GRANTs** on `public.users` at all. A previous "lock down PII" pass revoked them. Without table-level GRANT, Postgres rejects the query at the privilege layer **before RLS is ever evaluated**. So every one of these breaks:
+## Root cause
 
-- `users` direct SELECT (e.g. `fetchUserProfile`, `acceptPendingInvitations`, `getUserTasks` first call, `useBadges`)
-- The PostgREST embed `assignee:users!user_tasks_user_id_fkey(...)` in `getUserTasks` and `getCompletedTasks`
-- RLS policies on **other** tables whose USING clauses contain `SELECT … FROM users` — the subquery runs as the caller, hits 42501, and the whole row read fails:
-  - `user_tasks` ("Users can view family and group tasks")
-  - `user_badges` ("Users can view family badges")
-  - `family_invitations` ("Users can create invitations…")
-  - `family_members` (delete policy)
-
-Net effect on the dashboard: `getUserTasks` returns `[]` quickly because of its catch, BUT `useSupabaseData.fetchFamilyMembers` keeps calling `family_invitations` (also 42501) and the loading flag for that hook only flips when its first call settles. On the device the auth listener fires multiple `SIGNED_IN` / `INITIAL_SESSION` / `TOKEN_REFRESHED` events; each one re-runs `handleUserProfileFetch` → `acceptPendingInvitations`, which calls `family_invitations` (42501) and `family_members` insert (also touches `users` RLS → 42501) on a 0-ms `setTimeout`, creating a tight retry storm. That's what's keeping the WebView pegged and the spinner spinning.
-
-The previous policy I dropped on `family_invitations` removed *one* `users` reference — but the underlying problem (authenticated cannot read `users` at all) was never fixed and many other policies still depend on it.
-
-## Fix
-
-Single migration. Restore the standard grants on `public.users` to `authenticated`, then rely on RLS (which is already correct: own row + family members) to do the access control. This is the normal Supabase pattern — RLS without GRANT is a no-op that surfaces as 42501.
+The current `family_invitations` SELECT policy is the problem:
 
 ```sql
--- Allow the authenticated role to access public.users at the privilege layer.
--- RLS policies already restrict rows to: own record OR same family.
-GRANT SELECT, INSERT, UPDATE ON public.users TO authenticated;
-
--- Keep anon explicitly locked out (already covered by RLS deny policies,
--- but make the privilege layer match).
-REVOKE ALL ON public.users FROM anon;
+invitee_email = (SELECT email FROM auth.users WHERE id = auth.uid())
 ```
 
-That's it. No code changes required. After this:
+That policy reads from `auth.users`. Client-side authenticated users should not query `auth.users`, so the policy itself throws `42501`. Postgres reports the underlying relation name as `users`, which made it look like `public.users`, but the successful `fetchUserProfile` call proves `public.users` itself is readable.
 
-- `fetchUserProfile`, `getUserTasks`, badges, family members, invitations all start returning real data.
-- `permission denied for table users` errors stop in both the client console and Postgres logs.
-- The "Loading your tasks…" spinner clears on Android.
+Two frontend behaviors then amplify the issue:
 
-## Verification after the migration
+- `AuthContext` calls `acceptPendingInvitations()` on every auth event, including refreshes
+- `Index.tsx` blocks the whole screen on `supabaseLoading` and `badgesLoading`, even though tasks are the critical data
 
-1. Reinstall is **not** required (DB-only change).
-2. Pull-to-refresh / re-open the app; dashboard should populate within 1–2 seconds.
-3. Browser console: no more `42501` rows.
-4. `select count(*) from postgres_logs where event_message='permission denied for table users' and timestamp > now() - interval '5 minutes'` → 0.
+## Best fix path
 
-## What I will NOT touch
+### 1) Database: rewrite invitation policies to avoid `auth.users`
+Create one migration that updates `family_invitations` RLS:
 
-- RLS policies — the existing ones already correctly restrict `users` to own row + same family. The bug is the missing GRANT, not the policies.
-- Any application code (`UserTaskService`, `useBadges`, `AuthContext`, `useSupabaseData`).
-- Capacitor / Android / push notification code — that side is now working.
+- Replace the SELECT policy with:
+  - `inviter_id = auth.uid() OR invitee_email = auth.email()`
+- Replace the INSERT policy so it uses the existing security-definer helper:
+  - `family_id = public.get_user_family_id(auth.uid())`
+- Keep anon blocked
+
+This removes the broken dependency on `auth.users` and matches the intended rule:
+- inviters can see invitations they sent
+- invited users can see invitations sent to their own email
+
+### 2) Frontend: stop invitation checks from running in a loop
+Update `src/contexts/AuthContext.tsx`:
+
+- Do not call `acceptPendingInvitations()` on every auth event
+- Ignore `TOKEN_REFRESHED` for invitation acceptance
+- Run invitation acceptance at most once per signed-in session/user
+- Keep profile fetch normal, but make invitation acceptance non-blocking
+
+This prevents repeated failed calls from hammering startup.
+
+### 3) Frontend: don’t let auxiliary data freeze the whole dashboard
+Update `src/pages/Index.tsx`:
+
+- Full-page loading should depend only on auth readiness + task loading
+- `familyMembers` and badges should load independently without blocking the page
+- If family members or badges fail, the home/reminders UI should still render
+
+This makes the app resilient even if a secondary query fails later.
+
+### 4) Optional hardening: remove other policy dependencies on raw `users` subqueries
+Review and, if needed, migrate these policies to use `public.get_user_family_id(...)` instead of direct `FROM users` subqueries:
+
+- `user_tasks` family checks
+- `user_badges` family visibility
+- any `family_members` / invitation policies still using direct `users` lookups
+
+This is not the first fix I’d apply, but it is the safest long-term pattern.
 
 ## Files to change
 
-- One new Supabase migration (the GRANT/REVOKE above).
+- New Supabase migration for `family_invitations` policy cleanup
+- `src/contexts/AuthContext.tsx`
+- `src/pages/Index.tsx`
 
+## Files likely not needing logic changes
+
+- `src/services/UserTaskService.js` — current family/group visibility model can keep relying on RLS
+- `src/contexts/ReminderContext.tsx` — task loading flow is structurally fine
+- `src/services/ReminderService.js`
+
+## Expected result after the fix
+
+A signed-in user will:
+- see all reminders/tasks for their family
+- also see tasks tied to groups they belong to
+- stop getting stuck on “Loading your tasks...”
+- stop producing `42501 permission denied for table users` during invitation checks
+
+## Verification
+
+After applying the fix:
+
+1. Refresh the web preview and reopen the Android app
+2. Confirm console no longer shows:
+   - `Error fetching invitations`
+   - `42501 permission denied for table users`
+3. Confirm dashboard renders even if family member metadata is still loading
+4. Confirm reminders list includes:
+   - family reminders/tasks
+   - group reminders/tasks for active memberships
+5. Rebuild the Android app only because frontend files change:
+   - `npm run build`
+   - `npx cap sync android`
+   - reinstall from Android Studio
+
+## Technical details
+
+Recommended SQL direction:
+
+```sql
+DROP POLICY IF EXISTS "Inviter and invitee can view invitations" ON public.family_invitations;
+
+CREATE POLICY "Inviter and invitee can view invitations"
+ON public.family_invitations
+FOR SELECT
+TO authenticated
+USING (
+  inviter_id = auth.uid()
+  OR invitee_email = auth.email()
+);
+
+DROP POLICY IF EXISTS "Users can create invitations for their family" ON public.family_invitations;
+
+CREATE POLICY "Users can create invitations for their family"
+ON public.family_invitations
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  inviter_id = auth.uid()
+  AND family_id = public.get_user_family_id(auth.uid())
+);
+```
+
+Recommended UI loading rule:
+
+```text
+page blocking = authLoading OR tasksLoading
+secondary sections = badgesLoading / familyMembersLoading handled locally
+```
