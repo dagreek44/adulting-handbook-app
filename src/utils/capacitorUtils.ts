@@ -1,110 +1,45 @@
 /**
- * Centralized Capacitor utilities with safe access patterns
- * This module handles the timing issues with Capacitor's native bridge initialization
+ * Centralized Capacitor utilities with safe access patterns.
+ * Uses static ESM import — `require` is not available in the Vite/WebView ESM bundle.
  */
 
-let cachedPlatform: 'ios' | 'android' | 'web' | null = null;
-let cachedIsNative: boolean | null = null;
+import { Capacitor } from '@capacitor/core';
 
 /**
- * Safely check if running on native platform
- * Returns false if Capacitor is not ready
+ * Check if running on a native platform (iOS/Android).
  */
 export const isNativePlatform = (): boolean => {
-  if (cachedIsNative !== null) {
-    return cachedIsNative;
-  }
-
   try {
-    // Dynamic import check - if Capacitor isn't available, return false
-    const { Capacitor } = require('@capacitor/core');
-    if (Capacitor && typeof Capacitor.isNativePlatform === 'function') {
-      cachedIsNative = Capacitor.isNativePlatform();
-      return cachedIsNative;
-    }
+    return Capacitor?.isNativePlatform?.() ?? false;
   } catch (error) {
-    console.log('CapacitorUtils: Not running on native platform or Capacitor not ready');
+    console.error('CapacitorUtils: isNativePlatform check failed:', error);
+    return false;
   }
-  
-  cachedIsNative = false;
-  return false;
 };
 
 /**
- * Safely get the current platform
- * Returns 'web' if Capacitor is not ready
+ * Get the current platform.
  */
 export const getPlatform = (): 'ios' | 'android' | 'web' => {
-  if (cachedPlatform !== null) {
-    return cachedPlatform;
-  }
-
   try {
-    const { Capacitor } = require('@capacitor/core');
-    if (Capacitor && typeof Capacitor.getPlatform === 'function') {
-      cachedPlatform = Capacitor.getPlatform() as 'ios' | 'android' | 'web';
-      return cachedPlatform;
-    }
+    return (Capacitor?.getPlatform?.() ?? 'web') as 'ios' | 'android' | 'web';
   } catch (error) {
-    console.log('CapacitorUtils: Could not get platform, defaulting to web');
+    console.error('CapacitorUtils: getPlatform check failed:', error);
+    return 'web';
   }
-  
-  cachedPlatform = 'web';
-  return 'web';
 };
 
 /**
- * Wait for Capacitor to be ready before accessing native features
- * This is critical for Android where the bridge takes time to initialize
+ * Resolve once we know whether we're on a native platform.
+ * The Capacitor singleton is available synchronously when the JS bundle runs
+ * inside the WebView, so no polling is needed.
  */
-export const waitForCapacitor = async (timeoutMs: number = 1000): Promise<boolean> => {
-  return new Promise((resolve) => {
-    // On web, resolve immediately
-    if (typeof window === 'undefined') {
-      resolve(false);
-      return;
-    }
-
-    // Check if already ready
-    try {
-      const { Capacitor } = require('@capacitor/core');
-      if (Capacitor && Capacitor.isNativePlatform()) {
-        resolve(true);
-        return;
-      }
-    } catch {
-      // Not ready yet
-    }
-
-    // Wait a bit and check again
-    const checkInterval = 50;
-    let elapsed = 0;
-    
-    const interval = setInterval(() => {
-      elapsed += checkInterval;
-      
-      try {
-        const { Capacitor } = require('@capacitor/core');
-        if (Capacitor && typeof Capacitor.isNativePlatform === 'function') {
-          clearInterval(interval);
-          resolve(Capacitor.isNativePlatform());
-          return;
-        }
-      } catch {
-        // Not ready yet
-      }
-
-      if (elapsed >= timeoutMs) {
-        clearInterval(interval);
-        resolve(false);
-      }
-    }, checkInterval);
-  });
+export const waitForCapacitor = async (_timeoutMs: number = 1000): Promise<boolean> => {
+  return isNativePlatform();
 };
 
 /**
- * Safe wrapper for executing native-only code
- * Automatically handles errors and provides fallback
+ * Safe wrapper for executing native-only code with an automatic fallback.
  */
 export const safeNativeCall = async <T>(
   fn: () => Promise<T>,
