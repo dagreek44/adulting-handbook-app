@@ -1,144 +1,81 @@
+## Goal
 
-Fix the stuck dashboard by addressing the real failing path: family invitation lookups, not the core reminder query.
+Bring all 102 rows in `public.reminders` up to (and slightly above) the gold-standard format set by `Test Smoke Detectors` (`991ab26a...`), so that every reminder has meaningful, field-specific content the UI can render.
 
-## What’s actually failing
+No application code or schema will change. This is data-only work via the Supabase insert/update tool. Reminders RLS already allows reads to authenticated users — clients will pick up updated content on next fetch with no rebuild.
 
-The console evidence points to this sequence:
+## Target shape per row
 
-1. `fetchUserProfile` succeeds from `public.users`
-2. `getUserTasks` starts for the correct family
-3. The app then runs `acceptPendingInvitations()` and `fetchFamilyMembers()`
-4. Both hit `family_invitations`
-5. That query throws `42501 permission denied for table users`
+Every row will end with:
 
-This means the app is not blocked because family/group reminder visibility is conceptually wrong. It is blocked because startup is repeatedly calling a failing invitation query.
+- `why` — 1–3 sentence paragraph explaining the real-world consequence of skipping the task (required everywhere, including the gold-standard row, which is currently missing this).
+- `description` — short one-liner if missing.
+- `difficulty` — one of `Easy` / `Medium` / `Hard`.
+- `estimated_time` — human-readable (e.g. `30 min`, `1–2 hrs`).
+- `estimated_budget` — string in the existing `$<low>-<high>` format (e.g. `$15-20`). For zero-cost tasks: `$0`.
+- `instructions` — `text[]` with at least 4 clear, ordered steps.
+- `tools` — `jsonb` array of `{"name": string, "required": boolean}`.
+- `supplies` — `jsonb` array of `{"name": string, "estimatedCost": string, "amazonUrl": string}` using the existing Amazon affiliate deep-link convention already used in app.
+- `video_url` — a real, working YouTube URL relevant to the task (verified before writing).
+- `subcategory` — replace weak values like `General` / blank with a meaningful one from the existing taxonomy for that `main_category`.
 
-## Root cause
+For purely administrative tasks (e.g. “Review bank statements”, “File taxes”) where physical tools/supplies don’t apply, `tools` and `supplies` will contain useful digital equivalents (e.g. `Budgeting app`, `Document scanner app`, `Fireproof document folder`) rather than empty arrays, so the UI never shows blank sections.
 
-The current `family_invitations` SELECT policy is the problem:
+## Current gaps (verified just now)
 
-```sql
-invitee_email = (SELECT email FROM auth.users WHERE id = auth.uid())
-```
+- `why`: missing on **102 / 102** rows (including the gold standard).
+- Stub rows (missing video + tools + supplies + weak instructions): **~75** rows, almost all in `Household`.
+- `Household / General`: 14 rows with weak subcategory + zero metadata — these will be re-classified into `Appliances`, `Plumbing`, `HVAC`, `Exterior`, `Safety`, `Cleaning`, or `Electrical` based on title, then backfilled.
+- Non-Household categories (Health, Finance, Family, Life, Work, etc.): mostly already have `instructions`, `budget`, `time`, `difficulty`. They primarily need `why` plus, for ~20 rows, tools/supplies/video.
 
-That policy reads from `auth.users`. Client-side authenticated users should not query `auth.users`, so the policy itself throws `42501`. Postgres reports the underlying relation name as `users`, which made it look like `public.users`, but the successful `fetchUserProfile` call proves `public.users` itself is readable.
+## Pass plan
 
-Two frontend behaviors then amplify the issue:
+The work will be done in batched SQL `UPDATE` statements via the insert tool, grouped to keep each call reviewable.
 
-- `AuthContext` calls `acceptPendingInvitations()` on every auth event, including refreshes
-- `Index.tsx` blocks the whole screen on `supabaseLoading` and `badgesLoading`, even though tasks are the critical data
+### Pass 1 — Re-classify Household / General (14 rows)
+Move each `Household / General` row to its correct subcategory based on its title. No content backfill yet — just `subcategory` correction so Pass 2 batches are clean.
 
-## Best fix path
+### Pass 2 — Household full backfill (~66 rows)
+Process Household rows in subcategory batches:
 
-### 1) Database: rewrite invitation policies to avoid `auth.users`
-Create one migration that updates `family_invitations` RLS:
+1. Appliances (4)
+2. Cleaning (3)
+3. Electrical (2)
+4. Exterior (16) — split into 2 batches of 8
+5. HVAC (10)
+6. Plumbing (11)
+7. Safety (6)
+8. Re-classified former-General rows (14) — alongside their new subcategory’s batch where it fits
 
-- Replace the SELECT policy with:
-  - `inviter_id = auth.uid() OR invitee_email = auth.email()`
-- Replace the INSERT policy so it uses the existing security-definer helper:
-  - `family_id = public.get_user_family_id(auth.uid())`
-- Keep anon blocked
+For each row in a batch, set: `why`, `instructions` (4–8 steps), `tools`, `supplies`, `estimated_budget`, `video_url`, and tighten `description` / `difficulty` / `estimated_time` if weak. Each YouTube URL is verified by fetching the watch page and confirming the title matches the task before writing.
 
-This removes the broken dependency on `auth.users` and matches the intended rule:
-- inviters can see invitations they sent
-- invited users can see invitations sent to their own email
+### Pass 3 — Non-Household categories (~36 rows)
+For each row: always set `why`. Where `tools` / `supplies` / `video_url` / `instructions` are missing or thin, fill them with category-appropriate content (digital tools count). Categories covered:
 
-### 2) Frontend: stop invitation checks from running in a loop
-Update `src/contexts/AuthContext.tsx`:
+- Family / Shared Responsibilities (6)
+- Finance & Legal (8)
+- Health & Self-care (8)
+- Life & Personal Development (~6)
+- Work / Career (~3)
+- Any remaining miscellaneous (~5)
 
-- Do not call `acceptPendingInvitations()` on every auth event
-- Ignore `TOKEN_REFRESHED` for invitation acceptance
-- Run invitation acceptance at most once per signed-in session/user
-- Keep profile fetch normal, but make invitation acceptance non-blocking
+### Pass 4 — Verification query
+A single read-only audit query confirms zero rows remain with: missing `why`, empty `instructions`, empty `tools`, empty `supplies`, missing `video_url`, missing `estimated_budget`, or weak subcategory.
 
-This prevents repeated failed calls from hammering startup.
+## QA / safety
 
-### 3) Frontend: don’t let auxiliary data freeze the whole dashboard
-Update `src/pages/Index.tsx`:
+- All writes are `UPDATE` statements scoped by primary key — no row is created, deleted, or moved between families.
+- No schema migration. No RLS change. No frontend code change.
+- Amazon URLs follow the existing affiliate deep-link pattern already in use (per `mem://features/amazon-affiliate-deep-links`).
+- YouTube URLs are validated by HTTP fetch and title match before being written; only `youtube.com/watch?v=...` form is used (matches `mem://features/embedded-video-player`).
+- Existing meaningful content is preserved — `UPDATE` statements only set fields that are currently null/empty/weak, except for `why`, which is set on every row (including the gold standard) since none currently have it.
 
-- Full-page loading should depend only on auth readiness + task loading
-- `familyMembers` and badges should load independently without blocking the page
-- If family members or badges fail, the home/reminders UI should still render
+## Deliverable
 
-This makes the app resilient even if a secondary query fails later.
+After the four passes, every reminder row will populate every UI section (overview, why-it-matters, steps, tools, supplies, video, budget) with relevant content, and the audit query will return zero deficient rows.
 
-### 4) Optional hardening: remove other policy dependencies on raw `users` subqueries
-Review and, if needed, migrate these policies to use `public.get_user_family_id(...)` instead of direct `FROM users` subqueries:
+## Estimated size of work
 
-- `user_tasks` family checks
-- `user_badges` family visibility
-- any `family_members` / invitation policies still using direct `users` lookups
-
-This is not the first fix I’d apply, but it is the safest long-term pattern.
-
-## Files to change
-
-- New Supabase migration for `family_invitations` policy cleanup
-- `src/contexts/AuthContext.tsx`
-- `src/pages/Index.tsx`
-
-## Files likely not needing logic changes
-
-- `src/services/UserTaskService.js` — current family/group visibility model can keep relying on RLS
-- `src/contexts/ReminderContext.tsx` — task loading flow is structurally fine
-- `src/services/ReminderService.js`
-
-## Expected result after the fix
-
-A signed-in user will:
-- see all reminders/tasks for their family
-- also see tasks tied to groups they belong to
-- stop getting stuck on “Loading your tasks...”
-- stop producing `42501 permission denied for table users` during invitation checks
-
-## Verification
-
-After applying the fix:
-
-1. Refresh the web preview and reopen the Android app
-2. Confirm console no longer shows:
-   - `Error fetching invitations`
-   - `42501 permission denied for table users`
-3. Confirm dashboard renders even if family member metadata is still loading
-4. Confirm reminders list includes:
-   - family reminders/tasks
-   - group reminders/tasks for active memberships
-5. Rebuild the Android app only because frontend files change:
-   - `npm run build`
-   - `npx cap sync android`
-   - reinstall from Android Studio
-
-## Technical details
-
-Recommended SQL direction:
-
-```sql
-DROP POLICY IF EXISTS "Inviter and invitee can view invitations" ON public.family_invitations;
-
-CREATE POLICY "Inviter and invitee can view invitations"
-ON public.family_invitations
-FOR SELECT
-TO authenticated
-USING (
-  inviter_id = auth.uid()
-  OR invitee_email = auth.email()
-);
-
-DROP POLICY IF EXISTS "Users can create invitations for their family" ON public.family_invitations;
-
-CREATE POLICY "Users can create invitations for their family"
-ON public.family_invitations
-FOR INSERT
-TO authenticated
-WITH CHECK (
-  inviter_id = auth.uid()
-  AND family_id = public.get_user_family_id(auth.uid())
-);
-```
-
-Recommended UI loading rule:
-
-```text
-page blocking = authLoading OR tasksLoading
-secondary sections = badgesLoading / familyMembersLoading handled locally
-```
+- ~102 row updates across ~12 batched SQL statements.
+- ~75 YouTube URL lookups (verified before write).
+- No code changes, no rebuild, no app restart required — refreshing the reminders list in the app will surface the new content immediately.
