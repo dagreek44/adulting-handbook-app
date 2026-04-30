@@ -114,8 +114,25 @@ const NotificationSetup = () => {
         };
         
         // Listen for app URL open events (deep links)
-        const listener = await CapacitorApp.addListener('appUrlOpen', (data) => {
+        const listener = await CapacitorApp.addListener('appUrlOpen', async (data) => {
           console.log('App opened with URL:', data.url);
+          
+          const url = new URL(data.url);
+          
+          // 1. Get the 'code' from the URL (for PKCE flow) 
+          // or the tokens from the hash (for implicit flow)
+          const code = url.searchParams.get('code');
+          
+          if (code) {
+            // 2. Exchange the code for a real session
+            const { error } = await supabase.auth.exchangeCodeForSession(code);
+            if (error) {
+              console.error('Error exchanging code for session:', error.message);
+              return;
+            }
+          }
+
+          // 3. Now that the session is set, handle the deep link
           handleDeepLink(data.url);
         });
 
