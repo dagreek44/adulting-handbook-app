@@ -122,14 +122,34 @@ const NotificationSetup = () => {
           // 1. Get the 'code' from the URL (for PKCE flow) 
           // or the tokens from the hash (for implicit flow)
           const code = url.searchParams.get('code');
+          const hashParams = new URLSearchParams(url.hash.substring(1));
+          const accessToken = hashParams.get('access_token');
+          const refreshToken = hashParams.get('refresh_token');
           
           if (code) {
-            // 2. Exchange the code for a real session
-            const { error } = await supabase.auth.exchangeCodeForSession(code);
+            // 2a. Exchange the code for a real session (PKCE flow)
+            console.log('>>> Exchanging code for session...');
+            const { data, error } = await supabase.auth.exchangeCodeForSession(code);
             if (error) {
               console.error('Error exchanging code for session:', error.message);
               return;
             }
+            console.log('>>> Code exchange successful, session data:', data?.session ? 'Session exists' : 'No session');
+            if (data?.session) {
+              console.log('>>> Session user:', data.session.user.email);
+            }
+          } else if (accessToken && refreshToken) {
+            // 2b. Set the session from tokens (implicit flow)
+            console.log('>>> Setting session from tokens...');
+            const { error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            if (error) {
+              console.error('Error setting session:', error.message);
+              return;
+            }
+            console.log('>>> Session set successfully');
           }
 
           // 3. Now that the session is set, handle the deep link

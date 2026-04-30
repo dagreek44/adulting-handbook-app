@@ -160,6 +160,15 @@ const Auth = () => {
     try {
       if (shouldShowReset) {
         // Handle password reset
+        console.log('=== PASSWORD RESET SUBMIT ===');
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        console.log('Current session before update:', sessionData?.session ? 'Session exists' : 'No session');
+        if (sessionData?.session) {
+          console.log('Session user:', sessionData.session.user.email);
+        } else {
+          console.log('Session error:', sessionError);
+        }
+        
         if (formData.password.length < 6) {
           setError('Password must be at least 6 characters');
           return;
