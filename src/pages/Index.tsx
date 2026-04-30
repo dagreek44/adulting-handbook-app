@@ -18,7 +18,6 @@ import CompletedTasksView from "@/components/CompletedTasksView";
 import AchievementBadge from '@/components/AchievementBadge';
 import SharedHeader from '@/components/SharedHeader';
 import OnboardingTour from '@/components/OnboardingTour';
-import NotificationStatus from '@/components/NotificationStatus';
 import { completeOnboarding } from '@/services/userProfileService';
 
 const Index = () => {
@@ -38,7 +37,7 @@ const Index = () => {
   // Use badges hook
   const { badges, loading: badgesLoading, updateBadgesAfterTaskComplete } = useBadges();
 
-  // Family member data (the only thing useSupabaseData provides now)
+  // Family member data
   const {
     familyMembers,
     loading: supabaseLoading,
@@ -128,7 +127,9 @@ const Index = () => {
     setIsModalOpen(true);
   };
 
-  const loading = tasksLoading || supabaseLoading || badgesLoading;
+  // Only block the entire screen on critical data: Auth and Tasks
+  // Secondary data like badges and family members load independently
+  const isInitialLoading = tasksLoading;
 
   // Get recent achievements (unlocked badges first, then by progress)
   const recentAchievements = [...badges]
@@ -139,7 +140,7 @@ const Index = () => {
     })
     .slice(0, 2);
 
-  if (loading) {
+  if (isInitialLoading) {
     return (
       <div className="min-h-screen bg-cream">
         <div className="max-w-md mx-auto bg-white min-h-screen shadow-xl">
@@ -188,11 +189,17 @@ const Index = () => {
 
             <div>
               <h3 className="text-xl font-bold text-gray-800 mb-4">Recent Achievements</h3>
-              <div className="grid grid-cols-1 gap-3">
-                {recentAchievements.map((badge) => (
-                  <AchievementBadge key={badge.key} {...badge} />
-                ))}
-              </div>
+              {badgesLoading ? (
+                <div className="flex justify-center p-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sage"></div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3">
+                  {recentAchievements.map((badge) => (
+                    <AchievementBadge key={badge.key} {...badge} />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         );
@@ -279,35 +286,43 @@ const Index = () => {
               </p>
             </div>
 
-            {/* Starter Badges */}
-            <div className="bg-card p-4 rounded-xl shadow-md">
-              <h3 className="text-lg font-bold text-card-foreground mb-4">🚀 Starter Badges</h3>
-              <div className="grid grid-cols-1 gap-3">
-                {starterBadges.map((badge) => (
-                  <AchievementBadge key={badge.key} {...badge} />
-                ))}
+            {badgesLoading ? (
+              <div className="flex justify-center p-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sage"></div>
               </div>
-            </div>
+            ) : (
+              <>
+                {/* Starter Badges */}
+                <div className="bg-card p-4 rounded-xl shadow-md">
+                  <h3 className="text-lg font-bold text-card-foreground mb-4">🚀 Starter Badges</h3>
+                  <div className="grid grid-cols-1 gap-3">
+                    {starterBadges.map((badge) => (
+                      <AchievementBadge key={badge.key} {...badge} />
+                    ))}
+                  </div>
+                </div>
 
-            {/* Task Completion Badges */}
-            <div className="bg-card p-4 rounded-xl shadow-md">
-              <h3 className="text-lg font-bold text-card-foreground mb-4">✅ Task Completion Badges</h3>
-              <div className="grid grid-cols-1 gap-3">
-                {completionBadges.map((badge) => (
-                  <AchievementBadge key={badge.key} {...badge} />
-                ))}
-              </div>
-            </div>
+                {/* Task Completion Badges */}
+                <div className="bg-card p-4 rounded-xl shadow-md">
+                  <h3 className="text-lg font-bold text-card-foreground mb-4">✅ Task Completion Badges</h3>
+                  <div className="grid grid-cols-1 gap-3">
+                    {completionBadges.map((badge) => (
+                      <AchievementBadge key={badge.key} {...badge} />
+                    ))}
+                  </div>
+                </div>
 
-            {/* Streak Badges */}
-            <div className="bg-card p-4 rounded-xl shadow-md">
-              <h3 className="text-lg font-bold text-card-foreground mb-4">🔥 Streak Badges</h3>
-              <div className="grid grid-cols-1 gap-3">
-                {streakBadges.map((badge) => (
-                  <AchievementBadge key={badge.key} {...badge} />
-                ))}
-              </div>
-            </div>
+                {/* Streak Badges */}
+                <div className="bg-card p-4 rounded-xl shadow-md">
+                  <h3 className="text-lg font-bold text-card-foreground mb-4">🔥 Streak Badges</h3>
+                  <div className="grid grid-cols-1 gap-3">
+                    {streakBadges.map((badge) => (
+                      <AchievementBadge key={badge.key} {...badge} />
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         );
 
@@ -320,8 +335,7 @@ const Index = () => {
     <div className="min-h-screen bg-cream">
       <div className="max-w-md mx-auto bg-white min-h-screen shadow-xl">
         <Header />
-        <NotificationStatus />
-        
+
         <div className="p-4 pb-20">
           {renderContent()}
         </div>

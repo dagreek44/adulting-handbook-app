@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { Clock, CheckCircle2, ChevronRight, DollarSign, AlertTriangle, Users, CalendarClock } from 'lucide-react';
+import { Clock, CheckCircle2, ChevronRight, DollarSign, AlertTriangle, Users, CalendarClock, User } from 'lucide-react';
 import { format } from 'date-fns';
 import PostponeReminderDialog from './PostponeReminderDialog';
 import { useAuth } from '@/contexts/AuthContext';
@@ -33,7 +33,7 @@ const TaskCard = ({
   dueDate, 
   estimatedBudget,
   isPastDue = false,
-  assignedToNames = ['Family'],
+  assignedToNames = [],
   isCompleted = false,
   lastCompleted,
   nextDue,
@@ -49,7 +49,7 @@ const TaskCard = ({
   const { userProfile } = useAuth();
   
   // Check if user is a parent (can postpone)
-  const isParent = userProfile?.family_id; // Simplified check, you may need to check role
+  const isParent = userProfile?.family_id;
 
   const handleComplete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -97,6 +97,15 @@ const TaskCard = ({
 
   const displayDueDate = nextDue || dueDate;
 
+  // Determine the display name for the assignee
+  const myFullName = userProfile ? `${userProfile.first_name} ${userProfile.last_name}`.trim() : '';
+  const displayAssignee = assignedToNames.map(name => {
+    if (name === myFullName || name === 'Me') return 'Me';
+    return name;
+  }).join(', ') || 'Unassigned';
+
+  const isAssignedToMe = displayAssignee.includes('Me');
+
   return (
     <>
       <div 
@@ -109,22 +118,30 @@ const TaskCard = ({
       >
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center flex-wrap gap-2 mb-1">
             <h3 className={`font-semibold text-lg ${completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
               {title}
             </h3>
+
+            {/* Prominent Assignment Badge */}
+            <div className={`flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+              isAssignedToMe ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+            }`}>
+              {isAssignedToMe ? <User className="w-2.5 h-2.5 mr-1" /> : <Users className="w-2.5 h-2.5 mr-1" />}
+              {displayAssignee}
+            </div>
+
             {isPastDue && !completed && (
-              <div className="flex items-center text-red-500">
-                <AlertTriangle className="w-4 h-4 mr-1" />
-                <span className="text-xs font-medium">Past Due</span>
+              <div className="flex items-center text-red-500 bg-red-50 px-2 py-0.5 rounded">
+                <AlertTriangle className="w-3 h-3 mr-1" />
+                <span className="text-[10px] font-bold uppercase">Past Due</span>
               </div>
             )}
           </div>
-          {/* Assignment Display */}
-          <div className="flex items-center text-xs text-gray-500 mb-2">
-            <Users className="w-3 h-3 mr-1" />
-            <span>Assigned to: {assignedToNames.join(', ')}</span>
-          </div>
+
+          <p className="text-sm text-gray-500 line-clamp-1 mb-2 italic">
+            {description}
+          </p>
 
           {/* Why It Matters - for global reminders with 'why' content */}
           {isGlobalReminder && why && (
@@ -167,24 +184,24 @@ const TaskCard = ({
         </div>
       </div>
       
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mt-1">
         <div className="flex items-center space-x-3">
           <div className="flex items-center text-gray-500">
             <Clock className="w-4 h-4 mr-1" />
             <span className="text-sm">{estimatedTime}</span>
           </div>
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${difficultyColors[difficulty]}`}>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${difficultyColors[difficulty]}`}>
             {difficulty}
           </span>
           {estimatedBudget && (
             <div className="flex items-center text-gray-500">
-              <DollarSign className="w-4 h-4 mr-1" />
+              <DollarSign className="w-3.5 h-3.5 mr-0.5" />
               <span className="text-sm">{estimatedBudget}</span>
             </div>
           )}
         </div>
         <div className="text-right">
-          <span className={`text-xs ${isPastDue && !completed ? 'text-red-500 font-medium' : 'text-gray-500'}`}>
+          <span className={`text-xs font-medium ${isPastDue && !completed ? 'text-red-600' : 'text-gray-500'}`}>
             Due: {formatDate(displayDueDate)}
           </span>
         </div>

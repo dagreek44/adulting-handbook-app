@@ -1,7 +1,14 @@
 
+import { Capacitor } from '@capacitor/core';
 import { supabase } from '@/integrations/supabase/client';
 import { SignUpData } from '@/types/auth';
 import { useToast } from '@/hooks/use-toast';
+
+const getSignUpRedirectUrl = () => {
+  const webRedirect = import.meta.env.VITE_WEB_DASHBOARD_URL ?? `${window.location.origin}/dashboard`;
+  const mobileRedirect = import.meta.env.VITE_MOBILE_SIGNUP_REDIRECT ?? 'adulting101://dashboard';
+  return Capacitor.getPlatform() === 'web' ? webRedirect : mobileRedirect;
+};
 
 export const signUpUser = async (
   userData: SignUpData,
@@ -17,7 +24,7 @@ export const signUpUser = async (
           last_name: userData.lastName,
           username: userData.username
         },
-        emailRedirectTo: `${window.location.origin}/dashboard`
+        emailRedirectTo: getSignUpRedirectUrl()
       }
     });
 

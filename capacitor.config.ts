@@ -1,14 +1,9 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.lovable.d8e8851b93de422897c29d6fb1ca824e',
+  appId: 'com.adulting.adulting101',
   appName: 'Adulting Handbook',
   webDir: 'dist',
-  // Remove server URL to load app natively from built dist folder
-  // server: {
-  //   url: "https://d8e8851b-93de-4228-97c2-9d6fb1ca824e.lovableproject.com?forceHideBadge=true",
-  //   cleartext: true
-  // },
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,

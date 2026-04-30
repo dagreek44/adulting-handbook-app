@@ -60,24 +60,20 @@ const RemindersView = ({
   setIsFamilyModalOpen,
   onNavigateToCompleted,
 }: RemindersViewProps) => {
-  // Use the new reminder context
   const { userTasks, globalReminders, loading, markTaskCompleted, enableReminder, addCustomTask, postponeTask, updateTask, refreshTasks } = useReminders();
   const { user } = useAuth();
   const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
   
-  // Filter state
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
 
-  // Filter to show only pending/enabled tasks (not completed ones or disabled "once" tasks)
-  const pendingTasks = userTasks.filter(task => 
+  const pendingTasks = userTasks.filter(task =>
     task.status !== 'completed' && 
     task.enabled !== false &&
     !task.completed_date
   );
   
-  // Build available sources for filter
   const availableSources = useMemo(() => {
     const sources: { id: string; label: string }[] = [
       { id: 'family', label: 'Family' },
@@ -94,7 +90,6 @@ const RemindersView = ({
     return sources;
   }, [userTasks]);
 
-  // Extract unique categories from tasks
   const categories = useMemo(() => {
     const cats = new Set<string>();
     userTasks.forEach(task => {
@@ -104,11 +99,9 @@ const RemindersView = ({
     return Array.from(cats);
   }, [userTasks]);
   
-  // Apply filters to tasks
   const filteredTasks = useMemo(() => {
     let tasks = pendingTasks;
     
-    // Filter by category
     if (selectedCategories.length > 0) {
       tasks = tasks.filter(task => {
         if (selectedCategories.includes('Global') && task.reminder_type === 'global') return true;
@@ -117,7 +110,6 @@ const RemindersView = ({
       });
     }
     
-    // Filter by source
     if (selectedSources.length > 0) {
       tasks = tasks.filter(task => {
         const taskAny = task as any;
@@ -127,7 +119,6 @@ const RemindersView = ({
       });
     }
     
-    // Filter by family member
     if (selectedMembers.length > 0) {
       tasks = tasks.filter(task => selectedMembers.includes(task.user_id));
     }
@@ -135,7 +126,6 @@ const RemindersView = ({
     return tasks;
   }, [pendingTasks, selectedCategories, selectedMembers, selectedSources]);
   
-  // Show all upcoming tasks (sorted by due date already from service)
   const upcomingTasks = filteredTasks;
   
   const clearFilters = () => {
@@ -169,9 +159,7 @@ const RemindersView = ({
       const task = userTasks.find(t => t.id === taskId);
       await updateTask(taskId, { user_id: newUserId });
       
-      // Send push notification to the new assignee if it's not the current user
       if (newUserId !== user?.id && task) {
-        // Get current user's name
         const { data: profile } = await supabase
           .from('profiles')
           .select('first_name, last_name')
@@ -182,7 +170,6 @@ const RemindersView = ({
           ? `${profile.first_name} ${profile.last_name || ''}`.trim()
           : user?.email?.split('@')[0] || 'A family member';
         
-        console.log('RemindersView: Sending reassignment notification to', newUserId);
         await PushNotificationService.notifyReminderReassigned(
           newUserId,
           reassignerName,
@@ -234,14 +221,12 @@ const RemindersView = ({
 
   const handleEnableReminder = async (globalReminder: GlobalReminder) => {
     try {
-      console.log('Enabling reminder:', globalReminder);
       await enableReminder(globalReminder);
     } catch (error) {
       console.error('Failed to enable reminder:', error);
     }
   };
 
-  // Convert userTasks to format expected by RemindersList
   const convertedUpcomingTasks = upcomingTasks.map(task => ({
     id: task.id,
     title: task.title,
@@ -251,7 +236,8 @@ const RemindersView = ({
     estimated_budget: task.estimated_budget,
     due_date: task.due_date,
     isPastDue: task.isPastDue,
-    assignedToNames: task.assignedToNames,
+    // CRITICAL FIX: Ensure assignedToNames is passed correctly from the task object
+    assignedToNames: task.assignedToNames || [],
     status: task.status,
     last_completed: task.last_completed,
     next_due: task.due_date,
@@ -259,9 +245,7 @@ const RemindersView = ({
     isGlobalReminder: !!task.reminder_id
   }));
 
-  // Create wrapper functions to handle type conversions
   const handleReminderListTaskClick = (task: any) => {
-    // Find the original task to get complete data
     const originalTask = upcomingTasks.find(t => t.id === task.id);
     if (originalTask) {
       handleTaskClick(originalTask);
@@ -269,7 +253,6 @@ const RemindersView = ({
   };
 
   const handleReminderListTaskComplete = async (task: any) => {
-    // Find the original task to get complete data
     const originalTask = upcomingTasks.find(t => t.id === task.id);
     if (originalTask) {
       await handleTaskComplete(originalTask);
@@ -280,14 +263,10 @@ const RemindersView = ({
     await postponeTask(taskId, newDate);
   };
 
-  // Get reminder IDs that are already enabled for this user
-  const enabledReminderIds = userTasks
-    .filter(task => task.reminder_id) // Only tasks that come from global reminders
-    .map(task => task.reminder_id);
-
-  // Wrapper function to match AddCustomReminder's expected signature
-  const handleAddUserTask = async (userId: string, task: Partial<ContextUserTask>) => {
-    await addCustomTask(task);
+  const addCustomTaskWrapper = async (task: Partial<ContextUserTask>) => {
+    if (user?.id) {
+      await addCustomTask(task);
+    }
   };
 
   return (
@@ -296,7 +275,6 @@ const RemindersView = ({
         setIsFamilyModalOpen={setIsFamilyModalOpen}
       />
 
-      {/* Filters */}
       <RemindersFilter
         categories={categories}
         familyMembers={familyMembers}
@@ -319,7 +297,6 @@ const RemindersView = ({
         />
       </ReminderLoadingState>
 
-      {/* +/- Adult Reminders button */}
       <div className="bg-white p-4 rounded-xl shadow-md" data-tour="edit-reminders">
         <button
           onClick={() => setIsEditMode(!isEditMode)}
@@ -343,7 +320,6 @@ const RemindersView = ({
         </button>
       </div>
 
-      {/* Show ReminderEditMode when in edit mode */}
       {isEditMode && (
         <ReminderEditMode
           isEditMode={isEditMode}
@@ -357,7 +333,6 @@ const RemindersView = ({
 
       <CompletedTasksButton onNavigateToCompleted={onNavigateToCompleted} />
 
-      {/* Task Detail Modal with assignment and due date features */}
       <TaskDetailModal
         isOpen={isTaskDetailOpen}
         onClose={() => setIsTaskDetailOpen(false)}

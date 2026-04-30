@@ -110,13 +110,15 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       
       try {
         setLoading(true);
+        console.log('ReminderContext: Loading data for user', user.id);
+
+        // Fetch data in parallel
         const [tasks, reminders, completed] = await Promise.all([
           UserTaskService.getUserTasks(user.id),
           ReminderService.getReminders(),
           UserTaskService.getCompletedTasks(user.id)
         ]);
         
-        // Convert database tasks to context format
         const formattedTasks = tasks.map(task => ({
           ...task,
           reminder_type: task.is_custom ? 'custom' : 'global',
@@ -127,17 +129,16 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setGlobalReminders(reminders);
         setCompletedTasks(completed);
 
-        // Schedule local notifications for all tasks as backup (native only)
+        console.log('ReminderContext: Data loaded successfully');
+
+        // NON-BLOCKING: Schedule local notifications in the background
         if (isNativePlatform()) {
-          try {
-            await NotificationService.scheduleAllTaskNotifications(formattedTasks, user.id);
-            console.log('ReminderContext: Scheduled local notifications for all tasks');
-          } catch (err) {
-            console.error('ReminderContext: Failed to schedule local notifications:', err);
-          }
+          NotificationService.scheduleAllTaskNotifications(formattedTasks, user.id)
+            .then(() => console.log('ReminderContext: Background notification scheduling complete'))
+            .catch(err => console.error('ReminderContext: Background notification scheduling failed', err));
         }
       } catch (error) {
-        console.error("Failed to load data:", error);
+        console.error("ReminderContext: Failed to load data:", error);
       } finally {
         setLoading(false);
       }
@@ -172,54 +173,25 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const enableReminder = async (globalReminder: GlobalReminder) => {
-    if (!user?.id) {
-      console.error('ReminderContext: No user ID available');
-      return;
-    }
-    
+    if (!user?.id) return;
     try {
-      console.log('ReminderContext: Enabling reminder', globalReminder.id, 'for user', user.id);
-      const taskId = await UserTaskService.enableReminderForUser(globalReminder.id, user.id);
-      console.log('ReminderContext: Successfully enabled reminder, created task:', taskId);
-      
-      // Force refresh the tasks to show the new one
-      console.log('ReminderContext: Refreshing tasks...');
+      await UserTaskService.enableReminderForUser(globalReminder.id, user.id);
       await refreshTasks();
-      console.log('ReminderContext: Tasks refreshed');
     } catch (error) {
-      console.error("ReminderContext: Failed to enable reminder:", error);
+      console.error("Failed to enable reminder:", error);
       throw error;
     }
   };
 
   const addCustomTask = async (taskData: Partial<UserTask>) => {
     if (!user?.id) return;
-    
     try {
       const newTaskId = await UserTaskService.addUserTask(user.id, taskData);
-      
-      // Send push notification if task is for another user
       if (taskData.user_id && taskData.user_id !== user.id && taskData.due_date) {
-        // Get creator's name from profile
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('first_name, last_name')
-          .eq('id', user.id)
-          .single();
-        
-        const creatorName = profile?.first_name 
-          ? `${profile.first_name} ${profile.last_name || ''}`.trim()
-          : user.email?.split('@')[0] || 'A family member';
-        
-        // Send push notification to recipient
-        await PushNotificationService.notifyReminderCreated(
-          taskData.user_id,
-          creatorName,
-          taskData.title || 'New reminder',
-          newTaskId
-        );
+        const { data: profile } = await supabase.from('profiles').select('first_name, last_name').eq('id', user.id).single();
+        const creatorName = profile?.first_name ? `${profile.first_name} ${profile.last_name || ''}`.trim() : user.email?.split('@')[0] || 'A family member';
+        await PushNotificationService.notifyReminderCreated(taskData.user_id, creatorName, taskData.title || 'New reminder', newTaskId);
       }
-      
       await refreshTasks();
     } catch (error) {
       console.error("Failed to add custom task:", error);
@@ -249,39 +221,18 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const markTaskCompleted = async (taskId: string) => {
     try {
-      // Get task details before completion
       const task = userTasks.find(t => t.id === taskId);
-      
       await UserTaskService.completeTask(taskId);
-      
-      // Cancel the notification for this task (wrapped in try-catch)
       try {
         await NotificationService.cancelNotification(taskId);
       } catch (error) {
         console.error('Failed to cancel notification:', error);
       }
-      
-      // Send push notification to task creator if completed by someone else
       if (task && task.user_id !== user?.id) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('first_name, last_name')
-          .eq('id', user?.id)
-          .single();
-        
-        const completedByName = profile?.first_name 
-          ? `${profile.first_name} ${profile.last_name || ''}`.trim()
-          : user?.email?.split('@')[0] || 'A family member';
-        
-        // Notify the task owner
-        await PushNotificationService.notifyTaskCompleted(
-          task.user_id,
-          completedByName,
-          task.title,
-          taskId
-        );
+        const { data: profile } = await supabase.from('profiles').select('first_name, last_name').eq('id', user?.id).single();
+        const completedByName = profile?.first_name ? `${profile.first_name} ${profile.last_name || ''}`.trim() : user?.email?.split('@')[0] || 'A family member';
+        await PushNotificationService.notifyTaskCompleted(task.user_id, completedByName, task.title, taskId);
       }
-      
       await refreshTasks();
     } catch (error) {
       console.error("Failed to mark task as completed:", error);
@@ -293,61 +244,20 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       const newDateString = newDate.toISOString().split('T')[0];
       await UserTaskService.updateUserTask(taskId, { due_date: newDateString });
-      
-      // Reschedule notification if task is due today (wrapped in try-catch)
       const task = userTasks.find(t => t.id === taskId);
       if (task) {
         try {
-          await NotificationService.scheduleReminderNotification(
-            taskId,
-            task.title,
-            task.description,
-            newDate
-          );
+          await NotificationService.scheduleReminderNotification(taskId, task.title, task.description, newDate);
         } catch (error) {
           console.error('Failed to reschedule notification:', error);
         }
       }
-      
       await refreshTasks();
     } catch (error) {
       console.error("Failed to postpone task:", error);
       throw error;
     }
   };
-
-  // Schedule notifications for tasks due today - only on native platforms
-  useEffect(() => {
-    // Skip entirely if not on native platform
-    if (!isNativePlatform()) return;
-    if (userTasks.length === 0) return;
-
-    const scheduleTodayNotifications = async () => {
-      const today = new Date().toISOString().split('T')[0];
-      
-      for (const task of userTasks) {
-        if (task.due_date === today && task.status !== 'completed') {
-          try {
-            await NotificationService.scheduleReminderNotification(
-              task.id,
-              task.title,
-              task.description,
-              new Date(task.due_date)
-            );
-          } catch (error) {
-            console.error('Failed to schedule notification for task:', task.id, error);
-          }
-        }
-      }
-    };
-
-    // Add significant delay to ensure all native services are ready
-    const timer = setTimeout(() => {
-      scheduleTodayNotifications().catch(console.error);
-    }, 3000);
-    
-    return () => clearTimeout(timer);
-  }, [userTasks]);
 
   return (
     <ReminderContext.Provider

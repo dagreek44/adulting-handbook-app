@@ -23,6 +23,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [invitationsChecked, setInvitationsChecked] = useState(false);
   const { toast } = useToast();
 
   const createMissingUserProfile = async (authUser: User) => {
@@ -50,22 +51,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (retryCount === 0 && authUser) {
         console.log('handleUserProfileFetch: Attempting to auto-create missing profile');
         await createMissingUserProfile(authUser);
-        // Don't retry to avoid infinite loops
       }
     }
 
-    // Check for and accept pending family invitations
-    if (authUser?.email) {
-      setTimeout(async () => {
-        const accepted = await acceptPendingInvitations(userId, authUser.email!);
+    // Check for and accept pending family invitations - Non-blocking and only once per session
+    if (authUser?.email && !invitationsChecked) {
+      setInvitationsChecked(true);
+      acceptPendingInvitations(userId, authUser.email!).then((accepted) => {
         if (accepted) {
           // Re-fetch profile to get updated family_id
-          const updatedProfile = await fetchUserProfile(userId, 0);
-          if (updatedProfile) {
-            setUserProfile(updatedProfile);
-          }
+          fetchUserProfile(userId, 0).then(updatedProfile => {
+            if (updatedProfile) {
+              setUserProfile(updatedProfile);
+            }
+          });
         }
-      }, 0);
+      }).catch(err => {
+        console.error('Non-blocking invitation check failed:', err);
+      });
     }
   };
 
@@ -76,6 +79,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('AuthContext: Auth state changed:', event, 'session:', !!session);
+
+        // Don't trigger full reloads on token refreshes to avoid UI flickering/loops
+        if (event === 'TOKEN_REFRESHED') return;
+
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -86,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }, 0);
         } else {
           setUserProfile(null);
+          setInvitationsChecked(false);
         }
       }
     );
@@ -110,6 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signIn = async (email: string, password: string) => {
+    setInvitationsChecked(false); // Reset for new login
     return await signInUser(email, password, toast);
   };
 
@@ -118,6 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setSession(null);
     setUserProfile(null);
+    setInvitationsChecked(false);
   };
 
   const createMissingUserProfileWrapper = async () => {

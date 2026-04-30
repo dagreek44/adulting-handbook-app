@@ -15,7 +15,39 @@ export const createUserProfile = async (
   try {
     console.log('createUserProfile: Creating profile for user:', user.id);
     
-    // First check if user already exists
+    // Check if profile already exists in the profiles table (our primary source of truth)
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    const firstName = user.user_metadata?.first_name || user.email?.split('@')[0] || 'User';
+    const lastName = user.user_metadata?.last_name || '';
+    const username = user.user_metadata?.username || user.email?.split('@')[0] || `user_${user.id.slice(0, 8)}`;
+    const familyId = user.user_metadata?.family_id || crypto.randomUUID();
+
+    if (!existingProfile) {
+      console.log('createUserProfile: Creating entry in profiles table');
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert({
+          id: user.id,
+          first_name: firstName,
+          last_name: lastName,
+          username: username,
+          family_id: familyId,
+          "Email Address": user.email || '',
+          first_login: true
+        });
+
+      if (profileError) {
+        console.error('createUserProfile: Error creating profile entry:', profileError);
+        // We continue anyway to try and create the 'users' entry
+      }
+    }
+
+    // Now handle the 'users' table (required by some existing services)
     const { data: existingUser } = await supabase
       .from('users')
       .select('*')
@@ -23,16 +55,14 @@ export const createUserProfile = async (
       .maybeSingle();
 
     if (existingUser) {
-      console.log('createUserProfile: User already exists, returning existing user');
-      return existingUser;
+      console.log('createUserProfile: User entry already exists');
+      return {
+        ...existingUser,
+        first_login: existingProfile?.first_login ?? true
+      };
     }
-    
-    // Extract names from user metadata or use defaults
-    const firstName = user.user_metadata?.first_name || user.email?.split('@')[0] || 'User';
-    const lastName = user.user_metadata?.last_name || '';
-    const username = user.user_metadata?.username || user.email?.split('@')[0] || `user_${user.id.slice(0, 8)}`;
 
-    const { data, error } = await supabase
+    const { data, error: userTableError } = await supabase
       .from('users')
       .insert({
         id: user.id,
@@ -40,24 +70,26 @@ export const createUserProfile = async (
         first_name: firstName,
         last_name: lastName,
         username: username,
-        family_id: user.user_metadata?.family_id || crypto.randomUUID()
+        family_id: familyId,
+        password_hash: 'managed_by_supabase_auth' // Required field in schema
       })
       .select()
       .single();
 
-    if (error) {
-      console.error('createUserProfile: Error creating user profile:', error);
-      throw error;
+    if (userTableError) {
+      console.error('createUserProfile: Error creating user table entry:', userTableError);
+      throw userTableError;
     }
 
-    console.log('createUserProfile: Successfully created user profile:', data);
-    
     toast({
       title: "Profile Created",
       description: "Your user profile has been set up successfully!",
     });
     
-    return data;
+    return {
+      ...data,
+      first_login: true
+    };
   } catch (error) {
     console.error('createUserProfile: Failed to create user profile:', error);
     toast({
@@ -74,37 +106,37 @@ export const fetchUserProfile = async (
   retryCount: number = 0
 ): Promise<UserProfile | null> => {
   try {
-    console.log('fetchUserProfile: Fetching profile for user:', userId, 'retry:', retryCount);
+    console.log('fetchUserProfile: Fetching profile for user:', userId);
     
-    // Fetch from users table for main profile data
-    const { data, error } = await supabase
+    // Fetch from profiles table first (primary source for family_id and metadata)
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profileError) throw profileError;
+
+    // Fetch from users table to get remaining fields
+    const { data: userData, error: userError } = await supabase
       .from('users')
       .select('*')
       .eq('id', userId)
       .maybeSingle();
 
-    if (error) {
-      console.error('fetchUserProfile: Database error:', error);
-      throw error;
-    }
-
-    if (data) {
-      // Also fetch first_login from profiles table
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('first_login')
-        .eq('id', userId)
-        .maybeSingle();
-      
-      console.log('fetchUserProfile: Found user profile:', data, 'first_login:', profileData?.first_login);
+    if (profileData || userData) {
       return {
-        ...data,
+        id: userId,
+        email: userData?.email || profileData?.["Email Address"] || '',
+        first_name: profileData?.first_name || userData?.first_name || '',
+        last_name: profileData?.last_name || userData?.last_name || '',
+        username: profileData?.username || userData?.username || '',
+        family_id: profileData?.family_id || userData?.family_id || '',
         first_login: profileData?.first_login ?? false
       };
-    } else {
-      console.log('fetchUserProfile: No user profile found, user needs profile creation');
-      return null;
     }
+
+    return null;
   } catch (error) {
     console.error('fetchUserProfile: Error fetching user profile:', error);
     return null;

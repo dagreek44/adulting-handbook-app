@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>API_KEY</key>
+	<string>AIzaSyBn8IRqBycsCbR5H3m4jC5HltJJP6SIrtM</string>
+	<key>GCM_SENDER_ID</key>
+	<string>864195033948</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>app.lovable.d8e8851b93de422897c29d6fb1ca824e</string>
+	<key>PROJECT_ID</key>
+	<string>adulting-7e2ea</string>
+	<key>STORAGE_BUCKET</key>
+	<string>adulting-7e2ea.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:864195033948:ios:265efa92ccbc68d3f31f99</string>
+</dict>
+</plist>

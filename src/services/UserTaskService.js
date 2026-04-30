@@ -2,26 +2,28 @@ import { supabase } from '../integrations/supabase/client';
 import { ReminderService } from './ReminderService';
 
 export class UserTaskService {
-  // Get all family tasks (not just for specific user)
+  /**
+   * Get all family tasks (not just for specific user)
+   */
   static async getUserTasks(userId) {
     try {
-      // Step 1: Get the user's family_id
-      const { data: userData, error: userError } = await supabase
-        .from('users')
+      console.log('UserTaskService: Fetching tasks for user', userId);
+
+      // 1. Get the user's profile to find their family_id
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
         .select('family_id')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       
-      if (userError) throw userError;
-      if (!userData?.family_id) {
-        console.log('getUserTasks: No family_id found for user');
-        return [];
-      }
+      if (profileError) console.error('UserTaskService: Profile fetch error:', profileError);
       
-      console.log('getUserTasks: Fetching tasks for family:', userData.family_id);
-      
-      // Fetch tasks for the entire family using family_id
-      const { data, error } = await supabase
+      const familyId = profileData?.family_id;
+      console.log('UserTaskService: User family_id is:', familyId);
+
+      // 2. Fetch tasks. We'll join with 'reminders' and 'friend_groups'.
+      // We'll fetch assignee details in a separate step to avoid RLS/Join issues with the 'users' table.
+      let query = supabase
         .from('user_tasks')
         .select(`
           *,
@@ -37,60 +39,88 @@ export class UserTaskService {
             supplies,
             why
           ),
-          assignee:users!user_tasks_user_id_fkey(
-            id,
-            first_name,
-            last_name,
-            username
-          ),
           group:friend_groups(
             id,
             name
           )
         `)
-        .eq('enabled', true)
-        .order('due_date', { ascending: true });
+        .eq('enabled', true);
 
-      if (error) throw error;
-      
+      if (familyId) {
+        // Fetch tasks for the entire family AND any personal tasks
+        query = query.or(`family_id.eq.${familyId},user_id.eq.${userId}`);
+      } else {
+        query = query.eq('user_id', userId);
+      }
+
+      const { data: tasks, error: tasksError } = await query.order('due_date', { ascending: true });
+
+      if (tasksError) {
+        console.error('UserTaskService: Error fetching tasks:', tasksError);
+        throw tasksError;
+      }
+
+      if (!tasks || tasks.length === 0) {
+        console.log('UserTaskService: No tasks found in database');
+        return [];
+      }
+
+      // 3. Enrich tasks with assignee names from the 'profiles' table
+      // We collect all unique user_ids from the tasks
+      const assigneeIds = [...new Set(tasks.map(t => t.user_id).filter(Boolean))];
+      let profilesMap = {};
+
+      if (assigneeIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, first_name, last_name, username')
+          .in('id', assigneeIds);
+
+        if (profiles) {
+          profilesMap = profiles.reduce((acc, p) => {
+            acc[p.id] = p;
+            return acc;
+          }, {});
+        }
+      }
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
-      const results = (data || []).map(row => {
+      const results = tasks.map(row => {
         const isPastDue = new Date(row.due_date) < today;
-        
-        // Use data from global reminder if it exists, otherwise use task data
-        const reminderData = row.reminder?.[0];
-        const assigneeData = row.assignee;
-        const assigneeName = assigneeData 
-          ? `${assigneeData.first_name} ${assigneeData.last_name}`.trim() 
-          : 'Unassigned';
-        const assigneeUsername = assigneeData?.username || 'Unassigned';
+        const reminderData = row.reminder; // Note: select might return single object or array depending on config
+        const globalReminder = Array.isArray(reminderData) ? reminderData[0] : reminderData;
 
-        // Determine task source
-        let source = 'family';
+        const assignee = profilesMap[row.user_id];
+        const assigneeName = assignee
+          ? `${assignee.first_name} ${assignee.last_name}`.trim()
+          : 'Unassigned';
+        const assigneeUsername = assignee?.username || 'Unassigned';
+
+        let source = 'personal';
         let sourceGroupName = null;
-        if (row.group_id && row.group?.[0]) {
+
+        if (row.group_id && row.group) {
           source = 'friend_group';
-          sourceGroupName = row.group[0].name;
-        } else if (row.user_id === userId && !row.group_id) {
-          // Personal task if assigned to current user within family context
-          source = row.family_id === userData.family_id ? 'family' : 'personal';
+          const groupData = Array.isArray(row.group) ? row.group[0] : row.group;
+          sourceGroupName = groupData?.name;
+        } else if (familyId && row.family_id === familyId) {
+          source = 'family';
         }
         
         return {
           ...row,
-          // Prioritize global reminder data for consistency
-          title: reminderData?.title || row.title,
-          description: reminderData?.description || row.description,
-          difficulty: reminderData?.difficulty || row.difficulty,
-          estimated_time: reminderData?.estimated_time || row.estimated_time,
-          estimated_budget: reminderData?.estimated_budget || row.estimated_budget,
-          video_url: reminderData?.video_url || row.video_url,
-          instructions: reminderData?.instructions || row.instructions || [],
-          tools: reminderData?.tools || row.tools || [],
-          supplies: reminderData?.supplies || row.supplies || [],
-          why: reminderData?.why || row.why,
+          title: row.title || globalReminder?.title || 'Untitled Task',
+          description: row.description || globalReminder?.description || '',
+          difficulty: row.difficulty || globalReminder?.difficulty || 'Medium',
+          estimated_time: row.estimated_time || globalReminder?.estimated_time || '',
+          estimated_budget: row.estimated_budget || globalReminder?.estimated_budget || '',
+          video_url: row.video_url || globalReminder?.video_url,
+          instructions: row.instructions || globalReminder?.instructions || [],
+          tools: row.tools || globalReminder?.tools || [],
+          supplies: row.supplies || globalReminder?.supplies || [],
+          why: row.why || globalReminder?.why,
           isPastDue,
           assignees: [assigneeName],
           assignedToNames: [assigneeName],
@@ -101,103 +131,89 @@ export class UserTaskService {
         };
       });
       
+      console.log(`UserTaskService: Returning ${results.length} enriched tasks`);
       return results;
     } catch (error) {
-      console.error('Error fetching user tasks:', error);
+      console.error('UserTaskService: getUserTasks critical failure:', error);
       return [];
     }
   }
 
-  // Get completed tasks for the family (all family members)
+  /**
+   * Get completed tasks
+   */
   static async getCompletedTasks(userId) {
     try {
-      // First get the user's family_id
-      const { data: userData, error: userError } = await supabase
-        .from('users')
+      const { data: profileData } = await supabase
+        .from('profiles')
         .select('family_id')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
       
-      if (userError) throw userError;
-      if (!userData?.family_id) {
-        console.log('getCompletedTasks: No family_id found for user');
-        return [];
+      const familyId = profileData?.family_id;
+
+      let query = supabase
+        .from('user_tasks')
+        .select('*')
+        .not('completed_date', 'is', null);
+
+      if (familyId) {
+        query = query.or(`family_id.eq.${familyId},user_id.eq.${userId}`);
+      } else {
+        query = query.eq('user_id', userId);
       }
 
-      // Get all completed tasks for the family - tasks with completed_date set
-      const { data, error } = await supabase
-        .from('user_tasks')
-        .select(`
-          *,
-          assignee:users!user_tasks_user_id_fkey(
-            id,
-            first_name,
-            last_name
-          )
-        `)
-        .eq('family_id', userData.family_id)
-        .not('completed_date', 'is', null)
+      const { data: tasks, error } = await query
         .order('completed_date', { ascending: false })
         .limit(50);
 
       if (error) throw error;
-      
-      // Get completed_by user info for each task
-      const completedByIds = [...new Set((data || []).map(row => row.completed_by).filter(Boolean))];
-      let completedByUsers = {};
+      if (!tasks) return [];
+
+      const completedByIds = [...new Set(tasks.map(row => row.completed_by).filter(Boolean))];
+      let namesMap = {};
       
       if (completedByIds.length > 0) {
-        const { data: usersData } = await supabase
-          .from('users')
+        const { data: profiles } = await supabase
+          .from('profiles')
           .select('id, first_name, last_name')
           .in('id', completedByIds);
         
-        if (usersData) {
-          completedByUsers = usersData.reduce((acc, user) => {
-            acc[user.id] = `${user.first_name} ${user.last_name}`.trim();
+        if (profiles) {
+          namesMap = profiles.reduce((acc, p) => {
+            acc[p.id] = `${p.first_name} ${p.last_name}`.trim();
             return acc;
           }, {});
         }
       }
-      
-      const results = (data || []).map(row => {
-        const assigneeData = row.assignee;
-        const assigneeName = assigneeData 
-          ? `${assigneeData.first_name} ${assigneeData.last_name}`.trim() 
-          : 'Unassigned';
-        const completedByName = row.completed_by ? completedByUsers[row.completed_by] : null;
-        
-        return {
-          id: row.id,
-          title: row.title,
-          description: row.description || '',
-          difficulty: row.difficulty || 'Easy',
-          estimated_time: row.estimated_time || '30 min',
-          estimated_budget: row.estimated_budget || '',
-          completed_date: row.last_completed,
-          created_at: row.created_at,
-          assignee_name: assigneeName,
-          completed_by: row.completed_by,
-          completed_by_name: completedByName || assigneeName
-        };
-      });
-      
-      return results;
+
+      return tasks.map(row => ({
+        id: row.id,
+        title: row.title || 'Completed Task',
+        description: row.description || '',
+        difficulty: row.difficulty || 'Easy',
+        estimated_time: row.estimated_time || '',
+        estimated_budget: row.estimated_budget || '',
+        completed_date: row.last_completed,
+        created_at: row.created_at,
+        completed_by_name: row.completed_by ? namesMap[row.completed_by] : 'Unknown'
+      }));
     } catch (error) {
-      console.error('Error fetching completed tasks:', error);
+      console.error('UserTaskService: getCompletedTasks error:', error);
       return [];
     }
   }
 
-  // Add a custom user task
   static async addUserTask(userId, task) {
     try {
+      const { data: profile } = await supabase.from('profiles').select('family_id').eq('id', userId).single();
       const dueDate = this.calculateDueDate(task.frequency_days || 30);
       
       const { data, error } = await supabase
         .from('user_tasks')
         .insert([{
           user_id: userId,
+          family_id: profile?.family_id,
           title: task.title,
           description: task.description || '',
           frequency_days: task.frequency_days === 0 ? 0 : (task.frequency_days || 30),
@@ -219,7 +235,6 @@ export class UserTaskService {
         .single();
 
       if (error) throw error;
-      
       return data.id;
     } catch (error) {
       console.error('Error adding user task:', error);
@@ -227,296 +242,102 @@ export class UserTaskService {
     }
   }
 
-  // Enable a global reminder for a user
   static async enableReminderForUser(reminderId, userId) {
     try {
-      console.log('UserTaskService: Starting enableReminderForUser', { reminderId, userId });
-      
-      // Check if user exists in users table first
-      console.log('UserTaskService: Checking if user exists in users table');
-      const { data: userExists, error: userCheckError } = await supabase
-        .from('users')
-        .select('id')
-        .eq('id', userId)
-        .maybeSingle();
+      const { data: profileData } = await supabase.from('profiles').select('*').eq('id', userId).single();
+      if (!profileData) throw new Error('User profile not found');
 
-      if (userCheckError) {
-        console.error('UserTaskService: Error checking user existence:', userCheckError);
-        throw userCheckError;
-      }
-
-      if (!userExists) {
-        console.log('UserTaskService: User not found in users table, attempting to create from profile');
-        
-        // Try to get user data from profiles table and create in users table
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .maybeSingle();
-
-        if (profileError) {
-          console.error('UserTaskService: Error fetching profile:', profileError);
-          throw profileError;
-        }
-
-        if (!profileData) {
-          console.error('UserTaskService: User not found in profiles table either:', userId);
-          throw new Error(`User ${userId} not found. Please set up your profile first.`);
-        }
-
-        // Create user in users table from profile data
-        const { error: createUserError } = await supabase
-          .from('users')
-          .insert([{
-            id: userId,
-            email: profileData["Email Address"] || 'no-email@example.com',
-            first_name: profileData.first_name,
-            last_name: profileData.last_name,
-            username: profileData.username,
-            family_id: profileData.family_id
-          }]);
-
-        if (createUserError) {
-          console.error('UserTaskService: Error creating user:', createUserError);
-          throw createUserError;
-        }
-
-        console.log('UserTaskService: Successfully created user from profile data');
-      }
-
-      console.log('UserTaskService: User exists, proceeding with reminder enable');
-      
-      // Check if task already exists for this user
-      const { data: existingTask, error: checkError } = await supabase
-        .from('user_tasks')
-        .select('id, enabled')
-        .eq('reminder_id', reminderId)
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (checkError) {
-        console.error('UserTaskService: Error checking existing task:', checkError);
-        throw checkError;
-      }
-      
+      const { data: existingTask } = await supabase.from('user_tasks').select('id, enabled').eq('reminder_id', reminderId).eq('user_id', userId).maybeSingle();
       if (existingTask) {
-        console.log('UserTaskService: Task already exists, updating to enabled');
-        // If task exists but is disabled, re-enable it
-        if (!existingTask.enabled) {
-          const { error: updateError } = await supabase
-            .from('user_tasks')
-            .update({ enabled: true })
-            .eq('id', existingTask.id);
-          
-          if (updateError) throw updateError;
-        }
+        if (!existingTask.enabled) await supabase.from('user_tasks').update({ enabled: true }).eq('id', existingTask.id);
         return existingTask.id;
       }
 
-      // Get the global reminder details
-      console.log('UserTaskService: Fetching reminder details for', reminderId);
       const reminder = await ReminderService.getReminderById(reminderId);
-      if (!reminder) {
-        throw new Error('Reminder not found');
-      }
-
-      console.log('UserTaskService: Found reminder:', reminder.title);
-
-      // Create user task from global reminder
       const dueDate = this.calculateDueDate(reminder.frequency_days || 30);
-      console.log('UserTaskService: Calculated due date:', dueDate);
-
-      const taskData = {
-        user_id: userId,
-        reminder_id: reminderId,
-        title: reminder.title,
-        description: reminder.description || '',
-        frequency_days: reminder.frequency_days || 30,
-        frequency: reminder.frequency || this.getFrequencyString(reminder.frequency_days || 30),
-        due_date: dueDate,
-        difficulty: reminder.difficulty || 'Easy',
-        estimated_time: reminder.estimated_time || '30 min',
-        estimated_budget: reminder.estimated_budget || '',
-        video_url: reminder.video_url || null,
-        instructions: reminder.instructions || [],
-        tools: reminder.tools || [],
-        supplies: reminder.supplies || [],
-        why: reminder.why || null, // Inherit "why it matters" from global reminder
-        is_custom: false,
-        reminder_type: 'global',
-        enabled: true,
-        status: 'pending'
-      };
-
-      console.log('UserTaskService: Inserting task data:', taskData);
 
       const { data, error } = await supabase
         .from('user_tasks')
-        .insert([taskData])
+        .insert([{
+          user_id: userId,
+          family_id: profileData.family_id,
+          reminder_id: reminderId,
+          title: reminder.title,
+          description: reminder.description || '',
+          frequency_days: reminder.frequency_days || 30,
+          frequency: reminder.frequency || this.getFrequencyString(reminder.frequency_days || 30),
+          due_date: dueDate,
+          difficulty: reminder.difficulty || 'Easy',
+          estimated_time: reminder.estimated_time || '30 min',
+          estimated_budget: reminder.estimated_budget || '',
+          video_url: reminder.video_url || null,
+          instructions: reminder.instructions || [],
+          tools: reminder.tools || [],
+          supplies: reminder.supplies || [],
+          why: reminder.why || null,
+          is_custom: false,
+          reminder_type: 'global',
+          enabled: true,
+          status: 'pending'
+        }])
         .select()
         .single();
 
-      if (error) {
-        console.error('UserTaskService: Error inserting task:', error);
-        throw error;
-      }
-      
-      console.log('UserTaskService: Successfully created task:', data.id);
+      if (error) throw error;
       return data.id;
     } catch (error) {
-      console.error('UserTaskService: Error in enableReminderForUser:', error);
       throw error;
     }
   }
 
-  // Mark a task as completed
   static async completeTask(taskId) {
     try {
-      // Get current task details and current user info
-      const { data: task, error: getError } = await supabase
-        .from('user_tasks')
-        .select('*')
-        .eq('id', taskId)
-        .single();
-
-      if (getError) throw getError;
-      if (!task) throw new Error('Task not found');
-      
-      // Get current user's data
+      const { data: task } = await supabase.from('user_tasks').select('*').eq('id', taskId).single();
       const { data: { user } } = await supabase.auth.getUser();
-      const { data: userData } = await supabase
-        .from('users')
-        .select('id, username, first_name, last_name, family_id')
-        .eq('id', user?.id)
-        .single();
-      
       const today = new Date().toISOString().split('T')[0];
-      const completedByName = userData ? `${userData.first_name} ${userData.last_name}`.trim() : 'Someone';
-      
-      // Handle completion based on frequency
-      const updateData = {
-        last_completed: today,
-        completed_date: today,
-        completed_by: user?.id, // Store the user_id, not username
-        status: 'completed'
-      };
-      
-      // Check if this is a "once" frequency task
+
+      const updateData = { last_completed: today, completed_date: today, completed_by: user?.id, status: 'completed' };
       if (task.frequency === 'once' || task.frequency_days === 0) {
-        // For "once" tasks, disable them (due_date stays to track when it was due)
         updateData.enabled = false;
       } else {
-        // For recurring tasks, calculate next due date based on frequency
         let nextDueDate = this.calculateNextDueDateFromFrequency(today, task.frequency, task.frequency_days);
-        
         if (nextDueDate) {
           updateData.due_date = nextDueDate;
-          updateData.status = 'pending'; // Reset to pending for recurring tasks
+          updateData.status = 'pending';
         }
       }
-      
-      const { error: updateError } = await supabase
-        .from('user_tasks')
-        .update(updateData)
-        .eq('id', taskId);
-      
-      if (updateError) throw updateError;
-      
-      // Cross-user notifications are now handled server-side by the
-      // notify_user_task_completed trigger -> notification_outbox -> push edge fn.
-      // We keep only the local on-device notification (LocalNotifications) here.
+      await supabase.from('user_tasks').update(updateData).eq('id', taskId);
       return true;
     } catch (error) {
-      console.error('Error completing task:', error);
       throw error;
     }
   }
 
-  // Calculate next due date based on frequency string
   static calculateNextDueDateFromFrequency(completedDate, frequency, frequencyDays) {
     const completed = new Date(completedDate);
     let daysToAdd = frequencyDays || 30;
-    
-    // Use frequency string to determine days if frequency_days not reliable
     switch (frequency?.toLowerCase()) {
-      case 'weekly':
-        daysToAdd = 7;
-        break;
-      case 'monthly':
-        daysToAdd = 30;
-        break;
-      case 'quarterly':
-        daysToAdd = 90;
-        break;
-      case 'seasonally':
-        daysToAdd = 90;
-        break;
-      case 'yearly':
-        daysToAdd = 365;
-        break;
-      case 'once':
-        return null; // No next due date for once tasks
-      default:
-        // Fall back to frequency_days if provided
-        daysToAdd = frequencyDays > 0 ? frequencyDays : 30;
+      case 'weekly': daysToAdd = 7; break;
+      case 'monthly': daysToAdd = 30; break;
+      case 'quarterly': daysToAdd = 90; break;
+      case 'seasonally': daysToAdd = 90; break;
+      case 'yearly': daysToAdd = 365; break;
+      case 'once': return null;
+      default: daysToAdd = frequencyDays > 0 ? frequencyDays : 30;
     }
-    
     const nextDue = new Date(completed.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
     return nextDue.toISOString().split('T')[0];
   }
 
-  // Delete a user task
-  static async deleteUserTask(taskId) {
-    try {
-      const { error } = await supabase
-        .from('user_tasks')
-        .delete()
-        .eq('id', taskId);
-      
-      if (error) throw error;
-      
-      return true;
-    } catch (error) {
-      console.error('Error deleting user task:', error);
-      throw error;
-    }
-  }
-
-  // Update a user task
-  static async updateUserTask(taskId, updates) {
-    try {
-      const { error } = await supabase
-        .from('user_tasks')
-        .update(updates)
-        .eq('id', taskId);
-      
-      if (error) throw error;
-      
-      return true;
-    } catch (error) {
-      console.error('Error updating user task:', error);
-      throw error;
-    }
-  }
-
-  // Helper method to calculate due date
+  static async deleteUserTask(taskId) { await supabase.from('user_tasks').delete().eq('id', taskId); return true; }
+  static async updateUserTask(taskId, updates) { await supabase.from('user_tasks').update(updates).eq('id', taskId); return true; }
   static calculateDueDate(frequencyDays) {
     const today = new Date();
-    const dueDate = new Date(today.getTime() + frequencyDays * 24 * 60 * 60 * 1000);
+    const dueDate = new Date(today.getTime() + (frequencyDays || 30) * 24 * 60 * 60 * 1000);
     return dueDate.toISOString().split('T')[0];
   }
-
-  // Helper method to calculate next due date after completion
-  static calculateNextDueDate(lastCompleted, frequencyDays) {
-    const completedDate = new Date(lastCompleted);
-    const nextDue = new Date(completedDate.getTime() + frequencyDays * 24 * 60 * 60 * 1000);
-    return nextDue.toISOString().split('T')[0];
-  }
-
-  // Helper method to convert frequency days to string
   static getFrequencyString(days) {
-    if (days === 0) return 'once'; // Handle "once" frequency
+    if (days === 0) return 'once';
     if (days <= 7) return 'weekly';
     if (days <= 30) return 'monthly';
     if (days <= 90) return 'quarterly';
