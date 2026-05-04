@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Calendar, Trophy, CheckCircle2 } from 'lucide-react';
+import { Calendar, Trophy, CheckCircle2, Wrench } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
@@ -17,8 +17,7 @@ import FriendGroupsModal from "@/components/FriendGroupsModal";
 import CompletedTasksView from "@/components/CompletedTasksView";
 import AchievementBadge from '@/components/AchievementBadge';
 import SharedHeader from '@/components/SharedHeader';
-import OnboardingTour from '@/components/OnboardingTour';
-import { completeOnboarding } from '@/services/userProfileService';
+import OnboardingTour from '@/components/OnboardingTour';import ContractorsView from '@/components/ContractorsView';import { completeOnboarding } from '@/services/userProfileService';
 
 const Index = () => {
   const { user, userProfile, loading: authLoading } = useAuth();
@@ -185,6 +184,13 @@ const Index = () => {
                 color="bg-gradient-to-br from-earth to-earth"
                 onClick={() => setActiveTab('completed')}
               />
+              <DashboardCard
+                title="Contractors"
+                subtitle="Find local support for new projects"
+                icon={Wrench}
+                color="bg-gradient-to-br from-purple-500 to-violet-500"
+                onClick={() => setActiveTab('contractors')}
+              />
             </div>
 
             <div>
@@ -202,6 +208,11 @@ const Index = () => {
               )}
             </div>
           </div>
+        );
+
+      case 'contractors':
+        return (
+          <ContractorsView onBack={() => setActiveTab('home')} city={userProfile?.city} />
         );
 
       case 'reminders':

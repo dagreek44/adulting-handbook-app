@@ -40,27 +40,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const handleUserProfileFetch = async (userId: string, authUser: User, retryCount: number = 0) => {
-    const profile = await fetchUserProfile(userId, retryCount);
+    const profile = await fetchUserProfile(userId, retryCount, authUser);
     
     if (profile) {
       setUserProfile(profile);
     } else {
       setUserProfile(null);
-      
+
+      // Check for and accept pending family invitations before auto-creating a profile.
+      let acceptedFamilyId: string | null = null;
+      if (authUser?.email && !invitationsChecked) {
+        setInvitationsChecked(true);
+        acceptedFamilyId = await acceptPendingInvitations(userId, authUser.email!);
+        if (acceptedFamilyId) {
+          const updatedProfile = await fetchUserProfile(userId, 0, authUser);
+          if (updatedProfile) {
+            setUserProfile(updatedProfile);
+          }
+        }
+      }
+
       // Auto-create profile for authenticated users missing from users table
       if (retryCount === 0 && authUser) {
         console.log('handleUserProfileFetch: Attempting to auto-create missing profile');
-        await createMissingUserProfile(authUser);
+        await createMissingUserProfile(authUser, acceptedFamilyId || undefined);
       }
     }
 
-    // Check for and accept pending family invitations - Non-blocking and only once per session
-    if (authUser?.email && !invitationsChecked) {
+    // If profile already exists, accept pending family invitations once per session
+    if (profile && authUser?.email && !invitationsChecked) {
       setInvitationsChecked(true);
-      acceptPendingInvitations(userId, authUser.email!).then((accepted) => {
-        if (accepted) {
-          // Re-fetch profile to get updated family_id
-          fetchUserProfile(userId, 0).then(updatedProfile => {
+      acceptPendingInvitations(userId, authUser.email!).then((acceptedFamilyId) => {
+        if (acceptedFamilyId) {
+          fetchUserProfile(userId, 0, authUser).then(updatedProfile => {
             if (updatedProfile) {
               setUserProfile(updatedProfile);
             }

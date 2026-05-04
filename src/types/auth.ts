@@ -20,6 +20,7 @@ export interface UserProfile {
   username: string;
   family_id: string;
   first_login?: boolean;
+  city?: string;
 }
 
 export interface SignUpData {

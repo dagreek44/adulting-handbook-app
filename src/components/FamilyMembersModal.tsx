@@ -79,7 +79,7 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
         .maybeSingle();
 
       if (existingUser) {
-        if (existingUser.family_id === userProfile.family_id) {
+        if (existingUser.family_id && existingUser.family_id === userProfile.family_id) {
           toast({
             title: "Already a Family Member",
             description: "This person is already part of your family.",
@@ -87,7 +87,7 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
           });
           setIsInviting(false);
           return;
-        } else {
+        } else if (existingUser.family_id && existingUser.family_id !== userProfile.family_id) {
           toast({
             title: "User Already Registered",
             description: "This person already has an account with a different family.",
@@ -96,6 +96,7 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
           setIsInviting(false);
           return;
         }
+        // If existingUser has no family_id, they were previously removed and can be re-added
       }
 
       // Check if invitation already exists
@@ -290,13 +291,40 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
           duration: 3000,
         });
       } else {
-        // Remove active family member from family_members table
-        const { error } = await supabase
+        // Remove active family member - delete from family_members AND clear family_id from users table
+        const memberToRemove = familyMembers.find(m => m.id === memberId);
+        
+        // Delete from family_members
+        const { error: deleteError } = await supabase
           .from('family_members')
           .delete()
           .eq('id', memberId);
 
-        if (error) throw error;
+        if (deleteError) throw deleteError;
+        
+        // Clear family_id from users table so they can be re-invited
+        if (memberToRemove?.profile_id) {
+          const { error: updateUsersError } = await supabase
+            .from('users')
+            .update({ family_id: null })
+            .eq('id', memberToRemove.profile_id);
+          
+          if (updateUsersError) {
+            console.error('Error clearing family_id from users table:', updateUsersError);
+            // Don't throw - the member was already removed from family_members
+          }
+
+          // Clear family_id from profiles table so they can be re-invited
+          const { error: updateProfilesError } = await supabase
+            .from('profiles')
+            .update({ family_id: null })
+            .eq('id', memberToRemove.profile_id);
+          
+          if (updateProfilesError) {
+            console.error('Error clearing family_id from profiles table:', updateProfilesError);
+            // Don't throw - the member was already removed from family_members
+          }
+        }
         
         toast({
           title: "Member Removed",

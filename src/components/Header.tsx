@@ -1,11 +1,13 @@
 
 import { useState, useEffect } from 'react';
-import { Home, LogOut, AlertCircle, Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Home, LogOut, AlertCircle, Users, Lock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import NotificationStatus from './NotificationStatus';
 
 const Header = () => {
+  const navigate = useNavigate();
   const { userProfile, signOut, createMissingUserProfile, user } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [familyMembers, setFamilyMembers] = useState<Array<{ name: string; email: string; role: string }>>([]);
@@ -31,11 +33,17 @@ const Header = () => {
   const handleSignOut = async () => {
     await signOut();
     setShowUserMenu(false);
+    navigate('/auth', { replace: true });
   };
 
   const handleCreateProfile = async () => {
     await createMissingUserProfile();
     setShowUserMenu(false);
+  };
+
+  const handleChangePassword = () => {
+    setShowUserMenu(false);
+    navigate('/auth?change=true');
   };
 
   return (
@@ -110,6 +118,14 @@ const Header = () => {
                         </div>
                       </>
                     )}
+                    
+                    <button
+                      onClick={handleChangePassword}
+                      className="w-full flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      <Lock className="w-4 h-4 mr-2" />
+                      Change Password
+                    </button>
                     
                     <button
                       onClick={handleSignOut}

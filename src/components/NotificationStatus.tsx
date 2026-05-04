@@ -42,19 +42,6 @@ const NotificationStatus = () => {
         <Icon className="w-3 h-3" />
         <span>Notifications</span>
       </div>
-      <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
-        <div className="flex items-center gap-1">
-          <Bell className="w-3 h-3" />
-          <span>Permission: {diag.permissionStatus}</span>
-        </div>
-        <div>Token: {diag.tokenRegistered ? 'registered' : 'missing'}</div>
-        <div>Platform: {diag.platform}</div>
-        {diag.lastError && (
-          <div className="text-destructive break-words">
-            Last error: {diag.lastError}
-          </div>
-        )}
-      </div>
     </div>
   );
 };

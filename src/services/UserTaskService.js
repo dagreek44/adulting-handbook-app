@@ -44,7 +44,9 @@ export class UserTaskService {
             name
           )
         `)
-        .eq('enabled', true);
+        .eq('enabled', true)
+        // Exclude one-time tasks that have been completed
+        .or('frequency.neq.once,and(frequency.eq.once,completed_date.is.null)');
 
       if (familyId) {
         // Fetch tasks for the entire family AND any personal tasks
@@ -71,16 +73,43 @@ export class UserTaskService {
       let profilesMap = {};
 
       if (assigneeIds.length > 0) {
-        const { data: profiles } = await supabase
+        console.log('UserTaskService: Fetching profiles for assignees:', assigneeIds);
+        const { data: profiles, error: profileError } = await supabase
           .from('profiles')
           .select('id, first_name, last_name, username')
           .in('id', assigneeIds);
 
+        if (profileError) {
+          console.error('UserTaskService: Error fetching profiles:', profileError);
+        }
+        
         if (profiles) {
+          console.log('UserTaskService: Found profiles:', profiles.length, '/', assigneeIds.length);
           profilesMap = profiles.reduce((acc, p) => {
             acc[p.id] = p;
             return acc;
           }, {});
+        } else {
+          console.warn('UserTaskService: No profiles returned from query');
+        }
+
+        // Also try to get names from users table as fallback
+        const { data: users, error: usersError } = await supabase
+          .from('users')
+          .select('id, first_name, last_name, username')
+          .in('id', assigneeIds);
+
+        if (users && !usersError) {
+          console.log('UserTaskService: Found users:', users.length, '/', assigneeIds.length);
+          // Use users table data as primary source, profiles as fallback
+          users.forEach(user => {
+            profilesMap[user.id] = {
+              id: user.id,
+              first_name: user.first_name,
+              last_name: user.last_name,
+              username: user.username
+            };
+          });
         }
       }
 
@@ -96,7 +125,12 @@ export class UserTaskService {
         const assigneeName = assignee
           ? `${assignee.first_name} ${assignee.last_name}`.trim()
           : 'Unassigned';
-        const assigneeUsername = assignee?.username || 'Unassigned';
+        
+        if (!assignee && row.user_id) {
+          console.warn('UserTaskService: Profile not found for user_id:', row.user_id, 'Task:', row.title);
+        }
+        
+        const assigneeUsername = assignee?.username || (assigneeName !== 'Unassigned' ? assigneeName : 'Unassigned');
 
         let source = 'personal';
         let sourceGroupName = null;

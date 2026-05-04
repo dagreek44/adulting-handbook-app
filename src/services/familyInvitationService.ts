@@ -39,6 +39,16 @@ export const acceptPendingInvitations = async (userId: string, userEmail: string
 
     console.log('Updated user family_id to:', invitation.family_id);
 
+    // Also update the profile family_id so profile-based family lookups work
+    const { error: profileUpdateError } = await supabase
+      .from('profiles')
+      .update({ family_id: invitation.family_id })
+      .eq('id', userId);
+
+    if (profileUpdateError) {
+      console.error('Error updating profile family_id:', profileUpdateError);
+    }
+
     // Update the family_members entry to link it to the user profile
     const { error: memberUpdateError } = await supabase
       .from('family_members')
@@ -61,9 +71,9 @@ export const acceptPendingInvitations = async (userId: string, userEmail: string
     }
 
     console.log('Successfully accepted family invitation');
-    return true;
+    return invitation.family_id;
   } catch (error) {
     console.error('Error accepting pending invitations:', error);
-    return false;
+    return null;
   }
 };

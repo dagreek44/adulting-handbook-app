@@ -11,6 +11,7 @@ import { DeviceTokenService } from "@/services/DeviceTokenService";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { waitForCapacitor } from "@/utils/capacitorUtils";
 import { App as CapacitorApp } from '@capacitor/app';
+import { supabase } from '@/integrations/supabase/client';
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -95,12 +96,10 @@ const NotificationSetup = () => {
                 navigate('/dashboard', { replace: true });
               }, 100);
             } else {
-              console.log('>>> No match for pathname or params, storing URL and navigating to /?reset=true anyway');
+              console.log('>>> No specific deep link match, storing URL for auth page to handle');
               setGlobalLaunchUrl(url);
               window.dispatchEvent(new CustomEvent('globalLaunchUrlChanged', { detail: url }));
-              setTimeout(() => {
-                navigate('/?reset=true', { replace: true });
-              }, 100);
+              // Don't navigate automatically - let the auth page handle it based on URL params
             }
           } catch (parseError) {
             console.error('>>> Error parsing deep link:', parseError);

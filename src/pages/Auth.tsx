@@ -17,23 +17,15 @@ const Auth = () => {
   const emailFromUrl = searchParams.get('email');
   const signupFromUrl = searchParams.get('signup') === 'true';
   const resetFromUrl = searchParams.get('reset') === 'true';
+  const changeFromUrl = searchParams.get('change') === 'true';
   
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const [launchUrlState, setLaunchUrlState] = useState<string | null>(null);
-  
-  console.log('=== AUTH PAGE RENDER ===');
-  console.log('Auth - Location:', location.pathname + location.search);
-  console.log('Auth - Reset from URL:', resetFromUrl, 'SearchParams:', Array.from(searchParams.entries()));
-  console.log('Auth - Is Recovery Mode:', isRecoveryMode);
-  console.log('Auth - GlobalLaunchUrl state:', launchUrlState);
-  console.log('Auth - Should Show Reset:', resetFromUrl || isRecoveryMode);
-  console.log('=== END AUTH PAGE RENDER ===');
   
   // Keep a local copy of the global launch URL so we can react to it if it arrives later
   useEffect(() => {
     const updateLaunchUrl = (event?: Event) => {
       const url = getGlobalLaunchUrl();
-      console.log('Auth - globalLaunchUrlChanged event fired', event, 'resolved URL:', url);
       setLaunchUrlState(url);
     };
 
@@ -42,79 +34,42 @@ const Auth = () => {
     return () => window.removeEventListener('globalLaunchUrlChanged', updateLaunchUrl);
   }, []);
 
-  // Check if we're in recovery mode by checking Supabase session or launch URL
+  // Check if we're in recovery mode by checking URL parameters or auth events
   useEffect(() => {
-    const checkRecoverySession = async () => {
-      try {
-        console.log('=== AUTH PAGE RECOVERY CHECK ===');
-        
-        // Check if we have a launch URL with recovery info
-        const launchUrl = launchUrlState ?? getGlobalLaunchUrl();
-        console.log('Auth - Global launch URL:', launchUrl);
-        if (launchUrl) {
-          console.log('Auth - Launch URL exists, checking content...');
-          if (launchUrl.includes('reset=true') || launchUrl.includes('type=recovery')) {
-            console.log('Auth - PASSWORD RESET DETECTED IN LAUNCH URL!');
-            setIsRecoveryMode(true);
-            return;
-          }
-        }
-        
-        // Check for recovery session from Supabase
-        console.log('Auth - Checking Supabase session...');
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.log('Auth - Session error:', error);
-        }
-        
-        if (session) {
-          console.log('Auth - SESSION FOUND:', session.user.email);
-          console.log('Auth - Session user data:', {
-            email: session.user.email,
-            id: session.user.id,
-            confirmed_at: session.user.confirmed_at,
-            recovery_sent_at: session.user.recovery_sent_at,
-            email_change_sent_at: session.user.email_change_sent_at,
-            user_metadata: session.user.user_metadata
-          });
-          
-          // If we have ANY session, assume it's recovery mode since user clicked the email
-          console.log('Auth - Setting recovery mode to TRUE (active session detected)');
+    const checkRecoveryMode = () => {
+      // Check if we have a launch URL with recovery info
+      const launchUrl = launchUrlState ?? getGlobalLaunchUrl();
+      if (launchUrl) {
+        if (launchUrl.includes('reset=true') || launchUrl.includes('type=recovery')) {
           setIsRecoveryMode(true);
-        } else {
-          console.log('Auth - NO SESSION FOUND');
+          return;
         }
-        
-        console.log('=== AUTH PAGE RECOVERY CHECK COMPLETE ===');
-      } catch (error) {
-        console.error('Auth - Error checking recovery session:', error);
+      }
+      
+      // Check URL parameters
+      if (resetFromUrl) {
+        setIsRecoveryMode(true);
+        return;
       }
     };
     
     // Check immediately
-    checkRecoverySession();
+    checkRecoveryMode();
     
     // Also listen for auth state changes
-    console.log('Auth - Setting up auth state listener...');
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth - AUTH STATE CHANGED:', event);
       if (event === 'PASSWORD_RECOVERY') {
-        console.log('Auth - PASSWORD_RECOVERY EVENT!');
         setIsRecoveryMode(true);
-      }
-      if (session) {
-        console.log('Auth - New session in onAuthStateChange:', session.user.email);
       }
     });
     
     return () => {
-      console.log('Auth - Unsubscribing from auth listener');
       subscription?.unsubscribe();
     };
-  }, [launchUrlState]);
+  }, [launchUrlState, resetFromUrl]);
+
   
-  const [isLogin, setIsLogin] = useState(!signupFromUrl && !resetFromUrl);
+  const [isLogin, setIsLogin] = useState(!signupFromUrl && !resetFromUrl && !changeFromUrl);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -129,7 +84,7 @@ const Auth = () => {
   const [error, setError] = useState('');
   
   // Determine if we should show the reset form
-  const shouldShowReset = resetFromUrl || isRecoveryMode;
+  const shouldShowReset = resetFromUrl || changeFromUrl || isRecoveryMode;
   
   // Update isLogin when recovery mode changes
   useEffect(() => {
@@ -138,8 +93,8 @@ const Auth = () => {
     }
   }, [shouldShowReset]);
 
-  // Redirect if already authenticated
-  if (user) {
+  // Redirect if already authenticated, unless we're in recovery/reset mode
+  if (user && !shouldShowReset) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -152,6 +107,17 @@ const Auth = () => {
     );
   }
 
+  // Show waiting UI for password reset until session is verified
+  if (resetFromUrl && !isRecoveryMode) {
+    return (
+      <div className="min-h-screen bg-cream flex flex-col items-center justify-center">
+        <img src="/icon.png" alt="Adulting" className="w-24 h-24 mb-4" />
+        <p className="text-sage text-lg">Verifying your reset link...</p>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sage mt-4"></div>
+      </div>
+    );
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -160,14 +126,6 @@ const Auth = () => {
     try {
       if (shouldShowReset) {
         // Handle password reset
-        console.log('=== PASSWORD RESET SUBMIT ===');
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        console.log('Current session before update:', sessionData?.session ? 'Session exists' : 'No session');
-        if (sessionData?.session) {
-          console.log('Session user:', sessionData.session.user.email);
-        } else {
-          console.log('Session error:', sessionError);
-        }
         
         if (formData.password.length < 6) {
           setError('Password must be at least 6 characters');
@@ -186,9 +144,13 @@ const Auth = () => {
         if (error) {
           setError(error.message);
         } else {
-          toast.success('Password updated successfully!');
-          // Redirect to login
-          window.location.href = '/auth';
+          toast.success(changeFromUrl ? 'Password changed successfully!' : 'Password updated successfully!');
+          // Redirect based on context
+          if (changeFromUrl) {
+            window.location.href = '/dashboard';
+          } else {
+            window.location.href = '/auth';
+          }
         }
       } else if (isLogin) {
         const { error } = await signIn(formData.email, formData.password);
@@ -227,23 +189,15 @@ const Auth = () => {
   return (
     <div className="min-h-screen bg-cream flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        {/* Debug Panel - Remove this after testing */}
-        <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-3 py-2 rounded-lg text-xs mb-4 font-mono">
-          <div>URL: {location.pathname + location.search}</div>
-          <div>Reset param: {searchParams.get('reset')}</div>
-          <div>Recovery mode: {isRecoveryMode ? 'YES' : 'NO'}</div>
-          <div>Show reset form: {shouldShowReset ? 'YES' : 'NO'}</div>
-        </div>
-
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
             <img src="/icon.png" alt="Adulting" className="w-16 h-16 mx-auto mb-4" />
             <h1 className="text-3xl font-bold text-gray-800 mb-2">
-              {shouldShowReset ? 'Reset Your Password' : isLogin ? 'Welcome Back!' : 'Join the Adulting App'}
+              {shouldShowReset ? (changeFromUrl ? 'Change Your Password' : 'Reset Your Password') : isLogin ? 'Welcome Back!' : 'Join the Adulting App'}
             </h1>
             <p className="text-gray-600">
               {shouldShowReset 
-              ? 'Enter your new password below' 
+              ? (changeFromUrl ? 'Enter your new password below' : 'Enter your new password below')
               : isLogin 
                 ? 'Sign in to continue your adulting journey' 
                 : 'Start mastering life\'s essential skills'
