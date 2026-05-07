@@ -26,14 +26,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [invitationsChecked, setInvitationsChecked] = useState(false);
   const { toast } = useToast();
 
-  const createMissingUserProfile = async (authUser: User) => {
+  const createMissingUserProfile = async (authUser: User, familyIdOverride?: string) => {
     if (!authUser) {
       console.log('createMissingUserProfile: No user available');
       return;
     }
 
     console.log('createMissingUserProfile: Creating profile for user:', authUser.id);
-    const profile = await createUserProfile(authUser, toast);
+    const profile = await createUserProfile(authUser, toast, familyIdOverride);
     if (profile) {
       setUserProfile(profile);
     }

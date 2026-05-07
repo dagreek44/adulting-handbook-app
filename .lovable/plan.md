@@ -1,81 +1,63 @@
-## Goal
+# Database Cleanup & Consolidation — Implementation Plan
 
-Bring all 102 rows in `public.reminders` up to (and slightly above) the gold-standard format set by `Test Smoke Detectors` (`991ab26a...`), so that every reminder has meaningful, field-specific content the UI can render.
+Execute the 4 phases from the audit. Each phase = one code PR + (where needed) one migration, shipped sequentially so we can verify before moving on.
 
-No application code or schema will change. This is data-only work via the Supabase insert/update tool. Reminders RLS already allows reads to authenticated users — clients will pick up updated content on next fetch with no rebuild.
+## Phase 1 — Code-only standardization (no schema change)
 
-## Target shape per row
+Goal: stop reading from `profiles` everywhere, and make `user_tasks` fall back to `reminders` content for template-linked tasks.
 
-Every row will end with:
+**Files to change (reads of `profiles` → `users`):**
+- `src/services/userProfileService.ts` — `fetchUserProfile` reads from `users` only; `createUserProfile` stops inserting/updating `profiles` (still writes `first_login` there for now until Phase 2 moves the column). Keep `completeOnboarding` pointed at `profiles` until Phase 2.
+- `src/services/familyInvitationService.ts` — drop the `profiles.family_id` update; only update `users` and `family_members`.
+- `src/contexts/ReminderContext.tsx`, `src/components/AddCustomReminder.tsx`, `src/components/RemindersView.tsx`, `src/components/FamilyMembersModal.tsx`, `src/services/UserTaskService.js` — replace `from('profiles')` lookups with `from('users')` (same `id`, `family_id`, `first_name`, `last_name`, `username` columns exist on both).
 
-- `why` — 1–3 sentence paragraph explaining the real-world consequence of skipping the task (required everywhere, including the gold-standard row, which is currently missing this).
-- `description` — short one-liner if missing.
-- `difficulty` — one of `Easy` / `Medium` / `Hard`.
-- `estimated_time` — human-readable (e.g. `30 min`, `1–2 hrs`).
-- `estimated_budget` — string in the existing `$<low>-<high>` format (e.g. `$15-20`). For zero-cost tasks: `$0`.
-- `instructions` — `text[]` with at least 4 clear, ordered steps.
-- `tools` — `jsonb` array of `{"name": string, "required": boolean}`.
-- `supplies` — `jsonb` array of `{"name": string, "estimatedCost": string, "amazonUrl": string}` using the existing Amazon affiliate deep-link convention already used in app.
-- `video_url` — a real, working YouTube URL relevant to the task (verified before writing).
-- `subcategory` — replace weak values like `General` / blank with a meaningful one from the existing taxonomy for that `main_category`.
+**user_tasks → reminders fallback:**
+- In `src/services/UserTaskService.js` (and any reminder-detail read path), when fetching a `user_tasks` row that has `reminder_id`, also fetch the linked `reminders` row and merge: for each of `description, difficulty, estimated_time, estimated_budget, video_url, instructions, tools, supplies, why`, prefer the `user_tasks` value when non-null/non-empty, else fall back to `reminders`. Pure UI consumers (`TaskDetailModal`, `ReminderEditMode`) need no changes — they receive merged objects.
 
-For purely administrative tasks (e.g. “Review bank statements”, “File taxes”) where physical tools/supplies don’t apply, `tools` and `supplies` will contain useful digital equivalents (e.g. `Budgeting app`, `Document scanner app`, `Fireproof document folder`) rather than empty arrays, so the UI never shows blank sections.
+**Verification:** sign in, open dashboard, family modal, a template reminder, a custom reminder, accept-invite flow. All should still work and show the same data.
 
-## Current gaps (verified just now)
+## Phase 2 — Consolidate `profiles` into `users`
 
-- `why`: missing on **102 / 102** rows (including the gold standard).
-- Stub rows (missing video + tools + supplies + weak instructions): **~75** rows, almost all in `Household`.
-- `Household / General`: 14 rows with weak subcategory + zero metadata — these will be re-classified into `Appliances`, `Plumbing`, `HVAC`, `Exterior`, `Safety`, `Cleaning`, or `Electrical` based on title, then backfilled.
-- Non-Household categories (Health, Finance, Family, Life, Work, etc.): mostly already have `instructions`, `budget`, `time`, `difficulty`. They primarily need `why` plus, for ~20 rows, tools/supplies/video.
+**Migration (single file):**
+1. `ALTER TABLE public.users ADD COLUMN first_login boolean DEFAULT true;`
+2. Backfill: `UPDATE users u SET first_login = p.first_login FROM profiles p WHERE p.id = u.id;`
+3. Migrate the one orphan profile (Sarah, `c0f3804f...`) into `users` if her auth user still exists; otherwise leave it — dropping `profiles` removes it.
+4. Rewrite `handle_user_signup` to stop inserting into `profiles`.
+5. `DROP FUNCTION public.handle_new_user();` (verify it has no trigger first via `pg_trigger`; if a trigger exists on `auth.users` pointing at it, drop the trigger too).
+6. `DROP TABLE public.profiles CASCADE;`
 
-## Pass plan
+**Code:**
+- `src/services/userProfileService.ts` — `completeOnboarding` updates `users.first_login`. Remove the remaining `profiles` insert in `createUserProfile`.
+- Remove any leftover `profiles` references surfaced by a repo-wide grep.
 
-The work will be done in batched SQL `UPDATE` statements via the insert tool, grouped to keep each call reviewable.
+**Verification:** new signup creates a `users` row with `first_login=true`, onboarding flips it to false, no `profiles` references remain.
 
-### Pass 1 — Re-classify Household / General (14 rows)
-Move each `Household / General` row to its correct subcategory based on its title. No content backfill yet — just `subcategory` correction so Pass 2 batches are clean.
+## Phase 3 — Collapse `family_members`
 
-### Pass 2 — Household full backfill (~66 rows)
-Process Household rows in subcategory batches:
+**Code first** (so the table can be dropped safely):
+- `src/components/FamilyMembersModal.tsx`, `src/components/Header.tsx`, `src/services/familyInvitationService.ts` — derive the family roster from `users` (joined family) + `user_roles` (role) + `family_invitations` (pending, not yet signed up). Pending invitees are shown by their `family_invitations` row instead of a `family_members` shadow row.
+- Remove the `family_members` update in `acceptPendingInvitations`.
 
-1. Appliances (4)
-2. Cleaning (3)
-3. Electrical (2)
-4. Exterior (16) — split into 2 batches of 8
-5. HVAC (10)
-6. Plumbing (11)
-7. Safety (6)
-8. Re-classified former-General rows (14) — alongside their new subcategory’s batch where it fits
+**Migration:**
+1. Insert any `family_members` row that has no matching `users.id` for its family into `family_invitations` as `status='pending'` (just the 1 known case — Sarah).
+2. Update `handle_user_signup` to stop writing `family_members`.
+3. Drop trigger `enforce_family_member_limit` and re-implement the 10-member cap as a trigger on `users` (count rows with the same `family_id` before insert/update).
+4. `DROP TABLE public.family_members CASCADE;`
 
-For each row in a batch, set: `why`, `instructions` (4–8 steps), `tools`, `supplies`, `estimated_budget`, `video_url`, and tighten `description` / `difficulty` / `estimated_time` if weak. Each YouTube URL is verified by fetching the watch page and confirming the title matches the task before writing.
+**Verification:** family modal shows the same members + pending invites; invite flow still works; 10-member cap still enforced (manual test by attempting 11th invite).
 
-### Pass 3 — Non-Household categories (~36 rows)
-For each row: always set `why`. Where `tools` / `supplies` / `video_url` / `instructions` are missing or thin, fill them with category-appropriate content (digital tools count). Categories covered:
+## Phase 4 — Hygiene
 
-- Family / Shared Responsibilities (6)
-- Finance & Legal (8)
-- Health & Self-care (8)
-- Life & Personal Development (~6)
-- Work / Career (~3)
-- Any remaining miscellaneous (~5)
+- Add a `pg_cron` job (or extend the existing notification cron) to `DELETE FROM notification_outbox WHERE status='sent' AND sent_at < now() - interval '30 days';` daily.
+- Optional one-shot: `UPDATE user_tasks SET <field> = NULL FROM reminders r WHERE user_tasks.reminder_id = r.id AND user_tasks.<field> IS NOT DISTINCT FROM r.<field>;` for each of the 9 mirrored fields, so future template edits propagate. Run only after Phase 1 fallback is confirmed working in production.
 
-### Pass 4 — Verification query
-A single read-only audit query confirms zero rows remain with: missing `why`, empty `instructions`, empty `tools`, empty `supplies`, missing `video_url`, missing `estimated_budget`, or weak subcategory.
+## Order of execution & rollback
 
-## QA / safety
+Ship in order: 1 → 2 → 3 → 4. Each phase is independently revertable via Lovable history. Phases 2 and 3 each combine one migration + one code change in the same message so types regenerate cleanly.
 
-- All writes are `UPDATE` statements scoped by primary key — no row is created, deleted, or moved between families.
-- No schema migration. No RLS change. No frontend code change.
-- Amazon URLs follow the existing affiliate deep-link pattern already in use (per `mem://features/amazon-affiliate-deep-links`).
-- YouTube URLs are validated by HTTP fetch and title match before being written; only `youtube.com/watch?v=...` form is used (matches `mem://features/embedded-video-player`).
-- Existing meaningful content is preserved — `UPDATE` statements only set fields that are currently null/empty/weak, except for `why`, which is set on every row (including the gold standard) since none currently have it.
+## Out of scope
 
-## Deliverable
+- Merging `family_invitations` with `friend_group_invitations` (audit item 3) — duplication is small, policies differ, defer.
+- Touching `reminders`, `user_badges`, `user_roles`, `device_tokens`, friend-group tables — all clean.
 
-After the four passes, every reminder row will populate every UI section (overview, why-it-matters, steps, tools, supplies, video, budget) with relevant content, and the audit query will return zero deficient rows.
-
-## Estimated size of work
-
-- ~102 row updates across ~12 batched SQL statements.
-- ~75 YouTube URL lookups (verified before write).
-- No code changes, no rebuild, no app restart required — refreshing the reminders list in the app will surface the new content immediately.
+Confirm and I'll start with Phase 1 (code-only, lowest risk).
