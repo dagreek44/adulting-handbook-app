@@ -56,17 +56,18 @@ const AddCustomReminder = ({ familyMembers }: AddCustomReminderProps) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      // Get user's family_id and profile info
-      const [userData, profileData] = await Promise.all([
-        supabase.from('users').select('family_id').eq('id', user.id).single(),
-        supabase.from('profiles').select('first_name, last_name').eq('id', user.id).single()
-      ]);
+      // Get user's family_id and name
+      const { data: userData, error: userErr } = await supabase
+        .from('users')
+        .select('family_id, first_name, last_name')
+        .eq('id', user.id)
+        .single();
 
-      if (userData.error) throw userData.error;
-      if (!userData.data?.family_id) throw new Error('No family found');
+      if (userErr) throw userErr;
+      if (!userData?.family_id) throw new Error('No family found');
 
-      const creatorName = profileData.data?.first_name 
-        ? `${profileData.data.first_name} ${profileData.data.last_name || ''}`.trim()
+      const creatorName = userData.first_name
+        ? `${userData.first_name} ${userData.last_name || ''}`.trim()
         : user.email?.split('@')[0] || 'A family member';
 
       // Determine who to assign the task to
@@ -99,7 +100,7 @@ const AddCustomReminder = ({ familyMembers }: AddCustomReminderProps) => {
       for (const assigneeId of assigneeProfileIds) {
         const insertData: any = {
           user_id: assigneeId,
-          family_id: userData.data.family_id,
+          family_id: userData.family_id,
           title: newReminder.title || "",
           description: newReminder.description || "",
           frequency: newReminder.frequency || "once",

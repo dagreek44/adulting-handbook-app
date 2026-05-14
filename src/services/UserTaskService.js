@@ -9,15 +9,15 @@ export class UserTaskService {
     try {
       console.log('UserTaskService: Fetching tasks for user', userId);
 
-      // 1. Get the user's profile to find their family_id
+      // 1. Get the user's family_id
       const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
+        .from('users')
         .select('family_id')
         .eq('id', userId)
         .maybeSingle();
-      
-      if (profileError) console.error('UserTaskService: Profile fetch error:', profileError);
-      
+
+      if (profileError) console.error('UserTaskService: User fetch error:', profileError);
+
       const familyId = profileData?.family_id;
       console.log('UserTaskService: User family_id is:', familyId);
 
@@ -67,49 +67,25 @@ export class UserTaskService {
         return [];
       }
 
-      // 3. Enrich tasks with assignee names from the 'profiles' table
-      // We collect all unique user_ids from the tasks
+      // 3. Enrich tasks with assignee names from the 'users' table
       const assigneeIds = [...new Set(tasks.map(t => t.user_id).filter(Boolean))];
       let profilesMap = {};
 
       if (assigneeIds.length > 0) {
-        console.log('UserTaskService: Fetching profiles for assignees:', assigneeIds);
-        const { data: profiles, error: profileError } = await supabase
-          .from('profiles')
-          .select('id, first_name, last_name, username')
-          .in('id', assigneeIds);
-
-        if (profileError) {
-          console.error('UserTaskService: Error fetching profiles:', profileError);
-        }
-        
-        if (profiles) {
-          console.log('UserTaskService: Found profiles:', profiles.length, '/', assigneeIds.length);
-          profilesMap = profiles.reduce((acc, p) => {
-            acc[p.id] = p;
-            return acc;
-          }, {});
-        } else {
-          console.warn('UserTaskService: No profiles returned from query');
-        }
-
-        // Also try to get names from users table as fallback
         const { data: users, error: usersError } = await supabase
           .from('users')
           .select('id, first_name, last_name, username')
           .in('id', assigneeIds);
 
-        if (users && !usersError) {
-          console.log('UserTaskService: Found users:', users.length, '/', assigneeIds.length);
-          // Use users table data as primary source, profiles as fallback
-          users.forEach(user => {
-            profilesMap[user.id] = {
-              id: user.id,
-              first_name: user.first_name,
-              last_name: user.last_name,
-              username: user.username
-            };
-          });
+        if (usersError) {
+          console.error('UserTaskService: Error fetching users:', usersError);
+        }
+
+        if (users) {
+          profilesMap = users.reduce((acc, u) => {
+            acc[u.id] = u;
+            return acc;
+          }, {});
         }
       }
 
@@ -179,7 +155,7 @@ export class UserTaskService {
   static async getCompletedTasks(userId) {
     try {
       const { data: profileData } = await supabase
-        .from('profiles')
+        .from('users')
         .select('family_id')
         .eq('id', userId)
         .maybeSingle();
@@ -209,10 +185,10 @@ export class UserTaskService {
       
       if (completedByIds.length > 0) {
         const { data: profiles } = await supabase
-          .from('profiles')
+          .from('users')
           .select('id, first_name, last_name')
           .in('id', completedByIds);
-        
+
         if (profiles) {
           namesMap = profiles.reduce((acc, p) => {
             acc[p.id] = `${p.first_name} ${p.last_name}`.trim();
@@ -240,7 +216,7 @@ export class UserTaskService {
 
   static async addUserTask(userId, task) {
     try {
-      const { data: profile } = await supabase.from('profiles').select('family_id').eq('id', userId).single();
+      const { data: profile } = await supabase.from('users').select('family_id').eq('id', userId).single();
       const dueDate = this.calculateDueDate(task.frequency_days || 30);
       
       const { data, error } = await supabase
@@ -278,8 +254,8 @@ export class UserTaskService {
 
   static async enableReminderForUser(reminderId, userId) {
     try {
-      const { data: profileData } = await supabase.from('profiles').select('*').eq('id', userId).single();
-      if (!profileData) throw new Error('User profile not found');
+      const { data: profileData } = await supabase.from('users').select('*').eq('id', userId).single();
+      if (!profileData) throw new Error('User not found');
 
       const { data: existingTask } = await supabase.from('user_tasks').select('id, enabled').eq('reminder_id', reminderId).eq('user_id', userId).maybeSingle();
       if (existingTask) {

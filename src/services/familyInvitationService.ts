@@ -39,17 +39,7 @@ export const acceptPendingInvitations = async (userId: string, userEmail: string
 
     console.log('Updated user family_id to:', invitation.family_id);
 
-    // Also update the profile family_id so profile-based family lookups work
-    const { error: profileUpdateError } = await supabase
-      .from('profiles')
-      .update({ family_id: invitation.family_id })
-      .eq('id', userId);
-
-    if (profileUpdateError) {
-      console.error('Error updating profile family_id:', profileUpdateError);
-    }
-
-    // Update the family_members entry to link it to the user profile
+    // Update the family_members entry to link it to the user
     const { error: memberUpdateError } = await supabase
       .from('family_members')
       .update({ profile_id: userId })

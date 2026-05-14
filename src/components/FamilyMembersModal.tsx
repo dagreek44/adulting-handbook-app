@@ -316,15 +316,6 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
           if (updateUsersError) {
             console.error('Error clearing family_id from users table:', updateUsersError);
           }
-
-          const { error: updateProfilesError } = await supabase
-            .from('profiles')
-            .update({ family_id: null })
-            .eq('id', memberRow.profile_id);
-
-          if (updateProfilesError) {
-            console.error('Error clearing family_id from profiles table:', updateProfilesError);
-          }
         }
         
         toast({
