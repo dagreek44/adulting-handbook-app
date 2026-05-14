@@ -113,15 +113,7 @@ export type Database = {
           role?: string | null
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "family_members_profile_id_fkey"
-            columns: ["profile_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       friend_group_invitations: {
         Row: {
@@ -328,42 +320,6 @@ export type Database = {
           status?: string
           title?: string
           updated_at?: string
-        }
-        Relationships: []
-      }
-      profiles: {
-        Row: {
-          created_at: string
-          "Email Address": string | null
-          family_id: string
-          first_login: boolean | null
-          first_name: string
-          id: string
-          last_name: string
-          updated_at: string
-          username: string
-        }
-        Insert: {
-          created_at?: string
-          "Email Address"?: string | null
-          family_id?: string
-          first_login?: boolean | null
-          first_name: string
-          id: string
-          last_name: string
-          updated_at?: string
-          username: string
-        }
-        Update: {
-          created_at?: string
-          "Email Address"?: string | null
-          family_id?: string
-          first_login?: boolean | null
-          first_name?: string
-          id?: string
-          last_name?: string
-          updated_at?: string
-          username?: string
         }
         Relationships: []
       }
@@ -598,6 +554,7 @@ export type Database = {
           created_at: string
           email: string
           family_id: string
+          first_login: boolean
           first_name: string
           id: string
           last_name: string
@@ -608,6 +565,7 @@ export type Database = {
           created_at?: string
           email: string
           family_id?: string
+          first_login?: boolean
           first_name: string
           id?: string
           last_name: string
@@ -618,6 +576,7 @@ export type Database = {
           created_at?: string
           email?: string
           family_id?: string
+          first_login?: boolean
           first_name?: string
           id?: string
           last_name?: string

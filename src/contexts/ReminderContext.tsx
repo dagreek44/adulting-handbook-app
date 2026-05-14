@@ -188,7 +188,7 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       const newTaskId = await UserTaskService.addUserTask(user.id, taskData);
       if (taskData.user_id && taskData.user_id !== user.id && taskData.due_date) {
-        const { data: profile } = await supabase.from('profiles').select('first_name, last_name').eq('id', user.id).single();
+        const { data: profile } = await supabase.from('users').select('first_name, last_name').eq('id', user.id).single();
         const creatorName = profile?.first_name ? `${profile.first_name} ${profile.last_name || ''}`.trim() : user.email?.split('@')[0] || 'A family member';
         await PushNotificationService.notifyReminderCreated(taskData.user_id, creatorName, taskData.title || 'New reminder', newTaskId);
       }
@@ -229,7 +229,7 @@ export const ReminderProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         console.error('Failed to cancel notification:', error);
       }
       if (task && task.user_id !== user?.id) {
-        const { data: profile } = await supabase.from('profiles').select('first_name, last_name').eq('id', user?.id).single();
+        const { data: profile } = await supabase.from('users').select('first_name, last_name').eq('id', user?.id).single();
         const completedByName = profile?.first_name ? `${profile.first_name} ${profile.last_name || ''}`.trim() : user?.email?.split('@')[0] || 'A family member';
         await PushNotificationService.notifyTaskCompleted(task.user_id, completedByName, task.title, taskId);
       }

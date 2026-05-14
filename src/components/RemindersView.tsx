@@ -161,7 +161,7 @@ const RemindersView = ({
       
       if (newUserId !== user?.id && task) {
         const { data: profile } = await supabase
-          .from('profiles')
+          .from('users')
           .select('first_name, last_name')
           .eq('id', user?.id)
           .single();
