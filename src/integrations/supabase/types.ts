@@ -49,6 +49,7 @@ export type Database = {
           id: string
           invitee_email: string
           inviter_id: string
+          role: string
           status: string
         }
         Insert: {
@@ -58,6 +59,7 @@ export type Database = {
           id?: string
           invitee_email: string
           inviter_id: string
+          role?: string
           status?: string
         }
         Update: {
@@ -67,6 +69,7 @@ export type Database = {
           id?: string
           invitee_email?: string
           inviter_id?: string
+          role?: string
           status?: string
         }
         Relationships: [
@@ -78,42 +81,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      family_members: {
-        Row: {
-          created_at: string
-          email: string
-          family_id: string | null
-          id: string
-          invited_at: string
-          name: string
-          profile_id: string | null
-          role: string | null
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          email: string
-          family_id?: string | null
-          id?: string
-          invited_at?: string
-          name: string
-          profile_id?: string | null
-          role?: string | null
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          email?: string
-          family_id?: string | null
-          id?: string
-          invited_at?: string
-          name?: string
-          profile_id?: string | null
-          role?: string | null
-          updated_at?: string
-        }
-        Relationships: []
       }
       friend_group_invitations: {
         Row: {

@@ -114,56 +114,69 @@ export const useSupabaseData = () => {
     }
 
     try {
-      // Ensure we have an authenticated session before querying RLS-protected tables.
-      // On native (Capacitor) startup, the session may not be restored yet on the
-      // first render, causing RLS to silently deny the query.
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData?.session) {
         console.warn('fetchFamilyMembers: no active session yet, skipping');
         return [];
       }
 
-      const { data: membersData, error: membersError } = await supabase
-        .from('family_members')
-        .select('id, name, email, role, invited_at, created_at, updated_at, profile_id, family_id')
+      // Active members: users in this family + their role
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('id, first_name, last_name, email, created_at, updated_at')
         .eq('family_id', familyId)
         .order('created_at', { ascending: true });
 
-      if (membersError) throw membersError;
+      if (usersError) throw usersError;
 
+      const userIds = (usersData || []).map(u => u.id);
+      let rolesByUser = new Map<string, 'Parent' | 'Child'>();
+      if (userIds.length > 0) {
+        const { data: rolesData } = await supabase
+          .from('user_roles')
+          .select('user_id, role')
+          .in('user_id', userIds);
+        rolesByUser = new Map(
+          (rolesData || []).map(r => [
+            r.user_id,
+            (r.role === 'child' ? 'Child' : 'Parent') as 'Parent' | 'Child',
+          ])
+        );
+      }
+
+      const activeMembers: FamilyMember[] = (usersData || []).map(u => ({
+        id: u.id,
+        profile_id: u.id,
+        name: `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || u.email,
+        email: u.email,
+        role: rolesByUser.get(u.id) ?? 'Parent',
+        invited_at: u.created_at,
+        created_at: u.created_at,
+        updated_at: u.updated_at,
+        status: 'active',
+      }));
+
+      // Pending invitations: not yet signed up
       const { data: invitationsData } = await supabase
         .from('family_invitations')
-        .select('invitee_email, status, expires_at')
-        .eq('family_id', familyId);
+        .select('id, invitee_email, status, expires_at, created_at, role')
+        .eq('family_id', familyId)
+        .eq('status', 'pending');
 
-      const invitationsMap = new Map(
-        (invitationsData || []).map(inv => [inv.invitee_email, inv])
-      );
       const now = new Date();
+      const pendingMembers: FamilyMember[] = (invitationsData || []).map(inv => ({
+        id: inv.id,
+        profile_id: null,
+        name: inv.invitee_email,
+        email: inv.invitee_email,
+        role: ((inv as any).role === 'Child' ? 'Child' : 'Parent') as 'Parent' | 'Child',
+        invited_at: inv.created_at,
+        created_at: inv.created_at,
+        updated_at: inv.created_at,
+        status: new Date(inv.expires_at) < now ? 'expired' : 'pending',
+      }));
 
-      const allMembers: FamilyMember[] = (membersData || []).map(member => {
-        const invitation = invitationsMap.get(member.email);
-        let status: 'active' | 'pending' | 'expired' = 'active';
-        if (!member.profile_id) {
-          if (invitation) {
-            status = new Date(invitation.expires_at) < now ? 'expired' : 'pending';
-          } else {
-            status = 'pending';
-          }
-        }
-        return {
-          id: member.id,
-          profile_id: member.profile_id,
-          name: member.name,
-          email: member.email,
-          role: (member.role as 'Parent' | 'Child') ?? 'Parent',
-          invited_at: member.invited_at,
-          created_at: member.created_at,
-          updated_at: member.updated_at,
-          status,
-        };
-      });
-
+      const allMembers = [...activeMembers, ...pendingMembers];
       setFamilyMembers(allMembers);
       return allMembers;
     } catch (error: any) {
@@ -174,9 +187,6 @@ export const useSupabaseData = () => {
         hint: error?.hint,
         familyId,
       });
-      // Don't surface a destructive toast — on native startup this can fire
-      // repeatedly while the auth session is being restored. The UI will
-      // simply show no members and recover on the next render.
       return [];
     }
   }, [userProfile?.family_id]);
