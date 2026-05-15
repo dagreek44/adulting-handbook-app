@@ -15,18 +15,34 @@ const Header = () => {
   useEffect(() => {
     const fetchFamilyMembers = async () => {
       if (!userProfile?.family_id || !user?.email) return;
-      
-      const { data } = await supabase
-        .from('family_members')
-        .select('name, email, role')
+
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('first_name, last_name, email')
         .eq('family_id', userProfile.family_id)
         .neq('email', user.email);
-      
-      if (data) {
-        setFamilyMembers(data);
-      }
+
+      const userRows = (usersData || []).map(u => ({
+        name: `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() || u.email,
+        email: u.email,
+        role: 'Member',
+      }));
+
+      const { data: invitations } = await supabase
+        .from('family_invitations')
+        .select('invitee_email')
+        .eq('family_id', userProfile.family_id)
+        .eq('status', 'pending');
+
+      const inviteRows = (invitations || []).map(i => ({
+        name: i.invitee_email,
+        email: i.invitee_email,
+        role: 'Pending',
+      }));
+
+      setFamilyMembers([...userRows, ...inviteRows]);
     };
-    
+
     fetchFamilyMembers();
   }, [userProfile, user]);
 
