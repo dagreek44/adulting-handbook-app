@@ -39,15 +39,15 @@ export const acceptPendingInvitations = async (userId: string, userEmail: string
 
     console.log('Updated user family_id to:', invitation.family_id);
 
-    // Update the family_members entry to link it to the user
-    const { error: memberUpdateError } = await supabase
-      .from('family_members')
-      .update({ profile_id: userId })
-      .eq('email', userEmail)
-      .eq('family_id', invitation.family_id);
+    // Assign role from invitation
+    const role = ((invitation as any).role || '').toLowerCase() === 'child' ? 'child' : 'parent';
+    const { error: roleError } = await supabase
+      .from('user_roles')
+      .insert({ user_id: userId, role: role as 'parent' | 'child' });
 
-    if (memberUpdateError) {
-      console.error('Error updating family member:', memberUpdateError);
+    if (roleError && roleError.code !== '23505') {
+      // 23505 = unique violation; safe to ignore if a role already exists
+      console.error('Error inserting user role:', roleError);
     }
 
     // Mark invitation as accepted
