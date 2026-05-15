@@ -119,35 +119,20 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
         }
       }
 
-      // Create family invitation
+      // Create family invitation (carries the invited role)
       const { error: invitationError } = await supabase
         .from('family_invitations')
         .insert({
           inviter_id: user.id,
           invitee_email: inviteData.email,
           family_id: userProfile.family_id,
-          status: 'pending'
+          status: 'pending',
+          role: inviteData.role,
         });
 
       if (invitationError) {
         console.error('Invitation error:', invitationError);
         throw new Error(`Failed to create invitation: ${invitationError.message || 'Unknown error'}`);
-      }
-
-      // Also create a pending family member entry with the role
-      const { error: memberError } = await supabase
-        .from('family_members')
-        .insert({
-          name: inviteData.name,
-          email: inviteData.email,
-          role: inviteData.role,
-          profile_id: null,
-          family_id: userProfile.family_id
-        });
-
-      if (memberError) {
-        console.error('Family member error:', memberError);
-        throw new Error(`Failed to add family member: ${memberError.message || 'Unknown error'}`);
       }
 
       // Send invitation email
