@@ -251,24 +251,13 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
 
     try {
       if (memberStatus === 'pending' || memberStatus === 'expired') {
-        // Cancel pending invitation and remove family member entry
-        const memberToRemove = familyMembers.find(m => m.id === memberId);
-        
-        if (memberToRemove) {
-          // Delete from family_invitations
-          await supabase
-            .from('family_invitations')
-            .delete()
-            .eq('invitee_email', memberToRemove.email);
-          
-          // Delete from family_members
-          const { error } = await supabase
-            .from('family_members')
-            .delete()
-            .eq('id', memberId);
+        // memberId for pending entries is the family_invitations.id
+        const { error } = await supabase
+          .from('family_invitations')
+          .delete()
+          .eq('id', memberId);
 
-          if (error) throw error;
-        }
+        if (error) throw error;
 
         toast({
           title: "Invitation Cancelled",
@@ -276,33 +265,22 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
           duration: 3000,
         });
       } else {
-        // Look up the family_members row to get profile_id before deleting
-        const { data: memberRow } = await supabase
-          .from('family_members')
-          .select('profile_id')
-          .eq('id', memberId)
-          .maybeSingle();
-
-        // Delete from family_members
-        const { error: deleteError } = await supabase
-          .from('family_members')
-          .delete()
+        // memberId for active entries is the user's id.
+        // Move them to a fresh family_id so they leave this household
+        // (users.family_id is NOT NULL) and remove their parent/child role.
+        const { error: updateUsersError } = await supabase
+          .from('users')
+          .update({ family_id: crypto.randomUUID() })
           .eq('id', memberId);
 
-        if (deleteError) throw deleteError;
+        if (updateUsersError) throw updateUsersError;
 
-        // Clear family_id from users table so they can be re-invited
-        if (memberRow?.profile_id) {
-          const { error: updateUsersError } = await supabase
-            .from('users')
-            .update({ family_id: null })
-            .eq('id', memberRow.profile_id);
+        await supabase
+          .from('user_roles')
+          .delete()
+          .eq('user_id', memberId)
+          .in('role', ['parent', 'child']);
 
-          if (updateUsersError) {
-            console.error('Error clearing family_id from users table:', updateUsersError);
-          }
-        }
-        
         toast({
           title: "Member Removed",
           description: "Family member has been removed from your household.",
