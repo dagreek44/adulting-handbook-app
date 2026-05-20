@@ -27,6 +27,7 @@ interface FamilyMembersModalProps {
 
 const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }: FamilyMembersModalProps) => {
   const [showInviteForm, setShowInviteForm] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const [inviteData, setInviteData] = useState({ name: '', email: '', role: 'Parent' as 'Parent' | 'Child' });
   const [isInviting, setIsInviting] = useState(false);
   const [isParent, setIsParent] = useState(false);
