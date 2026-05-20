@@ -441,6 +441,16 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
             </button>
           ) : null}
 
+          <button
+            onClick={() => setShowReport(true)}
+            className="w-full bg-blue-soft text-white py-3 rounded-lg font-medium hover:bg-blue-400 transition-colors flex items-center justify-center"
+          >
+            <BarChart3 className="w-5 h-5 mr-2" />
+            Build Family Report
+          </button>
+
+
+
           <div className="bg-blue-soft/10 p-4 rounded-lg">
             <h3 className="font-medium text-gray-800 mb-2">Family Benefits</h3>
             <ul className="text-sm text-gray-600 space-y-1">
