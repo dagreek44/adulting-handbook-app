@@ -462,6 +462,7 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
           </div>
         </div>
       </DialogContent>
+      <FamilyReportModal isOpen={showReport} onClose={() => setShowReport(false)} />
     </Dialog>
   );
 };
