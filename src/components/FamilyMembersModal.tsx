@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { X, Plus, Users, Mail, Trash2 } from 'lucide-react';
+import { X, Plus, Users, Mail, Trash2, BarChart3 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
+import FamilyReportModal from './FamilyReportModal';
 
 interface FamilyMember {
   id: string;
@@ -26,6 +27,7 @@ interface FamilyMembersModalProps {
 
 const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }: FamilyMembersModalProps) => {
   const [showInviteForm, setShowInviteForm] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const [inviteData, setInviteData] = useState({ name: '', email: '', role: 'Parent' as 'Parent' | 'Child' });
   const [isInviting, setIsInviting] = useState(false);
   const [isParent, setIsParent] = useState(false);
@@ -439,6 +441,16 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
             </button>
           ) : null}
 
+          <button
+            onClick={() => setShowReport(true)}
+            className="w-full bg-blue-soft text-white py-3 rounded-lg font-medium hover:bg-blue-400 transition-colors flex items-center justify-center"
+          >
+            <BarChart3 className="w-5 h-5 mr-2" />
+            Build Family Report
+          </button>
+
+
+
           <div className="bg-blue-soft/10 p-4 rounded-lg">
             <h3 className="font-medium text-gray-800 mb-2">Family Benefits</h3>
             <ul className="text-sm text-gray-600 space-y-1">
@@ -450,6 +462,7 @@ const FamilyMembersModal = ({ isOpen, onClose, familyMembers, onUpdateMembers }:
           </div>
         </div>
       </DialogContent>
+      <FamilyReportModal isOpen={showReport} onClose={() => setShowReport(false)} />
     </Dialog>
   );
 };
