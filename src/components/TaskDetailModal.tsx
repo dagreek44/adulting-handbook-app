@@ -178,15 +178,19 @@ const TaskDetailModal = ({ isOpen, onClose, task, onComplete, familyMembers = []
                 {task.tools.map((tool, index) => {
                   const toolName = typeof tool === 'string' ? tool : tool.name || 'Tool';
                   return (
-                    <li key={index} className="flex items-center justify-between text-sm text-gray-600">
-                      <span>{toolName}</span>
+                    <li
+                      key={index}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 hover:border-gray-300 transition-colors"
+                    >
+                      <span className="text-sm text-gray-700 font-medium">{toolName}</span>
                       {task.isGlobalReminder && (
                         <button
                           onClick={() => openAmazonLink(toolName)}
-                          className="flex items-center text-blue-600 hover:text-blue-800 text-xs"
+                          className="inline-flex items-center gap-1.5 rounded-full bg-[#FF9900] px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-[#e88a00] transition-colors"
+                          aria-label={`Shop ${toolName} on Amazon`}
                         >
-                          <ShoppingCart className="w-3 h-3 mr-1" />
-                          Shop
+                          <ShoppingCart className="w-3 h-3" />
+                          Shop on Amazon
                         </button>
                       )}
                     </li>
@@ -203,15 +207,19 @@ const TaskDetailModal = ({ isOpen, onClose, task, onComplete, familyMembers = []
                 {task.supplies.map((supply, index) => {
                   const supplyName = typeof supply === 'string' ? supply : supply.name || 'Supply';
                   return (
-                    <li key={index} className="flex items-center justify-between text-sm text-gray-600">
-                      <span>{supplyName}</span>
+                    <li
+                      key={index}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 hover:border-gray-300 transition-colors"
+                    >
+                      <span className="text-sm text-gray-700 font-medium">{supplyName}</span>
                       {task.isGlobalReminder && (
                         <button
                           onClick={() => openAmazonLink(supplyName)}
-                          className="flex items-center text-blue-600 hover:text-blue-800 text-xs"
+                          className="inline-flex items-center gap-1.5 rounded-full bg-[#FF9900] px-3 py-1 text-xs font-semibold text-white shadow-sm hover:bg-[#e88a00] transition-colors"
+                          aria-label={`Shop ${supplyName} on Amazon`}
                         >
-                          <ShoppingCart className="w-3 h-3 mr-1" />
-                          Shop
+                          <ShoppingCart className="w-3 h-3" />
+                          Shop on Amazon
                         </button>
                       )}
                     </li>
